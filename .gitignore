@@ -1,0 +1,8 @@
+/dist/
+*.exe
+# Per-user runtime files
+config.json
+config.*.json
+devices.json
+devices.json.tmp
+*.log

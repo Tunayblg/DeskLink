@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - run: go vet ./...
+      - run: go test ./...
+      - run: go build -trimpath -ldflags "-s -w -H windowsgui" -o dist/desklink.exe ./cmd/desklink
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desklink-windows
+          path: dist/desklink.exe
