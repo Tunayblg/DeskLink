@@ -1,6 +1,10 @@
 package config
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestDefaultIsValid(t *testing.T) {
 	c, err := Parse([]byte(Default))
@@ -44,6 +48,58 @@ func TestGames(t *testing.T) {
 	}
 	if a, _ := c.Find("exegame"); a.Target != `C:\Games\game.exe` || a.Args != "-windowed" {
 		t.Errorf("exe launch = %+v", a)
+	}
+}
+
+func TestSetGamesAndSave(t *testing.T) {
+	c, err := Parse([]byte(Default))
+	if err != nil {
+		t.Fatal(err)
+	}
+	edit := c.Clone()
+	edit.SetGames([]Game{
+		{ID: "cs2", Name: "CS2", SteamAppID: 730},
+		{ID: "mine", Name: "Mine", Target: `C:\Games\mine.exe`},
+	}, map[string]bool{"mine": true})
+
+	path := filepath.Join(t.TempDir(), "config.json")
+	saved, err := edit.Save(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !saved.Pinned()["mine"] || saved.Pinned()["cs2"] {
+		t.Fatalf("pinned = %v", saved.Pinned())
+	}
+	home := saved.Groups[saved.HomeGroup()]
+	if home.Buttons[0].ID != "q_mine" || home.Buttons[0].Action.Target != "mine" {
+		t.Fatalf("home buttons = %+v", home.Buttons)
+	}
+	if len(c.Games) != 0 {
+		t.Fatal("Clone shared state with the original")
+	}
+
+	// Removing a game also removes its button; the old file is kept as .bak.
+	edit2 := saved.Clone()
+	edit2.SetGames([]Game{{ID: "cs2", Name: "CS2", SteamAppID: 730}}, map[string]bool{"mine": true})
+	saved2, err := edit2.Save(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(saved2.Pinned()) != 0 {
+		t.Fatalf("button for a removed game survived: %v", saved2.Pinned())
+	}
+	if _, err := os.Stat(path + ".bak"); err != nil {
+		t.Fatal("no backup written")
+	}
+
+	// Invalid configs are refused and the file is left alone.
+	bad := saved2.Clone()
+	bad.SetGames([]Game{{ID: "x", Name: "X"}}, nil) // neither target nor steam_appid
+	if _, err := bad.Save(path); err == nil {
+		t.Fatal("invalid config saved")
+	}
+	if again, err := Load(path); err != nil || len(again.Games) != 1 {
+		t.Fatalf("file changed after a refused save: %v %+v", err, again)
 	}
 }
 

@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/Tunayblg/DeskLink/internal/config"
@@ -103,20 +104,68 @@ var (
 	notTheGame = regexp.MustCompile(`(?i)crash|unins|redist|setup|helper|report|cef|battleye|easyanticheat|^beservice|launcher|vc_|dxsetup|ue4prereq|_be\.exe$`)
 )
 
-// steamGameExe guesses a Steam game's main executable: the largest .exe in
-// its install folder that is not a known helper. Set icon_from to override.
-func steamGameExe(appID int) string {
+// SteamGame is an installed Steam game.
+type SteamGame struct {
+	AppID int    `json:"appid"`
+	Name  string `json:"name"`
+}
+
+var (
+	vdfAppID = regexp.MustCompile(`"appid"\s+"(\d+)"`)
+	vdfName  = regexp.MustCompile(`"name"\s+"([^"]+)"`)
+)
+
+// SteamGames lists the games installed in every Steam library on this PC,
+// skipping Steam's own redistributable packages and tools.
+func SteamGames() []SteamGame {
+	var out []SteamGame
+	seen := map[int]bool{}
+	for _, lib := range steamLibraries() {
+		files, _ := filepath.Glob(filepath.Join(lib, "steamapps", "appmanifest_*.acf"))
+		for _, f := range files {
+			b, err := os.ReadFile(f)
+			if err != nil {
+				continue
+			}
+			id, name := vdfAppID.FindSubmatch(b), vdfName.FindSubmatch(b)
+			if id == nil || name == nil {
+				continue
+			}
+			n := 0
+			fmt.Sscan(string(id[1]), &n)
+			lower := strings.ToLower(string(name[1]))
+			if n == 0 || seen[n] || strings.Contains(lower, "redistributable") || strings.Contains(lower, "steamworks") || strings.HasPrefix(lower, "proton") {
+				continue
+			}
+			seen[n] = true
+			out = append(out, SteamGame{AppID: n, Name: string(name[1])})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name) })
+	return out
+}
+
+func steamLibraries() []string {
 	root := steamPath()
 	if root == "" {
-		return ""
+		return nil
 	}
 	libs := []string{root}
 	if b, err := os.ReadFile(filepath.Join(root, "steamapps", "libraryfolders.vdf")); err == nil {
 		for _, m := range vdfPath.FindAllSubmatch(b, -1) {
-			libs = append(libs, strings.ReplaceAll(string(m[1]), `\\`, `\`))
+			p := strings.ReplaceAll(string(m[1]), `\\`, `\`)
+			if !strings.EqualFold(filepath.Clean(p), filepath.Clean(root)) {
+				libs = append(libs, p)
+			}
 		}
 	}
-	for _, lib := range libs {
+	return libs
+}
+
+// steamGameExe guesses a Steam game's main executable: the largest .exe in
+// its install folder that is not a known helper. Set icon_from to override.
+func steamGameExe(appID int) string {
+	for _, lib := range steamLibraries() {
 		b, err := os.ReadFile(filepath.Join(lib, "steamapps", fmt.Sprintf("appmanifest_%d.acf", appID)))
 		if err != nil {
 			continue

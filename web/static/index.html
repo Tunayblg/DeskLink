@@ -26,6 +26,9 @@
   <button class="tab" type="button" data-view="stats" aria-label="Stats">
     <svg viewBox="0 0 24 24"><path d="M4.5 17a8.5 8.5 0 1 1 15 0"/><path d="M12 13.5 16 8.5"/><circle cx="12" cy="14" r="1.6"/></svg>
   </button>
+  <button class="tab" type="button" data-view="clock" aria-label="Clock">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+  </button>
   <span class="tab-pill" id="tab-pill"></span>
 </nav>
 
@@ -82,12 +85,21 @@
     <p class="no-gpu" id="no-gpu" hidden data-t="noGpu">No NVIDIA GPU found. GPU stats are only available for NVIDIA cards for now.</p>
   </section>
 
+  <section class="view clock-view" id="view-clock">
+    <div class="face tach" id="face-tach"></div>
+    <div class="face simple" id="face-simple"></div>
+    <div class="face-dots" id="face-dots">
+      <button type="button" data-face="tach" aria-label="Rev counter clock"><i></i></button>
+      <button type="button" data-face="simple" aria-label="Simple clock"><i></i></button>
+    </div>
+  </section>
+
   <section class="view pair" id="view-pair">
     <div class="pair-box">
       <h1 data-t="pairTitle">Pair this device</h1>
-      <p data-t="pairHint">Enter the 6-digit PIN shown on your PC.</p>
+      <p data-t="pairHint">Scan the QR code on your PC with the camera, or enter the code shown under it.</p>
       <form id="pair-form" autocomplete="off">
-        <input id="pin" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="••••••" aria-label="PIN">
+        <input id="pin" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="••••••" aria-label="Code" autocomplete="one-time-code">
         <button type="submit" data-t="pair">Pair</button>
       </form>
       <p id="pair-error" class="error" role="alert"></p>
@@ -110,8 +122,11 @@
   </div>
 </div>
 
+<button type="button" class="a2hs" id="a2hs" data-t="a2hs" hidden>Paired. For full screen, tap Share, then Add to Home Screen.</button>
+
 <div id="toast" class="toast" role="status"></div>
 <script src="icons.js"></script>
+<script src="clock.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

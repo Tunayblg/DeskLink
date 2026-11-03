@@ -53,7 +53,7 @@
 | `keys` | `keys`: 1–4 key names | Presses a key combination. |
 | `system` | `command`: `lock` or `sleep` | Locks the PC or puts it to sleep. |
 | `game` | `target`: a game `id` | Launches one of your `games`. |
-| `page` | `target`: `home`, `games` or `stats` | Switches the phone to another screen. |
+| `page` | `target`: `home`, `games`, `stats` or `clock` | Switches the phone to another screen. |
 
 Set `"confirm": true` on a button to ask before it runs.
 
@@ -62,6 +62,8 @@ Set `"confirm": true` on a button to ask before it runs.
 **Icons:** `music` `play-pause` `prev` `next` `volume-down` `volume-up` `mute` `screenshot` `lock` `moon` `gamepad` `folder` `monitor` `mic` `mic-off` `globe` `terminal` `power`. Any other value is shown as text, so an emoji works too.
 
 ## Games
+
+The easiest way to add games is the dashboard: open it from the tray icon, go to **Games** and choose **Add game**. You can paste a path (quotes from Explorer's *Copy as path* are fine), browse for the program, or pick an installed Steam game. Changes are saved to `config.json` and show up on connected phones right away. Everything below can also be set by hand.
 
 - **Steam:** set `steam_appid` (the number in the game's store URL). DeskLink launches it through Steam, uses the cover art from your local Steam library, and takes the icon from the game's main executable.
 - **Anything else:** set `target` to the game's `.exe` (plus `args` if needed). If the game is started through a launcher, set `icon_from` to the game's own executable so the tile shows the right icon.

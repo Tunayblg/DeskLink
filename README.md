@@ -19,7 +19,8 @@ Media controls with cover art, a drag-to-set volume slider, one-tap game launche
 - 📱 **No app to install.** Open it in the phone's browser and add it to the home screen.
 - 🪶 **Featherweight.** One small `.exe`, about 8 MB of RAM, 0% CPU when idle.
 - 🎮 **Made for gaming.** Launch a game and the phone turns into a live hardware monitor.
-- 🔒 **Private.** Stays on your Wi-Fi. No cloud, no account, PIN pairing.
+- 🔒 **Private.** Stays on your Wi-Fi. No cloud, no account. Pair by scanning a QR code.
+- 🖥️ **Easy to manage.** Add games and phones from a desktop dashboard.
 - 🕰️ **Runs on old devices.** Built and tested on an iPhone 6s.
 
 ## Screens
@@ -33,21 +34,33 @@ Media controls with cover art, a drag-to-set volume slider, one-tap game launche
     <td><img src="docs/images/launch.png" alt="Launch"><br><b>Launch animation</b></td>
     <td><img src="docs/images/stats.png" alt="Game mode"><br><b>Live game mode stats</b></td>
   </tr>
+  <tr>
+    <td colspan="2"><img src="docs/images/clock.png" alt="Clock"><br><b>Desk clock</b>, a rev-counter dial with shift lights for the seconds. Swipe for a minimal analog face.</td>
+  </tr>
+</table>
+
+## Manage it from your PC
+
+A clean desktop dashboard lives in the tray. Add a phone by scanning a QR code, see who is connected, and set up your games without touching a config file.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/dashboard-games.png" alt="Games in the dashboard"><br><b>Your games</b>, shown on the phone instantly</td>
+    <td width="50%"><img src="docs/images/dashboard-edit.png" alt="Adding a game"><br><b>Add any game</b>: paste a path, browse, or pick from Steam</td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/dashboard-pair.png" alt="Pairing with a QR code"><br><b>Pair with a QR code</b>, the code changes every 30 s</td>
+    <td><img src="docs/images/dashboard-devices.png" alt="Devices"><br><b>All your devices</b> in one place</td>
+  </tr>
 </table>
 
 ## Get started
 
 1. Download **[desklink.exe](https://github.com/Tunayblg/DeskLink/releases/latest)** and run it.
-2. Open the address from the dashboard on your phone (same Wi-Fi).
-3. Add it to the home screen and enter the PIN.
+2. Scan the QR code in the dashboard with your phone's camera (same Wi-Fi).
+3. Add it to the home screen.
 4. Done. Right-click the tray icon to have it start with Windows.
 
-Want your own buttons, apps and games? See the **[configuration guide](docs/CONFIG.md)**.
-
-<details>
-<summary><b>PC dashboard</b></summary>
-<br>
-<img src="docs/images/dashboard.png" alt="Dashboard" width="100%">
-</details>
+Want your own buttons and layouts? See the **[configuration guide](docs/CONFIG.md)**.
 
 <sub>Windows 10/11 · any modern phone or tablet browser · GPU stats need an NVIDIA card</sub>

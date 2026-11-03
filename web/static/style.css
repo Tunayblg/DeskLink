@@ -252,28 +252,25 @@ body.pairing .rail .tab, body.pairing .tab-pill { visibility: hidden; }
 }
 .group-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
 
-/* Media: now playing, CarPlay style. The cover is shown large and, blurred,
-   fills the whole card; controls are plain white glyphs on top of it. */
-.group.media { overflow: hidden; background: #0d0f15; }
+/* Media: now playing. The cover is shown large; the card behind it takes on
+   the cover's two main colors as soft glows (see palette() in app.js). */
+.group.media { overflow: hidden; background: #0c0d12; }
 .group.media .group-title { display: none; }
 .group.media .group-body { position: relative; z-index: 1; gap: 12px; }
 
 .np-bg { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 0; }
 .np-bg i {
   position: absolute;
-  top: -15%; right: -15%; bottom: -15%; left: -15%;
-  background-size: cover;
-  background-position: center;
+  top: 0; right: 0; bottom: 0; left: 0;
   opacity: 0;
-  transform: scale(1.06);
-  transition: opacity 1s var(--ease), transform 1.6s var(--ease);
+  transition: opacity 1.2s var(--ease);
 }
-.np-bg i.shown { opacity: .85; transform: none; }
-/* Darken towards the bottom so the controls stay readable on any cover. */
+.np-bg i.shown { opacity: 1; }
+/* A faint top sheen and a darker base keep the glows calm and the controls readable. */
 .np-bg::after {
   position: absolute;
   top: 0; right: 0; bottom: 0; left: 0;
-  background: linear-gradient(180deg, rgba(8, 9, 13, .28) 0%, rgba(8, 9, 13, .5) 45%, rgba(8, 9, 13, .82) 100%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .03) 0%, rgba(8, 9, 13, 0) 30%, rgba(8, 9, 13, .45) 100%);
   content: "";
 }
 
@@ -281,8 +278,8 @@ body.pairing .rail .tab, body.pairing .tab-pill { visibility: hidden; }
 .np-art {
   position: relative;
   flex: 0 0 auto;
-  width: 124px;
-  height: 124px;
+  width: 142px;
+  height: 142px;
   overflow: hidden;
   border-radius: 14px;
   background: rgba(255, 255, 255, .06);
@@ -335,51 +332,54 @@ body.pairing .rail .tab, body.pairing .tab-pill { visibility: hidden; }
 }
 .np-artist { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; color: rgba(255, 255, 255, .7); }
 
-.np-progress { display: flex; align-items: center; gap: 10px; font-size: 11px; color: rgba(255, 255, 255, .6); font-variant-numeric: tabular-nums; }
-.np-progress .track { position: relative; flex: 1; height: 4px; overflow: hidden; border-radius: 2px; background: rgba(255, 255, 255, .2); }
+/* Progress: a slim rounded track, times underneath (elapsed · remaining). */
+.np-progress { display: flex; flex-direction: column; gap: 6px; }
+.np-progress .track { position: relative; height: 5px; overflow: hidden; border-radius: 3px; background: rgba(255, 255, 255, .16); }
 .np-progress .track i {
   position: absolute;
   top: 0; left: 0; bottom: 0;
   width: 100%;
-  background: #fff;
   border-radius: inherit;
-  transform: scaleX(0);
-  transform-origin: left;
+  background: rgba(255, 255, 255, .85);
+  transform: translateX(-100%);
+}
+.np-progress .times {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, .5);
+  font-variant-numeric: tabular-nums;
 }
 .np.idle ~ .np-progress { opacity: .35; }
 
+/* Transport: big filled glyphs, no buttons drawn around them (as in Apple
+   Music). A soft disc blooms behind a glyph only while it is pressed. */
 .transport { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; gap: 34px; }
 .tbtn { width: 52px; height: 52px; border-radius: 50%; color: #fff; }
-.tbtn svg { width: 30px; height: 30px; fill: currentColor; stroke: none; transition: transform .2s var(--ease); }
+.tbtn svg { width: 28px; height: 28px; fill: currentColor; stroke: none; transition: transform .25s var(--ease), opacity .2s; }
 .tbtn::before {
   position: absolute;
   top: 0; right: 0; bottom: 0; left: 0;
   border-radius: inherit;
-  background: rgba(255, 255, 255, .16);
+  background: rgba(255, 255, 255, .14);
   opacity: 0;
-  transform: scale(.6);
+  transform: scale(.5);
   content: "";
-  transition: opacity .3s, transform .3s var(--ease);
+  transition: opacity .35s, transform .35s var(--ease);
 }
-.tbtn.pressed::before { opacity: 1; transform: none; transition-duration: .06s; }
-.tbtn.pressed svg { transform: scale(.88); }
-/* Play/pause: a frosted-glass disc (translucent fill and a light edge; no backdrop blur). */
-.tbtn.main {
-  width: 66px;
-  height: 66px;
-  background: rgba(255, 255, 255, .16);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), inset 0 0 0 1px rgba(255, 255, 255, .14), 0 10px 26px -10px rgba(0, 0, 0, .7);
-}
-.tbtn.main svg { width: 30px; height: 30px; }
-.tbtn.main::before { background: rgba(255, 255, 255, .22); transform: none; }
+.tbtn.pressed::before { opacity: 1; transform: none; transition-duration: .08s; }
+.tbtn.pressed svg { transform: scale(.84); opacity: .8; }
+.tbtn.main { width: 62px; height: 62px; }
+.tbtn.main svg { width: 40px; height: 40px; }
 
-.vol { display: flex; align-items: center; gap: 10px; height: 44px; }
+.vol { display: flex; align-items: center; gap: 10px; height: 50px; margin-bottom: 6px; }
 
 /* Mute: a small glass disc matching the play button. */
 .vbtn {
-  flex: 0 0 40px;
-  width: 40px;
-  height: 40px;
+  flex: 0 0 46px;
+  width: 46px;
+  height: 46px;
   border-radius: 50%;
   background: rgba(255, 255, 255, .1);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16), inset 0 0 0 1px rgba(255, 255, 255, .08);
@@ -405,9 +405,9 @@ body.pairing .rail .tab, body.pairing .tab-pill { visibility: hidden; }
 .slider {
   position: relative;
   flex: 1;
-  height: 40px;
+  height: 48px;
   overflow: hidden;
-  border-radius: 20px;
+  border-radius: 24px;
   background: rgba(255, 255, 255, .12);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1), inset 0 0 0 1px rgba(255, 255, 255, .06);
   touch-action: none;
@@ -421,11 +421,19 @@ body.pairing .rail .tab, body.pairing .tab-pill { visibility: hidden; }
   position: absolute;
   top: 0; left: 0; bottom: 0;
   width: 100%;
+  border-radius: inherit; /* rounded leading edge */
   background: linear-gradient(90deg, rgba(255, 255, 255, .78), #fff);
   transform: translateX(-100%);
   transition: transform .35s var(--ease), opacity .3s;
 }
 .slider.dragging i { transition-duration: .05s; }
+/* Safari does not always clip a transformed child to its parent's rounded
+   corners (the fill then shows square ends, especially while the parent itself
+   is scaling). A mask makes it clip reliably. */
+.slider, .np-progress .track, .bar, .np-art {
+  -webkit-mask-image: -webkit-radial-gradient(white, black);
+  isolation: isolate;
+}
 .vol.muted .slider i { opacity: .3; }
 .slider .spk {
   position: absolute;
@@ -855,6 +863,87 @@ body.pairing .rail .tab, body.pairing .tab-pill { visibility: hidden; }
 
 .no-gpu { position: absolute; bottom: 12px; left: 0; right: 0; margin: 0; text-align: center; font-size: 12px; color: var(--muted); }
 
+/* ---------- Clock ---------- */
+
+/* A plain black screen: the gradients, the connection banner and the rail go
+   away; a tap brings the rail back for a few seconds (body.rail-peek). */
+body.clock-mode { background: #000; }
+body { position: relative; }
+body.clock-mode .conn { display: none; }
+body.clock-mode .rail {
+  position: absolute;
+  z-index: 8;
+  top: 0; bottom: 0; left: 0;
+  background: #07080c;
+  border-right-color: rgba(255, 255, 255, .05);
+  opacity: 0;
+  transform: translateX(-100%);
+  pointer-events: none;
+  transition: transform .45s var(--ease), opacity .35s;
+}
+body.clock-mode.rail-peek .rail { opacity: 1; transform: none; pointer-events: auto; }
+
+.clock-view { padding: 0; background: #000; }
+.face {
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: scale(.96);
+  transition: opacity .6s var(--ease), transform .8s var(--ease);
+  pointer-events: none;
+}
+.face.on { opacity: 1; transform: none; }
+.face svg { width: auto; height: 94%; max-width: 94%; overflow: visible; }
+
+.tach .num {
+  font: italic 800 30px -apple-system, "Segoe UI", Roboto, sans-serif;
+  fill: #111;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+.tach .digital { font: 600 21px -apple-system, "Segoe UI", sans-serif; fill: #f6c400; text-anchor: middle; dominant-baseline: central; letter-spacing: .04em; }
+.tach .digital .ss { font-size: 13px; fill: rgba(246, 196, 0, .55); }
+.hand { transform-origin: 200px 200px; transition: transform .6s cubic-bezier(.4, 1.5, .6, 1); }
+/* Ignition spin: one fast turn that settles with a slight overshoot, like a needle on a spring. */
+.tach .hand.settle { transition: transform 1.35s cubic-bezier(.3, .9, .35, 1.08); }
+.tach .led { transition: fill .12s; }
+
+.simple .sec { transition: none; }
+.simple .sec.run { animation: spin 60s linear infinite; }
+.simple .date, .simple .digital {
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+  fill: #fff;
+  text-anchor: middle;
+  dominant-baseline: central;
+  font-variant-numeric: tabular-nums;
+}
+.simple .date { font-size: 15px; font-weight: 500; letter-spacing: .06em; fill-opacity: .4; text-transform: uppercase; }
+.simple .digital { font-size: 22px; font-weight: 300; letter-spacing: .05em; fill-opacity: .5; }
+
+/* Swiping slides the faces sideways in the swipe direction. */
+.clock-view[data-dir="next"] .face:not(.on) { transform: translateX(-40px) scale(.96); }
+.clock-view[data-dir="prev"] .face:not(.on) { transform: translateX(40px) scale(.96); }
+
+.face-dots {
+  position: absolute;
+  z-index: 3;
+  bottom: 10px;
+  left: 50%;
+  display: flex;
+  gap: 4px;
+  transform: translateX(-50%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .35s;
+}
+body.rail-peek .face-dots { opacity: 1; pointer-events: auto; }
+.face-dots button { padding: 10px; border: 0; background: none; }
+.face-dots i { display: block; width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, .25); transition: background-color .3s, transform .3s var(--ease); }
+.face-dots .on i { background: #fff; transform: scale(1.2); }
+
 /* ---------- Pairing ---------- */
 
 .pair { display: flex; align-items: center; justify-content: center; }
@@ -959,6 +1048,24 @@ body.pairing .rail .tab, body.pairing .tab-pill { visibility: hidden; }
 .launch.fail .launch-info span { color: #fda4af; }
 
 @keyframes breathe { 50% { transform: scale(1.03); } }
+
+/* Shown once in Safari after pairing: how to get the full-screen app. Tap to dismiss. */
+.a2hs {
+  position: fixed;
+  z-index: 12;
+  top: calc(10px + env(safe-area-inset-top));
+  left: 50%;
+  max-width: 86%;
+  padding: 10px 16px;
+  border: 1px solid rgba(56, 189, 248, .35);
+  border-radius: 14px;
+  background: #102033;
+  color: #dbeafe;
+  font: inherit;
+  font-size: 13px;
+  transform: translateX(-50%);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, .8);
+}
 
 /* ---------- Rotate hint & toast ---------- */
 

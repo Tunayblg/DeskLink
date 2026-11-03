@@ -17,6 +17,8 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"regexp"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -69,9 +71,7 @@ func main() {
 		fatal(fmt.Sprintf("Port %d is used by another program. Change \"port\" in config.json.\n\n%v", cfg.Port, err))
 	}
 
-	store, err := auth.Open(filepath.Join(dataDir, "devices.json"), func(pin string) {
-		log.Printf("Pairing PIN: %s", pin)
-	})
+	store, err := auth.Open(filepath.Join(dataDir, "devices.json"))
 	if err != nil {
 		fatal("devices.json: " + err.Error())
 	}
@@ -79,6 +79,8 @@ func main() {
 	app := server.New(cfg, store, web.Files, art.Load(cfg.Games))
 	app.Version = version
 	app.AdminPage = web.AdminPage
+	app.ConfigPath = filepath.Join(dataDir, "config.json")
+	app.ChooseProgram = func() (string, bool) { return desktop.ChooseProgram("Choose a program") }
 	for _, ip := range lanIPs() {
 		app.Addresses = append(app.Addresses, fmt.Sprintf("http://%s:%d", ip, cfg.Port))
 	}
@@ -174,20 +176,40 @@ func fatal(msg string) {
 	os.Exit(1)
 }
 
-// lanIPs lists this PC's private IPv4 addresses, which is what the phone needs.
+// lanIPs lists this PC's private IPv4 addresses, best guess first: real
+// network adapters only (no Hyper-V/WSL, VPN or VM switches), home networks
+// (192.168.x) before others. The dashboard's QR code uses the first one.
 func lanIPs() []string {
-	var out []string
+	virtual := regexp.MustCompile(`(?i)vethernet|hyper-v|wsl|virtual|vmware|vbox|loopback|bluetooth|vpn|tailscale|zerotier|radmin|hamachi`)
+	type cand struct {
+		ip   string
+		rank int
+	}
+	var list []cand
 	ifaces, _ := net.Interfaces()
 	for _, iface := range ifaces {
-		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 || virtual.MatchString(iface.Name) {
 			continue
 		}
 		addrs, _ := iface.Addrs()
 		for _, a := range addrs {
-			if n, ok := a.(*net.IPNet); ok && n.IP.To4() != nil && n.IP.IsPrivate() {
-				out = append(out, n.IP.String())
+			n, ok := a.(*net.IPNet)
+			if !ok || n.IP.To4() == nil || !n.IP.IsPrivate() {
+				continue
 			}
+			rank := 2
+			if ip := n.IP.To4(); ip[0] == 192 && ip[1] == 168 {
+				rank = 0
+			} else if ip[0] == 10 {
+				rank = 1
+			}
+			list = append(list, cand{n.IP.String(), rank})
 		}
+	}
+	sort.SliceStable(list, func(i, j int) bool { return list[i].rank < list[j].rank })
+	out := make([]string, len(list))
+	for i, c := range list {
+		out[i] = c.ip
 	}
 	return out
 }

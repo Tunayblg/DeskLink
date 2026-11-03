@@ -4,7 +4,7 @@
 
   var TOKEN_KEY = "desklink.token";
   var VIEW_KEY = "desklink.view";
-  var VIEWS = ["home", "games", "stats"];
+  var VIEWS = ["home", "games", "stats", "clock"];
   var RETRY_MAX = 10000;
   var HISTORY = 60;
   var STATS_AFTER_LAUNCH = 1600; // ms before switching to stats after a game starts
@@ -17,9 +17,12 @@
   var STR = {
     en: {
       connecting: "Connecting…", offline: "PC offline · retrying in {}s", notPaired: "Not paired",
-      notConnected: "Not connected to PC", unpaired: "This device is no longer paired. Enter a new PIN.",
-      pinDigits: "The PIN has 6 digits.", pairFailed: "Pairing failed", unreachable: "Cannot reach the PC.",
-      pairTitle: "Pair this device", pairHint: "Enter the 6-digit PIN shown on your PC.", pair: "Pair",
+      notConnected: "Not connected to PC", unpaired: "This device is no longer paired. Scan the QR code on your PC again.",
+      codeDigits: "The code has 6 digits.", pairFailed: "Pairing failed", unreachable: "Cannot reach the PC.",
+      badCode: "Wrong or expired code. Try the one on screen now.", tooMany: "Too many tries. Wait for the next code.",
+      expiredLink: "This link has expired. Enter the code shown on your PC.",
+      a2hs: "Paired. For full screen, tap Share, then Add to Home Screen.",
+      pairTitle: "Pair this device", pairHint: "Scan the QR code on your PC with the camera, or enter the code shown under it.", pair: "Pair",
       rotate: "Rotate your phone", noGames: "No games yet. Add them to config.json on your PC.",
       notPlaying: "Not playing", nothingPlaying: "Nothing playing", startMusic: "Start music on your PC",
       paused: "Paused", media: "Media", play: "PLAY",
@@ -30,9 +33,12 @@
     },
     tr: {
       connecting: "Bağlanıyor…", offline: "Bilgisayar kapalı · {} sn sonra tekrar", notPaired: "Eşleşmedi",
-      notConnected: "Bilgisayara bağlı değil", unpaired: "Bu cihazın eşleşmesi kaldırıldı. Yeni PIN'i gir.",
-      pinDigits: "PIN 6 haneli olmalı.", pairFailed: "Eşleşme başarısız", unreachable: "Bilgisayara ulaşılamıyor.",
-      pairTitle: "Bu cihazı eşleştir", pairHint: "Bilgisayarda görünen 6 haneli PIN'i gir.", pair: "Eşleştir",
+      notConnected: "Bilgisayara bağlı değil", unpaired: "Bu cihazın eşleşmesi kaldırıldı. Bilgisayardaki QR kodu tekrar okut.",
+      codeDigits: "Kod 6 haneli olmalı.", pairFailed: "Eşleşme başarısız", unreachable: "Bilgisayara ulaşılamıyor.",
+      badCode: "Kod yanlış ya da süresi doldu. Ekrandaki güncel kodu dene.", tooMany: "Çok fazla deneme. Sonraki kodu bekle.",
+      expiredLink: "Bu bağlantının süresi doldu. Bilgisayardaki kodu gir.",
+      a2hs: "Eşleşti. Tam ekran için Paylaş, sonra Ana Ekrana Ekle'ye dokun.",
+      pairTitle: "Bu cihazı eşleştir", pairHint: "Bilgisayardaki QR kodu kamerayla okut ya da altındaki kodu gir.", pair: "Eşleştir",
       rotate: "Telefonu yan çevir", noGames: "Henüz oyun yok. Bilgisayardaki config.json dosyasına ekle.",
       notPlaying: "Çalmıyor", nothingPlaying: "Şu an bir şey çalmıyor", startMusic: "Bilgisayarda müzik başlat",
       paused: "Duraklatıldı", media: "Medya", play: "OYNA",
@@ -110,6 +116,13 @@
       if (name === "stats") statsHoldUntil = Date.now() + 480;
     }
     document.body.classList.toggle("pairing", name === "pair");
+    // The clock screen is a plain black screen: the rail hides until a tap.
+    document.body.classList.toggle("clock-mode", name === "clock");
+    document.body.classList.remove("rail-peek");
+    if (window.DeskClock && $("view-clock")) {
+      if (name === "clock" && document.visibilityState === "visible") window.DeskClock.start();
+      else window.DeskClock.stop();
+    }
     if (name !== "pair") {
       view = name;
       if (remember !== false) save(VIEW_KEY, name);
@@ -213,7 +226,18 @@
 
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState === "visible") { retryDelay = 1000; connect(); }
+    if (view === "clock" && window.DeskClock && $("view-clock")) {
+      if (document.visibilityState === "visible") window.DeskClock.start(); else window.DeskClock.stop();
+    }
     syncStreams();
+  });
+
+  // On the clock screen a tap brings back the rail and the face picker for a few seconds.
+  var peekTimer = null;
+  if ($("view-clock")) $("view-clock").addEventListener("click", function () {
+    document.body.classList.add("rail-peek");
+    clearTimeout(peekTimer);
+    peekTimer = setTimeout(function () { document.body.classList.remove("rail-peek"); }, 4000);
   });
   window.addEventListener("online", function () { retryDelay = 1000; connect(); });
 
@@ -279,12 +303,13 @@
 
   // ---- Home --------------------------------------------------------------
 
-  // Filled glyphs for the now-playing card (the line icons look busy at this size).
+  // Filled, rounded transport glyphs in the style of iOS (backward/forward are
+  // two triangles, as in Apple Music).
   var GLYPH = {
-    prev: '<path d="M19 5.5v13a1 1 0 0 1-1.6.8L9 13v5a1 1 0 0 1-2 0V6a1 1 0 0 1 2 0v5l8.4-6.3a1 1 0 0 1 1.6.8z"/>',
-    next: '<path d="M5 5.5v13a1 1 0 0 0 1.6.8L15 13v5a1 1 0 0 0 2 0V6a1 1 0 0 0-2 0v5L6.6 4.7A1 1 0 0 0 5 5.5z"/>',
-    play: '<path d="M8 5.2v13.6a1 1 0 0 0 1.5.9l10.6-6.8a1 1 0 0 0 0-1.8L9.5 4.3A1 1 0 0 0 8 5.2z"/>',
-    pause: '<rect x="6.5" y="5" width="4" height="14" rx="1.2"/><rect x="13.5" y="5" width="4" height="14" rx="1.2"/>'
+    prev: '<path d="M11.6 6.4v11.2a1 1 0 0 1-1.6.8L2.9 12.8a1 1 0 0 1 0-1.6L10 5.6a1 1 0 0 1 1.6.8z"/><path d="M21.4 6.4v11.2a1 1 0 0 1-1.6.8l-7.1-5.6a1 1 0 0 1 0-1.6l7.1-5.6a1 1 0 0 1 1.6.8z"/>',
+    next: '<path d="M2.6 6.4v11.2a1 1 0 0 0 1.6.8l7.1-5.6a1 1 0 0 0 0-1.6L4.2 5.6a1 1 0 0 0-1.6.8z"/><path d="M12.4 6.4v11.2a1 1 0 0 0 1.6.8l7.1-5.6a1 1 0 0 0 0-1.6L14 5.6a1 1 0 0 0-1.6.8z"/>',
+    play: '<path d="M7 4.6v14.8a1.2 1.2 0 0 0 1.8 1l12-7.4a1.2 1.2 0 0 0 0-2l-12-7.4A1.2 1.2 0 0 0 7 4.6z"/>',
+    pause: '<rect x="5.5" y="4" width="4.6" height="16" rx="1.4"/><rect x="13.9" y="4" width="4.6" height="16" rx="1.4"/>'
   };
   var np = null; // now-playing elements, set when the media card is rendered
 
@@ -299,7 +324,8 @@
         '<div class="np idle"><div class="np-art">' + svg('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>') +
         '<img alt=""><img alt=""></div><div class="np-meta"><span class="np-app"><i></i><b></b></span>' +
         '<span class="np-title"></span><span class="np-artist"></span></div></div>' +
-        '<div class="np-progress"><span class="pos">0:00</span><div class="track"><i></i></div><span class="dur">0:00</span></div>');
+        '<div class="np-progress"><div class="track"><i></i></div>' +
+        '<div class="times"><span class="pos">0:00</span><span class="dur">0:00</span></div></div>');
       var transport = document.createElement("div");
       transport.className = "transport";
       var glyphs = [GLYPH.prev, GLYPH.play, GLYPH.next];
@@ -536,9 +562,11 @@
       p = Math.min(d, playback.pos + (playback.playing ? Date.now() - playback.t : 0));
     }
     np.pos.textContent = fmt(p);
-    np.dur.textContent = fmt(d);
+    // Remaining time, as in Apple Music.
+    np.dur.textContent = d > 0 ? "-" + fmt(d - p) : "0:00";
     np.bar.style.transition = jump || !playback || !playback.playing ? "none" : "transform 1s linear";
-    np.bar.style.transform = "scaleX(" + (d > 0 ? (p / d).toFixed(4) : 0) + ")";
+    // Slide the fill (not scale it) so its rounded end keeps its shape.
+    np.bar.style.transform = "translateX(" + (d > 0 ? (p / d * 100 - 100).toFixed(2) : -100) + "%)";
   }
 
   // Speaker glyph for a volume level: muted, then 0, 1 or 2 sound waves.
@@ -632,7 +660,7 @@
   })();
 
   // Cover art: the new cover loads into the hidden layer, then both the art
-  // and the blurred background cross-fade. src null hides the art.
+  // and the color backdrop cross-fade. src null hides the art.
   function showArt(src) {
     if (!np) return;
     if (!src) { revealArt(false); return; }
@@ -640,8 +668,15 @@
     np.lastArt = src;
     var back = 1 - np.front, img = np.imgs[back];
     img.onload = function () {
-      var bg = blurred(img);
-      if (bg) np.bgs[back].style.backgroundImage = "url(" + bg + ")";
+      var c = palette(img);
+      if (c) {
+        // Two soft glows in the cover's colors from opposite corners: the card
+        // takes on the mood of the cover without showing a smeared copy of it.
+        np.bgs[back].style.background =
+          "radial-gradient(90% 85% at 0% 0%, rgba(" + c[0] + ",.55), transparent 62%)," +
+          "radial-gradient(80% 90% at 100% 100%, rgba(" + c[1] + ",.42), transparent 60%)," +
+          "linear-gradient(160deg, rgba(" + c[0] + ",.14), rgba(" + c[1] + ",.06))";
+      }
       np.front = back;
       revealArt(true);
     };
@@ -656,17 +691,39 @@
     }
   }
 
-  // A 12×12 copy of the cover. Stretched over the card, the browser's own
-  // smoothing turns it into a soft blur, far cheaper than a CSS blur filter.
-  function blurred(img) {
+  // The cover's two main colors as "r,g,b": the most vivid one, and the most
+  // vivid one with a clearly different hue (or a deeper shade of the first).
+  function palette(img) {
     try {
       var c = document.createElement("canvas");
-      c.width = c.height = 12;
-      c.getContext("2d").drawImage(img, 0, 0, 12, 12);
-      return c.toDataURL("image/png");
+      c.width = c.height = 16;
+      var ctx = c.getContext("2d");
+      ctx.drawImage(img, 0, 0, 16, 16);
+      var d = ctx.getImageData(0, 0, 16, 16).data, px = [];
+      for (var i = 0; i < d.length; i += 4) {
+        var r = d[i], g = d[i + 1], b = d[i + 2];
+        var max = Math.max(r, g, b), min = Math.min(r, g, b);
+        var sat = max ? (max - min) / max : 0;
+        px.push({ r: r, g: g, b: b, hue: hue(r, g, b, max, min), score: sat * (max / 255) + max / 2550 });
+      }
+      px.sort(function (a, b) { return b.score - a.score; });
+      var first = px[0];
+      var second = null;
+      for (var j = 1; j < px.length && !second; j++) {
+        var dh = Math.abs(px[j].hue - first.hue);
+        if (Math.min(dh, 360 - dh) > 40 && px[j].score > 0.15) second = px[j];
+      }
+      var fmtc = function (p, k) { return Math.round(p.r * k) + "," + Math.round(p.g * k) + "," + Math.round(p.b * k); };
+      return [fmtc(first, 1), second ? fmtc(second, 1) : fmtc(first, 0.55)];
     } catch (e) {
       return null;
     }
+  }
+
+  function hue(r, g, b, max, min) {
+    if (max === min) return 0;
+    var h = max === r ? (g - b) / (max - min) : max === g ? 2 + (b - r) / (max - min) : 4 + (r - g) / (max - min);
+    return (h * 60 + 360) % 360;
   }
 
   // ---- Games -------------------------------------------------------------
@@ -970,34 +1027,93 @@
 
   // ---- Pairing -----------------------------------------------------------
 
+  // Pairing: scan the QR code on the PC (the page opens with #pair=<code> and
+  // pairs by itself) or type the 6-digit code, which changes every 30 seconds.
+  //
+  // iOS gives a home screen app its own storage, separate from Safari. So after
+  // pairing in Safari the page puts a single-use handoff code in its URL
+  // (#h=<code>); "Add to Home Screen" saves that URL, and the home screen app
+  // trades the code for the same token on first launch.
+
+  var standalone = !!(navigator.standalone || (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches));
+  var isiOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+
   function showPairing(err) {
     showView("pair");
     setStatus("", t("notPaired"));
     $("pair-error").textContent = err || "";
   }
 
-  $("pair-form").addEventListener("submit", function (ev) {
-    ev.preventDefault();
-    var pin = $("pin").value.trim();
-    if (!/^\d{6}$/.test(pin)) { $("pair-error").textContent = t("pinDigits"); return; }
+  function deviceName() {
     var ua = navigator.userAgent;
-    var name = /iPad/.test(ua) ? "iPad" : /iPhone/.test(ua) ? "iPhone" : /Android/.test(ua) ? "Android" : "Device";
-    fetch("/api/pair", {
+    return /iPad/.test(ua) ? "iPad" : /iPhone/.test(ua) ? "iPhone" : /Android/.test(ua) ? "Android" : "Device";
+  }
+
+  function setHash(h) {
+    try { history.replaceState(null, "", location.pathname + location.search + (h ? "#" + h : "")); } catch (e) {}
+  }
+
+  var PAIR_ERRORS = { bad_code: "badCode", too_many: "tooMany", expired_link: "expiredLink" };
+
+  function pair(body) {
+    $("pair-error").textContent = "";
+    return fetch("/api/pair", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pin: pin, name: name })
+      body: JSON.stringify(body)
     }).then(function (r) {
-      return r.json().then(function (body) { return { ok: r.ok, body: body }; });
+      return r.json().then(function (res) { return { ok: r.ok, body: res }; });
     }).then(function (res) {
-      if (!res.ok) { $("pair-error").textContent = res.body.error || t("pairFailed"); return; }
+      if (!res.ok) {
+        showPairing(t(PAIR_ERRORS[res.body.error] || "pairFailed"));
+        return;
+      }
       save(TOKEN_KEY, res.body.token);
       $("pin").value = "";
       $("pin").blur();
+      if (res.body.handoff && isiOS && !standalone) {
+        // Keep the handoff in the URL for "Add to Home Screen", and say so.
+        setHash("h=" + res.body.handoff);
+        $("a2hs").hidden = false;
+      } else {
+        setHash("");
+      }
       connect();
     }).catch(function () {
-      $("pair-error").textContent = t("unreachable");
+      showPairing(t("unreachable"));
     });
+  }
+
+  function submitCode() {
+    var code = $("pin").value.replace(/\D/g, "");
+    if (code.length !== 6) { $("pair-error").textContent = t("codeDigits"); return; }
+    pair({ code: code, name: deviceName() });
+  }
+
+  $("pair-form").addEventListener("submit", function (ev) { ev.preventDefault(); submitCode(); });
+  // Send as soon as the sixth digit is in.
+  $("pin").addEventListener("input", function () {
+    if ($("pin").value.replace(/\D/g, "").length === 6) submitCode();
   });
+  $("a2hs").addEventListener("click", function () { $("a2hs").hidden = true; });
+
+  // First thing on load: a QR code (#pair=) or a home screen handoff (#h=).
+  function startup() {
+    var m = /[#&]pair=([a-z2-7]{16})/.exec(location.hash);
+    if (m) {
+      setHash("");
+      pair({ code: m[1], name: deviceName() });
+      return;
+    }
+    m = /[#&]h=([0-9a-f]{32})/.exec(location.hash);
+    if (m && !load(TOKEN_KEY)) {
+      setHash("");
+      pair({ handoff: m[1] });
+      return;
+    }
+    if (m && standalone) setHash("");
+    connect();
+  }
 
   // ---- Screen care -------------------------------------------------------
 
@@ -1027,5 +1143,5 @@
   requestAnimationFrame(function () {
     requestAnimationFrame(function () { document.body.classList.remove("booting"); });
   });
-  connect();
+  startup();
 })();

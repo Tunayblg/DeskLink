@@ -1,31 +1,49 @@
-// Package auth handles pairing phones with a PIN and verifying their tokens.
+// Package auth handles pairing phones and verifying their tokens.
 //
-// Flow: the server shows a 6-digit PIN on the PC. The phone sends that PIN
-// once and receives a random 256-bit token, which it keeps in localStorage.
-// Only the SHA-256 hash of each token is written to disk.
+// Pairing uses a code that changes every 30 seconds, derived from a random
+// secret that exists only in memory (TOTP-style). The dashboard shows the
+// 6-digit code and a QR code carrying a longer code for the same window. A
+// phone that sends a valid code receives a random 256-bit token, kept in its
+// localStorage; only the SHA-256 hash of each token is written to disk.
+//
+// Because iOS keeps a home screen web app's storage apart from Safari's, a
+// successful pairing also returns a short-lived, single-use handoff code. The
+// page puts it in its URL, so "Add to Home Screen" carries it over and the
+// home screen app can fetch the same token without pairing again.
 package auth
 
 import (
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/base32"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/big"
 	"os"
 	"strings"
 	"sync"
 	"time"
 )
 
-// MaxAttempts is how many wrong PINs are accepted before the PIN is rotated.
-const MaxAttempts = 5
+const (
+	// Window is how long a pairing code is shown. The previous window's code
+	// is accepted too, so a code typed just as it changes still works.
+	Window = 30 * time.Second
+	// MaxAttempts is how many wrong codes are accepted per window; after that,
+	// pairing is refused until the next code appears.
+	MaxAttempts = 5
+	// HandoffTTL is how long a handoff code can be redeemed.
+	HandoffTTL = 15 * time.Minute
+)
 
 var (
-	ErrBadPIN    = errors.New("wrong PIN")
-	ErrPINRotate = errors.New("too many wrong PINs, a new PIN was generated")
+	ErrBadCode    = errors.New("wrong or expired code")
+	ErrTooMany    = errors.New("too many wrong codes, wait for the next one")
+	ErrBadHandoff = errors.New("this pairing link has expired, scan the QR code again")
 )
 
 // Device is a paired phone or tablet.
@@ -35,20 +53,33 @@ type Device struct {
 	PairedAt  time.Time `json:"paired_at"`
 }
 
-// Store keeps the current PIN and the list of paired devices.
+// Code is the pairing code for the current window.
+type Code struct {
+	Digits  string    // 6 digits, to type in
+	Long    string    // 16 characters, carried by the QR code
+	Expires time.Time // when the next code appears
+}
+
+type handoff struct {
+	token   string
+	expires time.Time
+}
+
+// Store keeps the pairing secret and the list of paired devices.
 type Store struct {
-	mu       sync.Mutex
-	path     string
-	pin      string
-	attempts int
-	devices  []Device
-	// OnPIN is called whenever a new PIN is generated so it can be shown to the user.
-	OnPIN func(pin string)
+	mu         sync.Mutex
+	path       string
+	secret     []byte
+	devices    []Device
+	failWindow int64
+	fails      int
+	handoffs   map[string]handoff
+	now        func() time.Time // for tests
 }
 
 // Open loads paired devices from path (a missing file means none).
-func Open(path string, onPIN func(string)) (*Store, error) {
-	s := &Store{path: path, OnPIN: onPIN}
+func Open(path string) (*Store, error) {
+	s := &Store{path: path, handoffs: map[string]handoff{}, now: time.Now}
 	data, err := os.ReadFile(path)
 	if err == nil {
 		if err := json.Unmarshal(data, &s.devices); err != nil {
@@ -57,37 +88,111 @@ func Open(path string, onPIN func(string)) (*Store, error) {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return nil, err
 	}
-	s.rotatePIN()
+	s.secret = randomBytes(32)
 	return s, nil
 }
 
-// Pair exchanges a correct PIN for a new device token.
-func (s *Store) Pair(pin, name string) (string, error) {
+func (s *Store) window(t time.Time) int64 { return t.Unix() / int64(Window/time.Second) }
+
+// codes derives the short and long code for a window.
+func (s *Store) codes(w int64) (digits, long string) {
+	var msg [8]byte
+	binary.BigEndian.PutUint64(msg[:], uint64(w))
+	m := hmac.New(sha256.New, s.secret)
+	m.Write(msg[:])
+	sum := m.Sum(nil)
+	n := binary.BigEndian.Uint32(sum[:4]) & 0x7fffffff
+	digits = fmt.Sprintf("%06d", n%1_000_000)
+	long = strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(sum[4:14]))
+	return digits, long
+}
+
+// Current returns the code to show right now.
+func (s *Store) Current() Code {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := s.now()
+	w := s.window(now)
+	d, l := s.codes(w)
+	return Code{Digits: d, Long: l, Expires: time.Unix((w+1)*int64(Window/time.Second), 0)}
+}
+
+// Rotate replaces the secret, so every code shown so far stops working.
+func (s *Store) Rotate() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.secret = randomBytes(32)
+}
+
+// Pair exchanges a valid code (6 digits or the QR code's long form) for a new
+// device token. It also returns a handoff code for the home screen app.
+func (s *Store) Pair(code, name string) (token, handoffCode string, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if subtle.ConstantTimeCompare([]byte(pin), []byte(s.pin)) != 1 {
-		s.attempts++
-		if s.attempts >= MaxAttempts {
-			s.rotatePIN()
-			return "", ErrPINRotate
+	now := s.now()
+	w := s.window(now)
+	if s.failWindow != w {
+		s.failWindow, s.fails = w, 0
+	}
+	if s.fails >= MaxAttempts {
+		return "", "", ErrTooMany
+	}
+	code = strings.ToLower(strings.TrimSpace(code))
+	ok := false
+	for _, cw := range []int64{w, w - 1} {
+		d, l := s.codes(cw)
+		if subtle.ConstantTimeCompare([]byte(code), []byte(d)) == 1 || subtle.ConstantTimeCompare([]byte(code), []byte(l)) == 1 {
+			ok = true
 		}
-		return "", ErrBadPIN
+	}
+	if !ok {
+		s.fails++
+		return "", "", ErrBadCode
 	}
 
-	token := randomHex(32)
+	token = randomHex(32)
 	name = strings.TrimSpace(name)
 	if name == "" || len(name) > 40 {
 		name = "Device"
 	}
-	s.devices = append(s.devices, Device{Name: name, TokenHash: hashToken(token), PairedAt: time.Now().UTC()})
+	s.devices = append(s.devices, Device{Name: name, TokenHash: hashToken(token), PairedAt: now.UTC()})
 	if err := s.save(); err != nil {
 		s.devices = s.devices[:len(s.devices)-1]
-		return "", err
+		return "", "", err
 	}
-	// A PIN is single use; the next phone gets a fresh one.
-	s.rotatePIN()
-	return token, nil
+	handoffCode = s.newHandoff(token, now)
+	return token, handoffCode, nil
+}
+
+// newHandoff must be called with mu held.
+func (s *Store) newHandoff(token string, now time.Time) string {
+	for k, h := range s.handoffs {
+		if now.After(h.expires) {
+			delete(s.handoffs, k)
+		}
+	}
+	code := randomHex(16)
+	s.handoffs[code] = handoff{token: token, expires: now.Add(HandoffTTL)}
+	return code
+}
+
+// Redeem returns the token behind a handoff code. Each code works once.
+func (s *Store) Redeem(code string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	h, ok := s.handoffs[code]
+	delete(s.handoffs, code)
+	if !ok || s.now().After(h.expires) {
+		return "", ErrBadHandoff
+	}
+	// The device may have been removed in the meantime.
+	for _, d := range s.devices {
+		if d.TokenHash == hashToken(h.token) {
+			return h.token, nil
+		}
+	}
+	return "", ErrBadHandoff
 }
 
 // Verify reports whether token belongs to a paired device and returns it.
@@ -130,33 +235,6 @@ func (s *Store) Revoke(id string) (bool, error) {
 	return false, nil
 }
 
-// NewPIN replaces the pairing PIN.
-func (s *Store) NewPIN() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.rotatePIN()
-}
-
-// PIN returns the current pairing PIN.
-func (s *Store) PIN() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.pin
-}
-
-// rotatePIN must be called with mu held (or before the store is shared).
-func (s *Store) rotatePIN() {
-	n, err := rand.Int(rand.Reader, big.NewInt(1_000_000))
-	if err != nil {
-		panic(err) // crypto/rand failing means the OS is broken
-	}
-	s.pin = fmt.Sprintf("%06d", n.Int64())
-	s.attempts = 0
-	if s.OnPIN != nil {
-		s.OnPIN(s.pin)
-	}
-}
-
 func (s *Store) save() error {
 	data, err := json.MarshalIndent(s.devices, "", "  ")
 	if err != nil {
@@ -174,10 +252,12 @@ func hashToken(token string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func randomHex(n int) string {
+func randomBytes(n int) []byte {
 	b := make([]byte, n)
 	if _, err := rand.Read(b); err != nil {
-		panic(err)
+		panic(err) // crypto/rand failing means the OS is broken
 	}
-	return hex.EncodeToString(b)
+	return b
 }
+
+func randomHex(n int) string { return hex.EncodeToString(randomBytes(n)) }

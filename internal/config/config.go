@@ -197,6 +197,100 @@ func (c *Config) validate() error {
 	return nil
 }
 
+// Clone returns a deep copy, for editing.
+func (c *Config) Clone() *Config {
+	b, _ := json.Marshal(c)
+	var out Config
+	json.Unmarshal(b, &out)
+	return &out
+}
+
+// Save validates c and writes it to path, keeping the previous file as
+// path + ".bak". The file is replaced atomically.
+func (c *Config) Save(path string) (*Config, error) {
+	data, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	checked, err := Parse(data)
+	if err != nil {
+		return nil, err
+	}
+	if old, err := os.ReadFile(path); err == nil {
+		os.WriteFile(path+".bak", old, 0o600)
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, append(data, '\n'), 0o600); err != nil {
+		return nil, err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		return nil, err
+	}
+	return checked, nil
+}
+
+// HomeGroup is the group that shows pinned game tiles: the first quick
+// group, or else the first list group. -1 if there is none.
+func (c *Config) HomeGroup() int {
+	for _, style := range []string{"quick", "list"} {
+		for i, g := range c.Groups {
+			if g.Style == style {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+// SetGames replaces the game list and the game buttons: buttons for games
+// that no longer exist are dropped, and the home group gets one button per
+// pinned game, in game order, before its other buttons.
+func (c *Config) SetGames(games []Game, pinned map[string]bool) {
+	c.Games = games
+	exists := map[string]bool{}
+	for _, g := range games {
+		exists[g.ID] = true
+	}
+	home := c.HomeGroup()
+	for gi := range c.Groups {
+		var keep []Button
+		for _, b := range c.Groups[gi].Buttons {
+			if b.Action.Type == "game" && (gi == home || !exists[b.Action.Target]) {
+				continue
+			}
+			keep = append(keep, b)
+		}
+		if gi == home {
+			var tiles []Button
+			for _, g := range games {
+				if pinned[g.ID] {
+					id := "q_" + g.ID
+					if len(id) > 32 {
+						id = id[:32]
+					}
+					tiles = append(tiles, Button{ID: id, Label: g.Name, Icon: "gamepad",
+						Action: actions.Action{Type: "game", Target: g.ID}})
+				}
+			}
+			keep = append(tiles, keep...)
+		}
+		c.Groups[gi].Buttons = keep
+	}
+}
+
+// Pinned reports which games have a button in the home group.
+func (c *Config) Pinned() map[string]bool {
+	out := map[string]bool{}
+	if h := c.HomeGroup(); h >= 0 {
+		for _, b := range c.Groups[h].Buttons {
+			if b.Action.Type == "game" {
+				out[b.Action.Target] = true
+			}
+		}
+	}
+	return out
+}
+
 // Find returns the action for a button or game ID.
 func (c *Config) Find(id string) (actions.Action, bool) {
 	a, ok := c.index[id]

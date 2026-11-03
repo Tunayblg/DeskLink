@@ -51,7 +51,7 @@ func init() {
 var systemCommands = map[string]bool{"lock": true, "sleep": true}
 
 // Pages are screens of the phone panel that a button can open.
-var pages = map[string]bool{"home": true, "games": true, "stats": true}
+var pages = map[string]bool{"home": true, "games": true, "stats": true, "clock": true}
 
 // Validate reports whether the action is well formed. Called once at config load.
 func (a Action) Validate() error {
@@ -80,7 +80,7 @@ func (a Action) Validate() error {
 		}
 	case "page":
 		if !pages[a.Target] {
-			return fmt.Errorf("unknown page %q (use home, games or stats)", a.Target)
+			return fmt.Errorf("unknown page %q (use home, games, stats or clock)", a.Target)
 		}
 	default:
 		return fmt.Errorf("unknown action type %q (use launch, keys, system, page or game)", a.Type)

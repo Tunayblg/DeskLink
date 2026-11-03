@@ -8,248 +8,613 @@
 <link rel="icon" href="/icon-180.png" sizes="180x180">
 <style nonce="{{NONCE}}">
 :root {
-  --bg: #0a0b10; --panel: #12151e; --edge: rgba(255,255,255,.07);
-  --text: #eef1f7; --muted: #8088a0; --cyan: #38bdf8; --violet: #a78bfa; --green: #34d399; --red: #f43f5e;
+  --bg: #0a0b10; --side: #0d0f15; --panel: #12151e; --panel-2: #171b26; --edge: rgba(255,255,255,.07);
+  --text: #eef1f7; --muted: #8088a0; --cyan: #38bdf8; --violet: #a78bfa; --green: #34d399; --red: #f43f5e; --amber: #f59e0b;
 }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 "Segoe UI", system-ui, sans-serif; }
-main { max-width: 1040px; margin: 0 auto; padding: 28px 24px 40px; }
-header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
-header h1 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -.01em; }
-.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px rgba(52,211,153,.15); }
-.dot.off { background: var(--red); box-shadow: 0 0 0 4px rgba(244,63,94,.15); }
-header .meta { color: var(--muted); font-size: 13px; }
-header .meta + .meta::before { content: "·"; margin-right: 12px; }
+html, body { height: 100%; }
+body { margin: 0; display: flex; background: var(--bg); color: var(--text); font: 14px/1.45 "Segoe UI", system-ui, sans-serif; overflow: hidden; }
+button { font: inherit; color: inherit; cursor: pointer; }
+[hidden] { display: none !important; }
 
-.metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 14px; }
+/* Sidebar */
+.side { flex: 0 0 216px; display: flex; flex-direction: column; padding: 22px 14px 16px; background: var(--side); border-right: 1px solid var(--edge); }
+.brand { display: flex; align-items: center; gap: 10px; padding: 0 8px 22px; }
+.brand img { width: 30px; height: 30px; border-radius: 8px; }
+.brand b { font-size: 16px; font-weight: 600; }
+.brand small { display: block; font-size: 11px; color: var(--muted); }
+.nav button { display: flex; align-items: center; gap: 11px; width: 100%; padding: 9px 10px; margin-bottom: 2px; border: 0; border-radius: 9px; background: none; color: #b8bdcc; text-align: left; }
+.nav button:hover { background: rgba(255,255,255,.04); }
+.nav button.on { background: rgba(56,189,248,.12); color: #fff; }
+.nav svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: 0 0 18px; }
+.nav .count { margin-left: auto; min-width: 20px; padding: 0 6px; border-radius: 10px; background: rgba(52,211,153,.16); color: var(--green); font-size: 11px; text-align: center; }
+.side .grow { flex: 1; }
+.side .run { display: flex; align-items: center; gap: 8px; padding: 10px 10px 14px; font-size: 12px; color: var(--muted); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px rgba(52,211,153,.15); flex: 0 0 8px; }
+.dot.off { background: #3a4052; box-shadow: none; }
+.dot.bad { background: var(--red); box-shadow: 0 0 0 3px rgba(244,63,94,.15); }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 8px 14px; border: 1px solid var(--edge); border-radius: 9px; background: rgba(255,255,255,.05); font-size: 13px; }
+.btn:hover { background: rgba(255,255,255,.09); }
+.btn.primary { border-color: transparent; background: linear-gradient(135deg, #38bdf8, #6366f1); color: #fff; font-weight: 600; }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.danger:hover { background: rgba(244,63,94,.14); border-color: rgba(244,63,94,.4); color: #fda4af; }
+.btn.link { padding: 0; border: 0; background: none; color: var(--cyan); }
+.btn.link:hover { text-decoration: underline; }
+.btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+
+/* Main */
+main { flex: 1; min-width: 0; overflow-y: auto; padding: 28px 32px 40px; }
+.head { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.head h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -.01em; }
+.head p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+.head .btn { margin-left: auto; }
 .card { background: var(--panel); border: 1px solid var(--edge); border-radius: 14px; padding: 16px 18px; min-width: 0; }
+.metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 14px; }
 .label { font-size: 12px; color: var(--muted); }
-.value { margin-top: 6px; font-size: 28px; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-.value small { font-size: 14px; font-weight: 400; color: var(--muted); margin-left: 3px; }
-.hint { margin-top: 4px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-svg.spark { display: block; width: 100%; height: 34px; margin-top: 10px; }
+.value { margin-top: 6px; font-size: 26px; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.value small { font-size: 13px; font-weight: 400; color: var(--muted); margin-left: 3px; }
+.hint { margin-top: 3px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+svg.spark { display: block; width: 100%; height: 30px; margin-top: 8px; }
 svg.spark path { fill: none; stroke-width: 1.6; vector-effect: non-scaling-stroke; }
 svg.spark .area { stroke: none; }
+h2 { margin: 0 0 10px; font-size: 14px; font-weight: 600; }
+.empty { padding: 26px 0 14px; color: var(--muted); text-align: center; }
+.empty .btn { margin-top: 12px; }
 
-.cols { display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; }
-h2 { margin: 0 0 12px; font-size: 14px; font-weight: 600; }
-table { width: 100%; border-collapse: collapse; }
-td, th { padding: 9px 0; text-align: left; border-top: 1px solid var(--edge); font-variant-numeric: tabular-nums; }
-th { font-size: 12px; font-weight: 400; color: var(--muted); border-top: 0; padding-top: 0; }
-td.right, th.right { text-align: right; }
+/* Lists */
+.list { display: flex; flex-direction: column; gap: 6px; }
+.row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid transparent; border-radius: 11px; background: var(--panel-2); text-align: left; width: 100%; }
+button.row:hover { border-color: var(--edge); }
+.row.on { border-color: rgba(56,189,248,.45); background: rgba(56,189,248,.07); }
+.row .ico { width: 36px; height: 36px; flex: 0 0 36px; display: flex; align-items: center; justify-content: center; border-radius: 10px; background: rgba(255,255,255,.05); overflow: hidden; }
+.row .ico svg { width: 18px; height: 18px; fill: none; stroke: #c5cad6; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.row .ico img { width: 100%; height: 100%; object-fit: cover; }
+.row .txt { flex: 1; min-width: 0; }
+.row .txt b { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .txt span { display: block; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .badge { display: inline-block; margin-right: 4px; padding: 1px 8px; border-radius: 999px; font-size: 11px; background: rgba(255,255,255,.07); color: #c5cad6; }
-.empty { color: var(--muted); padding: 10px 0 2px; }
-.online { display: inline-block; width: 7px; height: 7px; margin-right: 8px; border-radius: 50%; background: #3a4052; vertical-align: 1px; }
-.online.on { background: var(--green); }
-button {
-  padding: 6px 12px; border: 1px solid var(--edge); border-radius: 8px;
-  background: rgba(255,255,255,.05); color: var(--text); font: inherit; font-size: 12px; cursor: pointer;
-}
-button:hover { background: rgba(255,255,255,.1); }
-button.danger:hover { background: rgba(244,63,94,.15); border-color: rgba(244,63,94,.4); color: #fda4af; }
-.pin { margin: 4px 0 8px; font-size: 36px; font-weight: 600; letter-spacing: .18em; font-variant-numeric: tabular-nums; }
-.addr { margin: 2px 0; font-family: Consolas, monospace; font-size: 13px; color: #c5cad6; }
-.stack > .card + .card { margin-top: 14px; }
-.error { color: #fda4af; margin-bottom: 14px; display: none; }
-footer { margin-top: 22px; color: var(--muted); font-size: 12px; }
-@media (max-width: 860px) { .metrics { grid-template-columns: repeat(2, 1fr); } .cols { grid-template-columns: 1fr; } }
+
+/* Devices: list + details */
+.split { display: grid; grid-template-columns: minmax(260px, 1fr) 1.15fr; gap: 14px; align-items: start; }
+.detail h3 { margin: 0; font-size: 18px; font-weight: 600; }
+.pill { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12px; background: rgba(255,255,255,.06); color: var(--muted); }
+.pill.live { background: rgba(52,211,153,.12); color: var(--green); }
+.facts { margin: 18px 0; border-top: 1px solid var(--edge); }
+.facts div { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--edge); }
+.facts dt, .facts span:first-child { color: var(--muted); }
+
+/* Games */
+.switch { position: relative; width: 36px; height: 20px; flex: 0 0 36px; border: 0; border-radius: 10px; background: #2b3040; transition: background .2s; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: transform .2s; }
+.switch.on { background: var(--cyan); }
+.switch.on::after { transform: translateX(16px); }
+.switch-label { font-size: 12px; color: var(--muted); margin-right: 4px; }
+.row .actions { display: flex; align-items: center; gap: 8px; }
+.icon-btn { width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 8px; background: none; color: var(--muted); }
+.icon-btn:hover { background: rgba(255,255,255,.07); color: var(--text); }
+.icon-btn.danger:hover { background: rgba(244,63,94,.14); color: #fda4af; }
+.icon-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Modals */
+.scrim { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; background: rgba(3,4,8,.66); }
+.modal { width: 440px; max-width: calc(100% - 40px); max-height: calc(100% - 40px); overflow-y: auto; padding: 22px 24px; border: 1px solid var(--edge); border-radius: 16px; background: #141824; box-shadow: 0 30px 80px -20px rgba(0,0,0,.9); }
+.modal h2 { font-size: 17px; margin-bottom: 4px; }
+.modal .sub { margin: 0 0 18px; color: var(--muted); font-size: 13px; }
+.modal footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.qr { width: 220px; height: 220px; margin: 4px auto 18px; padding: 0; overflow: hidden; border-radius: 14px; background: #fff; }
+.qr svg { display: block; width: 100%; height: 100%; }
+.code { text-align: center; font-size: 30px; font-weight: 600; letter-spacing: .16em; font-variant-numeric: tabular-nums; }
+.countdown { width: 180px; height: 4px; margin: 8px auto 4px; overflow: hidden; border-radius: 2px; background: rgba(255,255,255,.1); }
+.countdown i { display: block; height: 100%; background: var(--cyan); transform-origin: left; transition: transform .25s linear; }
+.countdown.low i { background: var(--amber); }
+.center { text-align: center; }
+.manual { margin-top: 16px; padding: 12px 14px; border-radius: 11px; background: var(--panel-2); font-size: 13px; color: #c5cad6; }
+.manual code { display: block; margin-top: 6px; font: 14px Consolas, monospace; color: #fff; user-select: all; }
+
+.field { margin-bottom: 14px; }
+.field label { display: block; margin-bottom: 6px; font-size: 12px; color: var(--muted); }
+.field input, .field select { width: 100%; padding: 9px 11px; border: 1px solid var(--edge); border-radius: 9px; background: #0e1119; color: var(--text); font: inherit; }
+.field input:focus, .field select:focus { outline: none; border-color: rgba(56,189,248,.6); }
+.inline { display: flex; gap: 8px; }
+.inline input { flex: 1; min-width: 0; }
+.seg { display: flex; padding: 3px; margin-bottom: 16px; border-radius: 10px; background: #0e1119; border: 1px solid var(--edge); }
+.seg button { flex: 1; padding: 6px; border: 0; border-radius: 7px; background: none; color: var(--muted); }
+.seg button.on { background: rgba(255,255,255,.08); color: var(--text); }
+.check { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.form-error { min-height: 18px; margin-top: 6px; color: #fda4af; font-size: 13px; }
+details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-bottom: 10px; }
+
+.toast { position: fixed; bottom: 20px; left: 50%; z-index: 20; padding: 9px 16px; border-radius: 10px; background: #23283a; border: 1px solid var(--edge); font-size: 13px; transform: translate(-50%, 20px); opacity: 0; transition: opacity .25s, transform .3s; pointer-events: none; }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.offline { margin-bottom: 14px; padding: 10px 14px; border-radius: 10px; background: rgba(244,63,94,.1); color: #fda4af; }
+@media (max-width: 900px) { .metrics { grid-template-columns: repeat(2, 1fr); } .split { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
+<aside class="side">
+  <div class="brand"><img src="/icon-180.png" alt=""><div><b>DeskLink</b><small id="version"></small></div></div>
+  <nav class="nav">
+    <button data-view="overview" class="on"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span data-t="overview"></span></button>
+    <button data-view="devices"><svg viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg><span data-t="devices"></span><span class="count" id="nav-online" hidden></span></button>
+    <button data-view="games"><svg viewBox="0 0 24 24"><path d="M6 11h4M8 9v4"/><path d="M15 12h.01M18 10h.01"/><path d="M17.3 5H6.7a4 4 0 0 0-4 3.6l-.9 8.1A2.5 2.5 0 0 0 4.3 19.5c.9 0 1.7-.5 2.1-1.3L8 15h8l1.6 3.2c.4.8 1.2 1.3 2.1 1.3a2.5 2.5 0 0 0 2.5-2.8l-.9-8.1A4 4 0 0 0 17.3 5z"/></svg><span data-t="games"></span></button>
+  </nav>
+  <div class="grow"></div>
+  <div class="run"><span class="dot" id="dot"></span><span id="uptime"></span></div>
+  <button class="btn primary" id="add-device"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span data-t="addDevice"></span></button>
+</aside>
+
 <main>
-  <header>
-    <span class="dot" id="dot"></span>
-    <h1>DeskLink</h1>
-    <span class="meta" id="version"></span>
-    <span class="meta" id="uptime"></span>
-  </header>
-  <p class="error" id="error">DeskLink is not responding. Is it still running?</p>
+  <div class="offline" id="offline" hidden data-t="offline"></div>
 
-  <section class="metrics">
-    <div class="card">
-      <div class="label">Memory</div>
-      <div class="value" id="mem">–<small>MB</small></div>
-      <div class="hint" id="mem-hint">&nbsp;</div>
-      <svg class="spark" viewBox="0 0 100 34" preserveAspectRatio="none"><path class="area" id="mem-area" fill="rgba(56,189,248,.12)"/><path id="mem-line" stroke="#38bdf8"/></svg>
+  <section id="v-overview">
+    <div class="head"><div><h1 data-t="overview"></h1><p data-t="overviewSub"></p></div></div>
+    <div class="metrics">
+      <div class="card"><div class="label" data-t="memory"></div><div class="value"><span id="mem">–</span><small>MB</small></div><div class="hint" id="mem-hint">&nbsp;</div>
+        <svg class="spark" viewBox="0 0 100 30" preserveAspectRatio="none"><path class="area" id="mem-area" fill="rgba(56,189,248,.12)"/><path id="mem-line" stroke="#38bdf8"/></svg></div>
+      <div class="card"><div class="label">CPU</div><div class="value"><span id="cpu">–</span><small>%</small></div><div class="hint" id="cpu-hint">&nbsp;</div>
+        <svg class="spark" viewBox="0 0 100 30" preserveAspectRatio="none"><path class="area" id="cpu-area" fill="rgba(167,139,250,.12)"/><path id="cpu-line" stroke="#a78bfa"/></svg></div>
+      <div class="card"><div class="label" data-t="connectedNow"></div><div class="value" id="m-online">–</div><div class="hint" id="m-online-hint">&nbsp;</div></div>
+      <div class="card"><div class="label" data-t="paired"></div><div class="value" id="m-paired">–</div><div class="hint" data-t="pairedHint"></div></div>
     </div>
     <div class="card">
-      <div class="label">CPU</div>
-      <div class="value" id="cpu">–<small>%</small></div>
-      <div class="hint" id="cpu-hint">&nbsp;</div>
-      <svg class="spark" viewBox="0 0 100 34" preserveAspectRatio="none"><path class="area" id="cpu-area" fill="rgba(167,139,250,.12)"/><path id="cpu-line" stroke="#a78bfa"/></svg>
-    </div>
-    <div class="card">
-      <div class="label">Connected now</div>
-      <div class="value" id="conn-count">–</div>
-      <div class="hint" id="conn-hint">&nbsp;</div>
-    </div>
-    <div class="card">
-      <div class="label">Paired devices</div>
-      <div class="value" id="dev-count">–</div>
-      <div class="hint">Phones that can connect</div>
+      <h2 data-t="connectedNow"></h2>
+      <div class="list" id="ov-online"></div>
+      <div class="empty" id="ov-empty" hidden><span data-t="noneConnected"></span></div>
     </div>
   </section>
 
-  <section class="cols">
-    <div class="stack">
-      <div class="card">
-        <h2>Connected now</h2>
-        <table><thead><tr><th>Device</th><th>Address</th><th>Showing</th><th class="right">Connected for</th></tr></thead><tbody id="sessions"></tbody></table>
-        <div class="empty" id="sessions-empty">No phone is connected.</div>
-      </div>
-      <div class="card">
-        <h2>Paired devices</h2>
-        <table><thead><tr><th>Device</th><th>Paired</th><th></th></tr></thead><tbody id="devices"></tbody></table>
-        <div class="empty" id="devices-empty">No devices paired yet.</div>
-      </div>
+  <section id="v-devices" hidden>
+    <div class="head"><div><h1 data-t="devices"></h1><p data-t="devicesSub"></p></div>
+      <button class="btn" id="add-device-2"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span data-t="addDevice"></span></button></div>
+    <div class="split" id="dev-split">
+      <div class="card"><div class="list" id="dev-list"></div></div>
+      <div class="card detail" id="dev-detail"></div>
     </div>
-    <div class="stack">
-      <div class="card">
-        <h2>Pair a new device</h2>
-        <div class="label">Open this address on the phone (same Wi-Fi):</div>
-        <div id="addresses"></div>
-        <div class="label" style="margin-top:14px">Then enter this PIN:</div>
-        <div class="pin" id="pin">––––––</div>
-        <button id="new-pin">New PIN</button>
-      </div>
+    <div class="card empty" id="dev-empty" hidden><div data-t="noDevices"></div>
+      <button class="btn primary" id="add-device-3"><span data-t="addDevice"></span></button></div>
+  </section>
+
+  <section id="v-games" hidden>
+    <div class="head"><div><h1 data-t="games"></h1><p data-t="gamesSub"></p></div>
+      <button class="btn primary" id="add-game"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span data-t="addGame"></span></button></div>
+    <div class="card">
+      <div class="list" id="game-list"></div>
+      <div class="empty" id="game-empty" hidden><span data-t="noGames"></span></div>
     </div>
   </section>
-  <footer>Memory is the private working set, the same number Task Manager shows. This page only works on this PC.</footer>
 </main>
+
+<!-- Add device -->
+<div class="scrim" id="pair-modal" hidden>
+  <div class="modal">
+    <h2 data-t="addDevice"></h2>
+    <p class="sub" data-t="pairSub"></p>
+    <div class="qr" id="qr"></div>
+    <div class="code" id="code">––– –––</div>
+    <div class="countdown" id="countdown-bar"><i id="countdown"></i></div>
+    <div class="hint center" id="code-left">&nbsp;</div>
+    <div class="center"><button class="btn link" id="rotate" data-t="newCode"></button></div>
+    <div class="center" id="manual-open-wrap"><button class="btn" id="manual-open" data-t="manualOpen"></button></div>
+    <div class="manual" id="manual" hidden><span data-t="manualText"></span><code id="manual-addr"></code></div>
+    <footer><button class="btn" data-close="pair-modal" data-t="done"></button></footer>
+  </div>
+</div>
+
+<!-- Add or edit a game -->
+<div class="scrim" id="game-modal" hidden>
+  <div class="modal">
+    <h2 id="game-modal-title"></h2>
+    <p class="sub" data-t="gameSub"></p>
+    <div class="field"><label for="g-name" data-t="name"></label><input id="g-name" maxlength="40" autocomplete="off"></div>
+    <div class="seg" id="g-kind"><button data-kind="program" class="on" data-t="program"></button><button data-kind="steam" data-t="steam"></button></div>
+    <div id="g-program">
+      <div class="field"><label for="g-target" data-t="programPath"></label>
+        <div class="inline"><input id="g-target" spellcheck="false" placeholder="D:\Games\Game\Game.exe"><button class="btn" id="g-browse" data-t="browse"></button></div></div>
+      <details><summary data-t="advanced"></summary>
+        <div class="field"><label for="g-args" data-t="arguments"></label><input id="g-args" spellcheck="false"></div>
+        <div class="field"><label for="g-iconfrom" data-t="iconFrom"></label><input id="g-iconfrom" spellcheck="false"></div>
+      </details>
+    </div>
+    <div id="g-steam" hidden>
+      <div class="field"><label for="g-steamlist" data-t="steamGame"></label><select id="g-steamlist"></select></div>
+    </div>
+    <label class="check"><button class="switch" id="g-pinned" type="button" aria-label="pin"></button><span data-t="showOnHome"></span></label>
+    <div class="form-error" id="g-error"></div>
+    <footer><button class="btn" data-close="game-modal" data-t="cancel"></button><button class="btn primary" id="g-save" data-t="save"></button></footer>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
 <script nonce="{{NONCE}}">
 (function () {
   "use strict";
   var TOKEN = "{{ADMIN_TOKEN}}";
   var $ = function (id) { return document.getElementById(id); };
-  var hist = { mem: [], cpu: [] };
-  var STREAM_NAMES = { stats: "Stats", media: "Now playing" };
+
+  var STR = {
+    en: {
+      overview: "Overview", devices: "Devices", games: "Games", addDevice: "Add device", addGame: "Add game",
+      overviewSub: "DeskLink is running in the background.", memory: "Memory", connectedNow: "Connected now",
+      paired: "Paired devices", pairedHint: "Phones and tablets that can connect", noneConnected: "No device is connected right now.",
+      devicesSub: "Everything paired with this PC.", noDevices: "No devices yet.",
+      gamesSub: "Games you can start from the phone. Changes show up on connected phones right away.", noGames: "No games yet.",
+      pairSub: "Scan this with the phone's camera.", newCode: "New code", manualOpen: "Trouble scanning? Connect manually",
+      manualText: "On the phone (same Wi-Fi), open this address and enter the code above:", done: "Done",
+      offline: "DeskLink is not responding. Is it still running?",
+      gameSub: "Pick a program or one of your Steam games.", name: "Name", program: "Program", steam: "Steam",
+      programPath: "Program", browse: "Browse…", advanced: "Advanced", arguments: "Launch options (optional)",
+      iconFrom: "Take the icon from another .exe (optional)", steamGame: "Installed Steam game", showOnHome: "Show on the home screen",
+      cancel: "Cancel", save: "Save", editGame: "Edit game", newGame: "Add game", saved: "Saved. Phones are updated.",
+      removed: "Removed.", connected: "Connected", notConnected: "Not connected", buttonsOnly: "Buttons",
+      statusL: "Status", addressL: "Address", forL: "Connected for", showingL: "Showing", pairedL: "Paired on",
+      remove: "Remove", removeQ: "Remove {}? It will have to be paired again.", deleteQ: "Remove {} from your games?",
+      onHome: "Home screen", newCodeIn: "New code in {} s", noSteam: "No Steam games found",
+      running: "Running for {}", stream_media: "Now playing", stream_stats: "Stats", streaming: "{} showing live data", idle: "Idle",
+      needName: "Give the game a name.", needProgram: "Choose a program."
+    },
+    tr: {
+      overview: "Genel bakış", devices: "Cihazlar", games: "Oyunlar", addDevice: "Cihaz ekle", addGame: "Oyun ekle",
+      overviewSub: "DeskLink arka planda çalışıyor.", memory: "Bellek", connectedNow: "Şu an bağlı",
+      paired: "Eşleşmiş cihazlar", pairedHint: "Bağlanabilen telefon ve tabletler", noneConnected: "Şu an bağlı cihaz yok.",
+      devicesSub: "Bu bilgisayarla eşleşmiş her şey.", noDevices: "Henüz cihaz yok.",
+      gamesSub: "Telefondan başlatabileceğin oyunlar. Değişiklikler bağlı telefonlarda anında görünür.", noGames: "Henüz oyun yok.",
+      pairSub: "Telefonun kamerasıyla okut.", newCode: "Yeni kod", manualOpen: "Okutamıyor musun? Elle bağlan",
+      manualText: "Telefonda (aynı Wi-Fi) bu adresi aç ve yukarıdaki kodu gir:", done: "Tamam",
+      offline: "DeskLink yanıt vermiyor. Hâlâ çalışıyor mu?",
+      gameSub: "Bir program ya da Steam oyunlarından birini seç.", name: "Ad", program: "Program", steam: "Steam",
+      programPath: "Program", browse: "Gözat…", advanced: "Gelişmiş", arguments: "Başlatma seçenekleri (isteğe bağlı)",
+      iconFrom: "İkonu başka bir .exe'den al (isteğe bağlı)", steamGame: "Yüklü Steam oyunu", showOnHome: "Ana ekranda göster",
+      cancel: "Vazgeç", save: "Kaydet", editGame: "Oyunu düzenle", newGame: "Oyun ekle", saved: "Kaydedildi. Telefonlar güncellendi.",
+      removed: "Kaldırıldı.", connected: "Bağlı", notConnected: "Bağlı değil", buttonsOnly: "Butonlar",
+      statusL: "Durum", addressL: "Adres", forL: "Bağlantı süresi", showingL: "Açık ekran", pairedL: "Eşleşme tarihi",
+      remove: "Kaldır", removeQ: "{} kaldırılsın mı? Tekrar eşleşmesi gerekecek.", deleteQ: "{} oyunlardan kaldırılsın mı?",
+      onHome: "Ana ekran", newCodeIn: "{} sn sonra yeni kod", noSteam: "Steam oyunu bulunamadı",
+      running: "{} süredir çalışıyor", stream_media: "Şimdi çalıyor", stream_stats: "İstatistik", streaming: "{} cihaz canlı veri gösteriyor", idle: "Boşta",
+      needName: "Oyuna bir ad ver.", needProgram: "Bir program seç."
+    }
+  };
+  var LANG = /^tr\b/i.test(navigator.language || "") ? "tr" : "en";
+  document.documentElement.lang = LANG;
+  function t(k, a) { var s = STR[LANG][k] || STR.en[k] || k; return a === undefined ? s : s.replace("{}", a); }
+  Array.prototype.forEach.call(document.querySelectorAll("[data-t]"), function (el) { el.textContent = t(el.dataset.t); });
+
+  var ICON_PHONE = '<svg viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg>';
+  var ICON_TABLET = '<svg viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2.5"/><path d="M11 18h2"/></svg>';
+  var ICON_GAME = '<svg viewBox="0 0 24 24"><path d="M6 11h4M8 9v4"/><path d="M15 12h.01M18 10h.01"/><path d="M17.3 5H6.7a4 4 0 0 0-4 3.6l-.9 8.1A2.5 2.5 0 0 0 4.3 19.5c.9 0 1.7-.5 2.1-1.3L8 15h8l1.6 3.2c.4.8 1.2 1.3 2.1 1.3a2.5 2.5 0 0 0 2.5-2.8l-.9-8.1A4 4 0 0 0 17.3 5z"/></svg>';
+  var ICON_EDIT = '<svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4z"/></svg>';
+  var ICON_TRASH = '<svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>';
 
   function api(path, body) {
     return fetch("/admin/api/" + path, {
       method: body ? "POST" : "GET",
       headers: { "X-Admin-Token": TOKEN, "Content-Type": "application/json" },
       body: body ? JSON.stringify(body) : undefined
-    }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); });
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (!r.ok) throw new Error(j.error || String(r.status));
+        return j;
+      });
+    });
   }
+
+  var toastTimer;
+  function toast(msg) {
+    var el = $("toast"); el.textContent = msg; el.classList.add("show");
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { el.classList.remove("show"); }, 2200);
+  }
+
+  function el(tag, cls, html) { var e = document.createElement(tag); if (cls) e.className = cls; if (html) e.innerHTML = html; return e; }
+  function text(tag, cls, s) { var e = el(tag, cls); e.textContent = s; return e; }
 
   function duration(s) {
     if (s < 60) return s + "s";
     var m = Math.floor(s / 60), h = Math.floor(m / 60), d = Math.floor(h / 24);
     if (d) return d + "d " + (h % 24) + "h";
     if (h) return h + "h " + (m % 60) + "m";
-    return m + "m " + (s % 60) + "s";
+    return m + "m";
   }
+  function dateText(iso) { return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }); }
 
-  function spark(key, value, max) {
-    var h = hist[key];
-    h.push(value);
-    if (h.length > 60) h.shift();
-    var top = Math.max(max, Math.max.apply(null, h) * 1.2);
-    var pts = h.map(function (v, i) {
-      return (h.length === 1 ? 100 : i * 100 / (h.length - 1)).toFixed(2) + " " + (33 - v / top * 30).toFixed(2);
-    });
+  // ---- Navigation --------------------------------------------------------
+
+  var current = "overview";
+  var navButtons = document.querySelectorAll(".nav button");
+  function go(view) {
+    current = view;
+    Array.prototype.forEach.call(navButtons, function (b) { b.classList.toggle("on", b.dataset.view === view); });
+    ["overview", "devices", "games"].forEach(function (v) { $("v-" + v).hidden = v !== view; });
+    if (view === "games") loadGames();
+    if (last) render(last);
+  }
+  Array.prototype.forEach.call(navButtons, function (b) { b.onclick = function () { go(b.dataset.view); }; });
+
+  // ---- Status ------------------------------------------------------------
+
+  var last = null, hist = { mem: [], cpu: [] }, selected = null;
+
+  function spark(key, v, floor) {
+    var h = hist[key]; h.push(v); if (h.length > 60) h.shift();
+    var top = Math.max(floor, Math.max.apply(null, h) * 1.25);
+    var pts = h.map(function (x, i) { return (h.length < 2 ? 100 : i * 100 / (h.length - 1)).toFixed(2) + " " + (29 - x / top * 26).toFixed(2); });
     $(key + "-line").setAttribute("d", "M" + pts.join("L"));
-    $(key + "-area").setAttribute("d", "M0 34L" + pts.join("L") + "L100 34Z");
+    $(key + "-area").setAttribute("d", "M0 30L" + pts.join("L") + "L100 30Z");
   }
 
-  function cell(tr, text, cls) {
-    var td = document.createElement("td");
-    if (cls) td.className = cls;
-    if (text instanceof Node) td.appendChild(text); else td.textContent = text;
-    tr.appendChild(td);
-    return td;
+  function sessionsByDevice(st) {
+    var m = {};
+    st.sessions.forEach(function (s) { (m[s.device_id] = m[s.device_id] || []).push(s); });
+    return m;
   }
+
+  function deviceIcon(name) { return /iPad|Tablet/i.test(name) ? ICON_TABLET : ICON_PHONE; }
 
   function render(st) {
-    $("error").style.display = "none";
+    last = st;
+    $("offline").hidden = true;
     $("dot").className = "dot";
     $("version").textContent = "v" + st.version;
-    $("uptime").textContent = "running for " + duration(st.uptime_s);
+    $("uptime").textContent = t("running", duration(st.uptime_s));
 
     var p = st.process;
-    $("mem").firstChild.textContent = p.private_mb.toFixed(1);
-    $("mem-hint").textContent = "Go heap " + p.heap_mb.toFixed(1) + " MB · working set " + p.working_set_mb.toFixed(0) + " MB";
-    $("cpu").firstChild.textContent = p.cpu.toFixed(1);
+    $("mem").textContent = p.private_mb.toFixed(1);
+    $("mem-hint").textContent = "Go heap " + p.heap_mb.toFixed(1) + " MB";
+    $("cpu").textContent = p.cpu.toFixed(1);
     $("cpu-hint").textContent = p.goroutines + " goroutines";
-    spark("mem", p.private_mb, 10);
-    spark("cpu", p.cpu, 2);
-
-    $("conn-count").textContent = st.sessions.length;
+    var online = sessionsByDevice(st);
+    var onlineCount = Object.keys(online).length;
+    $("m-online").textContent = onlineCount;
     var live = st.sessions.filter(function (s) { return s.streams.length; }).length;
-    $("conn-hint").textContent = live ? live + " streaming live data" : "Idle";
-    $("dev-count").textContent = st.devices.length;
+    $("m-online-hint").textContent = live ? t("streaming", live) : t("idle");
+    $("m-paired").textContent = st.devices.length;
+    $("nav-online").hidden = !onlineCount;
+    $("nav-online").textContent = onlineCount;
 
-    var tb = $("sessions");
-    tb.innerHTML = "";
-    st.sessions.forEach(function (s) {
-      var tr = document.createElement("tr");
-      cell(tr, s.name);
-      cell(tr, s.addr.replace(/:\d+$/, ""));
-      var showing = document.createElement("span");
-      if (!s.streams.length) showing.textContent = "Buttons only";
-      s.streams.forEach(function (k) {
-        var b = document.createElement("span");
-        b.className = "badge";
-        b.textContent = STREAM_NAMES[k] || k;
-        showing.appendChild(b);
-      });
-      cell(tr, showing);
-      cell(tr, duration(s.since_s), "right");
-      tb.appendChild(tr);
-    });
-    $("sessions-empty").style.display = st.sessions.length ? "none" : "";
+    renderOverview(st, online);
+    renderDevices(st, online);
+    updatePair(st);
+  }
 
-    var db = $("devices");
-    db.innerHTML = "";
-    st.devices.forEach(function (d) {
-      var tr = document.createElement("tr");
-      var name = document.createElement("span");
-      var dot = document.createElement("i");
-      dot.className = "online" + (d.online ? " on" : "");
-      dot.title = d.online ? "Connected" : "Not connected";
-      name.appendChild(dot);
-      name.appendChild(document.createTextNode(d.name));
-      cell(tr, name);
-      cell(tr, new Date(d.paired_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }));
-      var btn = document.createElement("button");
-      btn.className = "danger";
-      btn.textContent = "Remove";
-      btn.onclick = function () {
-        if (!confirm("Remove " + d.name + "? It will need a new PIN to connect again.")) return;
-        api("revoke", { id: d.id }).then(refresh);
-      };
-      cell(tr, btn, "right");
-      db.appendChild(tr);
-    });
-    $("devices-empty").style.display = st.devices.length ? "none" : "";
+  function sessionText(s) {
+    var showing = s.streams.map(function (k) { return t("stream_" + k); });
+    return (showing.length ? showing.join(" · ") : t("buttonsOnly")) + " · " + duration(s.since_s);
+  }
 
-    $("pin").textContent = st.pin;
-    var addrs = $("addresses");
-    addrs.innerHTML = "";
-    st.addresses.forEach(function (a) {
-      var div = document.createElement("div");
-      div.className = "addr";
-      div.textContent = a;
-      addrs.appendChild(div);
+  function renderOverview(st, online) {
+    var list = $("ov-online"); list.innerHTML = "";
+    st.devices.filter(function (d) { return online[d.id]; }).forEach(function (d) {
+      var r = el("button", "row");
+      r.appendChild(el("span", "ico", deviceIcon(d.name)));
+      var tx = el("span", "txt"); tx.appendChild(text("b", "", d.name)); tx.appendChild(text("span", "", sessionText(online[d.id][0]))); r.appendChild(tx);
+      r.appendChild(el("span", "dot"));
+      r.onclick = function () { selected = d.id; go("devices"); };
+      list.appendChild(r);
     });
+    $("ov-empty").hidden = list.children.length > 0;
+  }
+
+  function renderDevices(st, online) {
+    var has = st.devices.length > 0;
+    $("dev-split").hidden = !has; $("dev-empty").hidden = has;
+    if (!has) return;
+    var devs = st.devices.slice().sort(function (a, b) { return (online[b.id] ? 1 : 0) - (online[a.id] ? 1 : 0); });
+    if (!selected || !devs.some(function (d) { return d.id === selected; })) selected = devs[0].id;
+
+    var list = $("dev-list"); list.innerHTML = "";
+    devs.forEach(function (d) {
+      var r = el("button", "row" + (d.id === selected ? " on" : ""));
+      r.appendChild(el("span", "ico", deviceIcon(d.name)));
+      var tx = el("span", "txt"); tx.appendChild(text("b", "", d.name));
+      tx.appendChild(text("span", "", online[d.id] ? t("connected") + " · " + duration(online[d.id][0].since_s) : dateText(d.paired_at)));
+      r.appendChild(tx);
+      r.appendChild(el("span", "dot" + (online[d.id] ? "" : " off")));
+      r.onclick = function () { selected = d.id; render(last); };
+      list.appendChild(r);
+    });
+
+    var d = devs.filter(function (x) { return x.id === selected; })[0];
+    var s = online[d.id] && online[d.id][0];
+    var box = $("dev-detail"); box.innerHTML = "";
+    box.appendChild(text("h3", "", d.name));
+    box.appendChild(text("span", "pill" + (s ? " live" : ""), s ? t("connected") : t("notConnected")));
+    var facts = el("dl", "facts");
+    function fact(k, v) { var row = el("div"); row.appendChild(text("span", "", k)); if (typeof v === "string") row.appendChild(text("span", "", v)); else row.appendChild(v); facts.appendChild(row); }
+    if (s) {
+      fact(t("addressL"), s.addr.replace(/:\d+$/, ""));
+      fact(t("forL"), duration(s.since_s));
+      var badges = el("span");
+      if (!s.streams.length) badges.textContent = t("buttonsOnly");
+      s.streams.forEach(function (k) { badges.appendChild(text("span", "badge", t("stream_" + k))); });
+      fact(t("showingL"), badges);
+    }
+    fact(t("pairedL"), dateText(d.paired_at));
+    box.appendChild(facts);
+    var rm = text("button", "btn danger", t("remove"));
+    rm.onclick = function () {
+      if (!confirm(t("removeQ", d.name))) return;
+      api("revoke", { id: d.id }).then(function () { toast(t("removed")); selected = null; refresh(); });
+    };
+    box.appendChild(rm);
   }
 
   function refresh() {
     return api("status").then(render).catch(function () {
-      $("error").style.display = "block";
-      $("dot").className = "dot off";
+      $("offline").hidden = false;
+      $("dot").className = "dot bad";
     });
   }
 
-  $("new-pin").onclick = function () { api("pin", {}).then(refresh); };
+  // ---- Add device --------------------------------------------------------
 
-  // Poll only while the tab is visible, so an open dashboard costs nothing in the background.
-  var timer = null;
-  function schedule() {
-    clearInterval(timer);
-    timer = document.hidden ? null : setInterval(refresh, 2000);
+  var codeExpires = 0, lastQR = null;
+  function updatePair(st) {
+    $("code").textContent = st.code.slice(0, 3) + " " + st.code.slice(3);
+    codeExpires = Date.now() + st.code_left_s * 1000;
+    if (st.qr !== lastQR) { $("qr").innerHTML = st.qr; lastQR = st.qr; } // our own SVG from the server
+    $("manual-addr").textContent = st.addresses[0] || "";
   }
+  setInterval(function () {
+    if (!codeExpires || $("pair-modal").hidden) return;
+    var left = Math.max(0, (codeExpires - Date.now()) / 1000);
+    $("countdown").style.transform = "scaleX(" + (left / 30).toFixed(3) + ")";
+    $("countdown-bar").classList.toggle("low", left < 6);
+    $("code-left").textContent = t("newCodeIn", Math.ceil(left));
+    if (left === 0) { codeExpires = 0; refresh(); }
+  }, 250);
+
+  function openPair() {
+    $("manual").hidden = true; $("manual-open-wrap").hidden = false;
+    $("pair-modal").hidden = false;
+    refresh();
+  }
+  $("add-device").onclick = $("add-device-2").onclick = $("add-device-3").onclick = openPair;
+  $("rotate").onclick = function () { api("rotate", {}).then(refresh); };
+  $("manual-open").onclick = function () { $("manual").hidden = false; $("manual-open-wrap").hidden = true; };
+
+  Array.prototype.forEach.call(document.querySelectorAll("[data-close]"), function (b) {
+    b.onclick = function () { $(b.dataset.close).hidden = true; };
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") { $("pair-modal").hidden = true; $("game-modal").hidden = true; }
+  });
+
+  // ---- Games -------------------------------------------------------------
+
+  var games = [], canPin = true;
+
+  function loadGames() {
+    return api("games").then(function (r) { games = r.games; canPin = r.can_pin; renderGames(); });
+  }
+
+  function gameSub(g) {
+    if (g.steam_appid) return "Steam · " + g.steam_appid;
+    return g.target + (g.args ? "  " + g.args : "");
+  }
+
+  function renderGames() {
+    var list = $("game-list"); list.innerHTML = "";
+    games.forEach(function (g, i) {
+      var r = el("div", "row");
+      var ico = el("span", "ico");
+      if (g.icon) { var img = document.createElement("img"); img.src = g.icon; img.alt = ""; ico.appendChild(img); } else ico.innerHTML = ICON_GAME;
+      r.appendChild(ico);
+      var tx = el("span", "txt"); tx.appendChild(text("b", "", g.name)); tx.appendChild(text("span", "", gameSub(g))); r.appendChild(tx);
+      var acts = el("span", "actions");
+      if (canPin) {
+        acts.appendChild(text("span", "switch-label", t("onHome")));
+        var sw = el("button", "switch" + (g.pinned ? " on" : ""));
+        sw.title = t("showOnHome");
+        sw.onclick = function () { var copy = games.slice(); copy[i] = Object.assign({}, g, { pinned: !g.pinned }); saveGames(copy).catch(function (e) { toast(e.message); }); };
+        acts.appendChild(sw);
+      }
+      var ed = el("button", "icon-btn", ICON_EDIT); ed.title = t("editGame"); ed.onclick = function () { openGame(i); };
+      var del = el("button", "icon-btn danger", ICON_TRASH); del.title = t("remove");
+      del.onclick = function () {
+        if (!confirm(t("deleteQ", g.name))) return;
+        saveGames(games.filter(function (_, j) { return j !== i; })).catch(function (e) { toast(e.message); });
+      };
+      acts.appendChild(ed); acts.appendChild(del);
+      r.appendChild(acts);
+      list.appendChild(r);
+    });
+    $("game-empty").hidden = games.length > 0;
+  }
+
+  function saveGames(list) {
+    var body = { games: list.map(function (g) { var c = Object.assign({}, g); delete c.icon; return c; }) };
+    return api("games", body).then(function (r) {
+      games = r.games; canPin = r.can_pin; renderGames(); toast(t("saved"));
+    });
+  }
+
+  // Editor
+  var editing = -1, kind = "program", steamGames = null;
+
+  function setKind(k) {
+    kind = k;
+    Array.prototype.forEach.call($("g-kind").children, function (b) { b.classList.toggle("on", b.dataset.kind === k); });
+    $("g-program").hidden = k !== "program"; $("g-steam").hidden = k !== "steam";
+    if (k === "steam") loadSteam();
+  }
+  Array.prototype.forEach.call($("g-kind").children, function (b) { b.onclick = function () { setKind(b.dataset.kind); }; });
+
+  function loadSteam(selectId) {
+    var sel = $("g-steamlist");
+    function fill() {
+      sel.innerHTML = "";
+      if (!steamGames.length) { var o = document.createElement("option"); o.textContent = t("noSteam"); o.value = ""; sel.appendChild(o); return; }
+      steamGames.forEach(function (s) { var o = document.createElement("option"); o.value = s.appid; o.textContent = s.name; sel.appendChild(o); });
+      if (selectId) sel.value = selectId;
+    }
+    if (steamGames) { fill(); return; }
+    api("steam").then(function (r) { steamGames = r.games || []; fill(); });
+  }
+  $("g-steamlist").onchange = function () {
+    var opt = $("g-steamlist").selectedOptions[0];
+    if (opt && opt.value && !$("g-name").value.trim()) $("g-name").value = opt.textContent;
+  };
+
+  function openGame(i) {
+    editing = i;
+    var g = i >= 0 ? games[i] : { name: "", target: "", args: "", icon_from: "", pinned: canPin };
+    $("game-modal-title").textContent = i >= 0 ? t("editGame") : t("newGame");
+    $("g-name").value = g.name || "";
+    $("g-target").value = g.target || "";
+    $("g-args").value = g.args || "";
+    $("g-iconfrom").value = g.icon_from || "";
+    $("g-pinned").classList.toggle("on", !!g.pinned);
+    $("g-pinned").parentNode.hidden = !canPin;
+    $("g-error").textContent = "";
+    setKind(g.steam_appid ? "steam" : "program");
+    if (g.steam_appid) loadSteam(String(g.steam_appid));
+    $("game-modal").hidden = false;
+    setTimeout(function () { $("g-name").focus(); }, 30);
+  }
+  $("add-game").onclick = function () { openGame(-1); };
+  $("g-pinned").onclick = function () { $("g-pinned").classList.toggle("on"); };
+
+  // Opens the Windows file picker on this PC.
+  $("g-browse").onclick = function () {
+    api("browse", {}).then(function (r) {
+      if (!r.path) return;
+      $("g-target").value = r.path;
+      if (!$("g-name").value.trim()) {
+        $("g-name").value = r.path.split("\\").pop().replace(/\.(exe|lnk|bat|cmd)$/i, "");
+      }
+    });
+  };
+
+  $("g-save").onclick = function () {
+    var name = $("g-name").value.trim();
+    if (!name) { $("g-error").textContent = t("needName"); return; }
+    var g = editing >= 0 ? Object.assign({}, games[editing]) : {};
+    g.name = name;
+    g.pinned = $("g-pinned").classList.contains("on");
+    if (kind === "steam") {
+      var id = parseInt($("g-steamlist").value, 10);
+      if (!id) { $("g-error").textContent = t("noSteam"); return; }
+      g.steam_appid = id; g.target = ""; g.args = "";
+    } else {
+      var target = $("g-target").value.trim();
+      if (!target) { $("g-error").textContent = t("needProgram"); return; }
+      g.steam_appid = 0; g.target = target; g.args = $("g-args").value.trim(); g.icon_from = $("g-iconfrom").value.trim();
+    }
+    var list = games.slice();
+    if (editing >= 0) list[editing] = g; else list.push(g);
+    saveGames(list).then(function () { $("game-modal").hidden = true; }).catch(function (e) { $("g-error").textContent = e.message; });
+  };
+
+  // ---- Polling -----------------------------------------------------------
+
+  // Poll only while the window is visible, so an open dashboard costs nothing in the background.
+  var timer = null;
+  function schedule() { clearInterval(timer); timer = document.hidden ? null : setInterval(refresh, 2000); }
   document.addEventListener("visibilitychange", function () { if (!document.hidden) refresh(); schedule(); });
+  // Deep links: #devices, #games, #pair.
+  var start = location.hash.slice(1);
+  if (start === "devices" || start === "games") go(start);
+  if (start === "pair") openPair();
   refresh();
   schedule();
 })();

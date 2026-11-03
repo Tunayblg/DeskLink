@@ -21,7 +21,7 @@
 | `cmd/desklink` | Entry point: log file, single instance, HTTP server, tray icon, start with Windows. |
 | `internal/config` | Parses and validates `config.json`. Exposes only the public part of the layout to phones. |
 | `internal/actions` | The fixed set of action types and their Windows implementation (`ShellExecuteW`, `keybd_event`, `LockWorkStation`, `SetSuspendState`). |
-| `internal/auth` | Pairing PIN, device tokens, `devices.json`. |
+| `internal/auth` | Rotating pairing codes (30 s), handoff codes, device tokens, `devices.json`. |
 | `internal/server` | HTTP routes, WebSocket protocol, live streams, LAN-only guard, security headers, the dashboard API. |
 | `internal/art` | Game pictures: custom covers, Steam cover art, icons extracted from executables. |
 | `internal/media` | Now playing (Windows media sessions, via WinRT) and the system volume (Core Audio). |
@@ -35,12 +35,12 @@ Windows APIs are called directly through `syscall`, with no cgo. The only depend
 ## Connection flow
 
 1. The phone loads `/` over HTTP. The page reads its token from `localStorage`.
-2. **No token:** the page shows the PIN screen and posts `{pin, name}` to `/api/pair`. On success it stores the returned token.
+2. **No token:** the page posts a pairing code to `/api/pair`, either from the QR code (the page was opened with `#pair=<code>`) or typed in. It stores the returned token. In Safari on iOS it also puts the returned single-use handoff code in its URL (`#h=<code>`), so a home screen app added from that page can fetch the same token.
 3. The page opens `ws://<host>/ws` and sends `{"type":"auth","token":"…"}` as its first message (within 5 s).
 4. The server replies with the layout: groups of buttons and the games with their art. Action targets never leave the PC.
 5. A tap sends `{"type":"press","id":"…"}` and the server answers with a `result`. Dragging the volume slider sends `{"type":"volume","level":0-100}`.
 6. The page turns live data on and off for the screen it is showing: `{"type":"media","on":true}` on the home screen, `{"type":"stats","on":true}` on the stats screen (and for the home screen's CPU/GPU rings). Nothing is sampled while no phone asks for it.
-7. If the token is unknown, the server sends `{"type":"unauthorized"}`. The page deletes the token and shows the PIN screen.
+7. If the token is unknown, the server sends `{"type":"unauthorized"}`. The page deletes the token and shows the pairing screen.
 
 Keeping the connection alive:
 

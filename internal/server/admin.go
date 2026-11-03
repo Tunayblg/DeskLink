@@ -7,12 +7,16 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/coder/websocket"
+	"rsc.io/qr"
 
 	"github.com/Tunayblg/DeskLink/internal/auth"
 )
@@ -28,6 +32,8 @@ type session struct {
 	addr   string
 	since  time.Time
 	cancel context.CancelFunc
+	ctx    context.Context
+	conn   *websocket.Conn
 
 	mu      sync.Mutex
 	streams map[string]bool
@@ -113,7 +119,10 @@ type adminStatus struct {
 	UptimeS   int64           `json:"uptime_s"`
 	Port      int             `json:"port"`
 	Addresses []string        `json:"addresses"`
-	PIN       string          `json:"pin"`
+	Code      string          `json:"code"`        // 6-digit pairing code for this window
+	CodeLeft  float64         `json:"code_left_s"` // seconds until it changes
+	PairURL   string          `json:"pair_url"`    // what the QR code opens
+	QR        string          `json:"qr"`          // the QR code as SVG markup
 	Process   any             `json:"process"`
 	Sessions  []sessionStatus `json:"sessions"`
 	Devices   []deviceStatus  `json:"devices"`
@@ -135,15 +144,24 @@ type deviceStatus struct {
 }
 
 func (s *Server) handleAdminStatus(w http.ResponseWriter, r *http.Request) {
+	code := s.auth.Current()
 	st := adminStatus{
 		Version:   s.Version,
 		UptimeS:   int64(time.Since(s.started).Seconds()),
-		Port:      s.cfg.Port,
+		Port:      s.port(),
 		Addresses: s.Addresses,
-		PIN:       s.auth.PIN(),
+		Code:      code.Digits,
+		CodeLeft:  time.Until(code.Expires).Seconds(),
 		Process:   s.meter.Read(),
 		Sessions:  []sessionStatus{},
 		Devices:   []deviceStatus{},
+	}
+	// The QR code opens the panel on the first (most likely) address and pairs
+	// right away. The code sits in the URL fragment, which browsers never send
+	// to a server.
+	if len(s.Addresses) > 0 {
+		st.PairURL = s.Addresses[0] + "/#pair=" + code.Long
+		st.QR = qrSVG(st.PairURL)
 	}
 	online := map[string]bool{}
 	s.sessMu.Lock()
@@ -197,7 +215,30 @@ func (s *Server) handleAdminRevoke(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-func (s *Server) handleAdminPIN(w http.ResponseWriter, r *http.Request) {
-	s.auth.NewPIN()
-	writeJSON(w, http.StatusOK, map[string]string{"pin": s.auth.PIN()})
+// handleAdminRotate makes the code and QR code on screen stop working at once
+// (for example after showing them to someone).
+func (s *Server) handleAdminRotate(w http.ResponseWriter, r *http.Request) {
+	s.auth.Rotate()
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// qrSVG draws text as a QR code: one path of unit squares, with a quiet zone.
+func qrSVG(text string) string {
+	c, err := qr.Encode(text, qr.M)
+	if err != nil {
+		return ""
+	}
+	var b strings.Builder
+	n := c.Size + 8
+	fmt.Fprintf(&b, `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %d %d" shape-rendering="crispEdges">`, n, n)
+	fmt.Fprintf(&b, `<rect width="%d" height="%d" fill="#fff"/><path fill="#000" d="`, n, n)
+	for y := 0; y < c.Size; y++ {
+		for x := 0; x < c.Size; x++ {
+			if c.Black(x, y) {
+				fmt.Fprintf(&b, "M%d %dh1v1h-1z", x+4, y+4)
+			}
+		}
+	}
+	b.WriteString(`"/></svg>`)
+	return b.String()
 }

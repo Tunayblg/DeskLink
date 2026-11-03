@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"syscall"
 	"unsafe"
 )
@@ -89,6 +90,91 @@ func edgePath() string {
 func fileExists(p string) bool {
 	st, err := os.Stat(p)
 	return err == nil && !st.IsDir()
+}
+
+var (
+	comdlg32      = syscall.NewLazyDLL("comdlg32.dll")
+	ole32         = syscall.NewLazyDLL("ole32.dll")
+	getOpenFile   = comdlg32.NewProc("GetOpenFileNameW")
+	coInit        = ole32.NewProc("CoInitializeEx")
+	coUninit      = ole32.NewProc("CoUninitialize")
+	foregroundWnd = user32.NewProc("GetForegroundWindow")
+)
+
+type openFileName struct {
+	structSize    uint32
+	owner         uintptr
+	instance      uintptr
+	filter        *uint16
+	customFilter  *uint16
+	maxCustFilter uint32
+	filterIndex   uint32
+	file          *uint16
+	maxFile       uint32
+	fileTitle     *uint16
+	maxFileTitle  uint32
+	initialDir    *uint16
+	title         *uint16
+	flags         uint32
+	fileOffset    uint16
+	fileExtension uint16
+	defExt        *uint16
+	custData      uintptr
+	hook          uintptr
+	templateName  *uint16
+	reserved      uintptr
+	reservedDW    uint32
+	flagsEx       uint32
+}
+
+// ChooseProgram shows the Windows "Open" dialog for picking a program and
+// returns the chosen path. Shortcuts (.lnk) resolve to their target.
+func ChooseProgram(title string) (string, bool) {
+	type result struct {
+		path string
+		ok   bool
+	}
+	done := make(chan result, 1)
+	go func() {
+		// The dialog needs a single-threaded COM apartment on its own OS thread.
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
+		const coinitApartmentThreaded = 0x2
+		coInit.Call(0, coinitApartmentThreaded)
+		defer coUninit.Call()
+
+		filter := utf16z("Programs (*.exe, *.lnk, *.bat)", "*.exe;*.lnk;*.bat;*.cmd", "All files", "*.*")
+		buf := make([]uint16, 1024)
+		owner, _, _ := foregroundWnd.Call()
+		ofn := openFileName{owner: owner, filter: &filter[0], filterIndex: 1, file: &buf[0], maxFile: uint32(len(buf)), title: u16(title)}
+		ofn.structSize = uint32(unsafe.Sizeof(ofn))
+		const (
+			ofnNoChangeDir     = 0x00000008
+			ofnPathMustExist   = 0x00000800
+			ofnFileMustExist   = 0x00001000
+			ofnExplorer        = 0x00080000
+			ofnDontAddToRecent = 0x02000000
+		)
+		ofn.flags = ofnNoChangeDir | ofnPathMustExist | ofnFileMustExist | ofnExplorer | ofnDontAddToRecent
+		r, _, _ := getOpenFile.Call(uintptr(unsafe.Pointer(&ofn)))
+		if r == 0 {
+			done <- result{}
+			return
+		}
+		done <- result{syscall.UTF16ToString(buf), true}
+	}()
+	res := <-done
+	return res.path, res.ok
+}
+
+// utf16z builds a double-NUL-terminated list of strings, as dialog filters need.
+func utf16z(parts ...string) []uint16 {
+	var out []uint16
+	for _, p := range parts {
+		u, _ := syscall.UTF16FromString(p)
+		out = append(out, u...)
+	}
+	return append(out, 0)
 }
 
 // Autostart reports whether DeskLink is registered to start with Windows.
