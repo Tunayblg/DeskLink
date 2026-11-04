@@ -2,12 +2,14 @@
 package server
 
 import (
+	"bufio"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
 	"io/fs"
 	"log"
 	"net"
@@ -15,6 +17,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -25,13 +28,31 @@ import (
 	"github.com/Tunayblg/DeskLink/internal/auth"
 	"github.com/Tunayblg/DeskLink/internal/config"
 	"github.com/Tunayblg/DeskLink/internal/media"
+	"github.com/Tunayblg/DeskLink/internal/pointer"
 	"github.com/Tunayblg/DeskLink/internal/procstat"
+	"github.com/Tunayblg/DeskLink/internal/running"
 	"github.com/Tunayblg/DeskLink/internal/stats"
 )
 
+// errAlreadyRunning is the answer to a press on a game that is already open.
+// The phone shows it in the user's language.
+var errAlreadyRunning = errors.New("already_running")
+
 const (
-	authTimeout  = 5 * time.Second
-	pingInterval = 30 * time.Second
+	authTimeout = 5 * time.Second
+	// idleTimeout closes a connection that has been silent this long; the
+	// phone sends a ping every 15 s.
+	idleTimeout = 45 * time.Second
+	// heldTimeout lets go of a held mouse button when the phone has said
+	// nothing for this long (it pings every 15 s), so a dropped Wi-Fi link in
+	// the middle of a drag cannot leave the button stuck down.
+	heldTimeout = 20 * time.Second
+	// A phone may send this many messages per second (a trackpad sends about
+	// 60), with room for a burst; more are dropped.
+	msgRate  = 300
+	msgBurst = 600
+	// tokenCookie holds the device token as a backup to localStorage.
+	tokenCookie = "desklink_token"
 	// minPressGap stops a stuck finger or a flood of messages from firing an action repeatedly.
 	minPressGap   = 120 * time.Millisecond
 	statsInterval = time.Second
@@ -42,17 +63,40 @@ const (
 type Server struct {
 	// The config can be edited from the dashboard while phones are connected;
 	// cfgMu guards cfg and games, which are replaced together.
-	cfgMu  sync.RWMutex
-	cfg    *config.Config
-	games  []publicGame
-	auth   *auth.Store
-	web    fs.FS
-	run    func(actions.Action) error
-	sample func() stats.Snapshot
+	cfgMu sync.RWMutex
+	cfg   *config.Config
+	games []publicGame
+	auth  *auth.Store
+	web   fs.FS
+	// assetVersion changes whenever the panel's files do (see AssetVersion).
+	assetVersion string
+	// Rate limit for /api/report.
+	reportMu sync.Mutex
+	reportAt time.Time
+	// LogRequests logs every request from the network (not this PC), for
+	// diagnosing a phone that will not load. Set by main from -debug.
+	LogRequests bool
+	run         func(actions.Action) error
+	sample      func() stats.Snapshot
+	system      func() stats.Snapshot // CPU and RAM only, for the dashboard
 
 	media      *media.Watcher
-	nowPlaying func() media.Info
-	setVolume  func(int)
+	nowPlaying func() media.State
+	setVolume  func(source string, level int) // source "" is the system volume
+	control    func(source, action string)
+	// The volume mixer (see mixer.go).
+	readMixer      func() media.Mixer
+	setMixerVolume func(app string, level int)
+	toggleMute     func(app string) // "" mutes the whole PC
+	setMic         func(muted bool)
+	// newPad makes one phone's trackpad (see package pointer).
+	newPad   func() padder
+	gameExes []gameRef
+	// running lists the programs that are open (lowercase, no ".exe"); a game
+	// whose program is among them is not started again.
+	running func() map[string]bool
+	iconMu  sync.Mutex
+	icons   map[string]string // executable path -> icon data URI
 
 	// Dashboard (see admin.go). Version, Addresses and AdminPage are set by main.
 	Version   string
@@ -80,8 +124,9 @@ type publicGame struct {
 func New(cfg *config.Config, store *auth.Store, web fs.FS, pictures map[string]art.Art) *Server {
 	var c stats.Collector
 	w := &media.Watcher{}
-	return &Server{cfg: cfg, auth: store, web: web, games: publicGames(cfg, pictures), run: actions.Run, sample: c.Sample,
-		media: w, nowPlaying: w.Sample, setVolume: w.SetVolume,
+	return &Server{cfg: cfg, auth: store, web: web, assetVersion: AssetVersion(web), games: publicGames(cfg, pictures), run: actions.Run, sample: c.Sample, system: c.System,
+		media: w, nowPlaying: w.Sample, setVolume: setVolume(w), control: w.Control,
+		readMixer: w.Mixer, setMixerVolume: w.SetMixerVolume, toggleMute: w.ToggleMute, setMic: w.SetMic, newPad: func() padder { return pointer.NewPad() }, gameExes: gameExes(cfg.Games), running: running.Names, icons: map[string]string{},
 		adminToken: newAdminToken(), started: time.Now(), sessions: map[*session]struct{}{}}
 }
 
@@ -108,7 +153,7 @@ func (s *Server) layout() serverMsg {
 // apply switches to a new config and sends the new layout to every phone.
 func (s *Server) apply(cfg *config.Config, pictures map[string]art.Art) {
 	s.cfgMu.Lock()
-	s.cfg, s.games = cfg, publicGames(cfg, pictures)
+	s.cfg, s.games, s.gameExes = cfg, publicGames(cfg, pictures), gameExes(cfg.Games)
 	s.cfgMu.Unlock()
 	msg := s.layout()
 	s.sessMu.Lock()
@@ -127,16 +172,53 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("GET /", staticFiles(s.web))
 	mux.HandleFunc("POST /api/pair", s.handlePair)
+	mux.HandleFunc("POST /api/session", s.handleSession)
+	mux.HandleFunc("POST /api/report", s.handleReport)
 	mux.HandleFunc("GET /ws", s.handleWS)
 	mux.HandleFunc("GET /admin", s.localOnly(s.handleAdminPage))
 	mux.HandleFunc("GET /admin/api/status", s.adminAPI(s.handleAdminStatus))
+	mux.HandleFunc("GET /admin/api/usage", s.adminAPI(s.handleAdminUsage))
 	mux.HandleFunc("POST /admin/api/revoke", s.adminAPI(s.handleAdminRevoke))
 	mux.HandleFunc("POST /admin/api/rotate", s.adminAPI(s.handleAdminRotate))
 	mux.HandleFunc("GET /admin/api/games", s.adminAPI(s.handleGamesGet))
 	mux.HandleFunc("POST /admin/api/games", s.adminAPI(s.handleGamesSave))
 	mux.HandleFunc("GET /admin/api/steam", s.adminAPI(s.handleSteamGames))
 	mux.HandleFunc("POST /admin/api/browse", s.adminAPI(s.handleBrowse))
-	return lanOnly(securityHeaders(mux))
+	var h http.Handler = securityHeaders(mux)
+	if s.LogRequests {
+		h = logRequests(h)
+	}
+	return lanOnly(h)
+}
+
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (r *statusRecorder) WriteHeader(code int) { r.status = code; r.ResponseWriter.WriteHeader(code) }
+
+// Hijack lets the WebSocket upgrade through the recorder.
+func (r *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hj, ok := r.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, errors.New("hijacking not supported")
+	}
+	return hj.Hijack()
+}
+
+func logRequests(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		host, _, _ := net.SplitHostPort(r.RemoteAddr)
+		if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+			next.ServeHTTP(w, r)
+			return
+		}
+		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		start := time.Now()
+		next.ServeHTTP(rec, r)
+		log.Printf("http %s %s %s -> %d (%s) %q", host, r.Method, r.URL.Path, rec.status, time.Since(start).Round(time.Millisecond), r.UserAgent())
+	})
 }
 
 // pairRequest carries either a pairing code (typed, or from the QR code) or a
@@ -161,6 +243,7 @@ func (s *Server) handlePair(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		log.Printf("pairing: handoff to home screen app from %s", r.RemoteAddr)
+		setTokenCookie(w, token)
 		writeJSON(w, http.StatusOK, map[string]string{"token": token})
 		return
 	}
@@ -177,18 +260,28 @@ func (s *Server) handlePair(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "save_failed"})
 	default:
 		log.Printf("pairing: paired %q from %s", req.Name, r.RemoteAddr)
+		setTokenCookie(w, token)
 		writeJSON(w, http.StatusOK, map[string]string{"token": token, "handoff": handoff})
 	}
 }
 
 // Messages on the WebSocket. The phone only ever sends "auth", "press",
-// "volume" (set the level), and "stats"/"media" (turn a live stream on or off).
+// "volume" (set the level of the PC, a media source or a program in the
+// mixer), "mute" (toggle the PC's or a program's mute), "micmute" (set the microphone's mute to "on", answered with "micack"), "mouse", "mediactl"
+// (play/pause, skip or mute one media source), and "stats"/"media" (turn a
+// live stream on or off), "mixer" (the same, for the volume mixer).
 type clientMsg struct {
-	Type  string `json:"type"`
-	Token string `json:"token,omitempty"`
-	ID    string `json:"id,omitempty"`
-	On    bool   `json:"on,omitempty"`
-	Level *int   `json:"level,omitempty"` // "volume": 0-100
+	Type   string `json:"type"`
+	Token  string `json:"token,omitempty"`
+	ID     string `json:"id,omitempty"`
+	On     bool   `json:"on,omitempty"`
+	Level  *int   `json:"level,omitempty"`  // "volume": 0-100
+	Source string `json:"source,omitempty"` // "volume", "mediactl": a media source ID
+	App    string `json:"app,omitempty"`    // "volume", "mute": a program in the mixer
+	Action string `json:"action,omitempty"` // "mediactl": toggle, next, prev, mute; "mouse": move, down, up, click, scroll, hscroll
+	Button string `json:"button,omitempty"` // "mouse": left, right, middle
+	DX     int    `json:"dx,omitempty"`     // "mouse": pixels (move) or wheel units (hscroll uses dy)
+	DY     int    `json:"dy,omitempty"`
 }
 
 type serverMsg struct {
@@ -199,14 +292,19 @@ type serverMsg struct {
 	OK     bool                 `json:"ok,omitempty"`
 	Error  string               `json:"error,omitempty"`
 	Stats  *stats.Snapshot      `json:"stats,omitempty"`
-	Media  *media.Info          `json:"media,omitempty"`
-	Art    string               `json:"art,omitempty"` // data: URI, only when the cover changes
+	Media  *media.State         `json:"media,omitempty"`
+	Art    map[string]string    `json:"art,omitempty"` // art ID -> data: URI, each cover sent once
+	Mixer  *mixerView           `json:"mixer,omitempty"`
+	Mic    *media.Mic           `json:"mic,omitempty"`   // "micack": the microphone now (absent: none)
+	Icons  map[string]string    `json:"icons,omitempty"` // mixer app ID -> data: URI, each sent once
 }
 
 func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	// Accept rejects cross-origin requests by default, so other websites
 	// open on the phone cannot talk to DeskLink.
-	c, err := websocket.Accept(w, r, nil)
+	// Compression is off: Safari on iOS 15 has known problems with
+	// permessage-deflate, and on a LAN it saves nothing worth the CPU.
+	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{CompressionMode: websocket.CompressionDisabled})
 	if err != nil {
 		return
 	}
@@ -216,27 +314,51 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
-	device, ok := s.authenticate(ctx, c)
+	// The token comes in the first message, or else from the cookie set at
+	// pairing (iOS can drop a home screen app's localStorage).
+	cookieToken := ""
+	if ck, err := r.Cookie(tokenCookie); err == nil {
+		cookieToken = ck.Value
+	}
+	device, ok := s.authenticate(ctx, c, cookieToken)
 	if !ok {
 		c.Close(websocket.StatusPolicyViolation, "unauthorized")
 		return
 	}
 	name := device.Name
 	log.Printf("connected: %s (%s)", name, r.RemoteAddr)
-	defer log.Printf("disconnected: %s", name)
 	sess := &session{device: device, addr: r.RemoteAddr, since: time.Now(), cancel: cancel, ctx: ctx, conn: c, streams: map[string]bool{}}
 	s.addSession(sess)
 	defer s.removeSession(sess)
 
 	if err := wsjson.Write(ctx, c, s.layout()); err != nil {
+		log.Printf("disconnected: %s (%s, while sending the layout)", name, closeReason(ctx, err))
 		return
 	}
 
-	go keepAlive(ctx, c, cancel)
-
 	var last sync.Map // button id -> time.Time of last press
+	// The trackpad: buttons the phone holds are let go when the connection ends.
+	pad := s.newPad()
+	defer pad.Release()
+	var lastMsg atomic.Int64 // unix nanoseconds of the last message from the phone
+	lastMsg.Store(time.Now().UnixNano())
+	go func() {
+		t := time.NewTicker(heldTimeout / 4)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				if pad.Holding() && time.Since(time.Unix(0, lastMsg.Load())) > heldTimeout {
+					pad.Release()
+				}
+			}
+		}
+	}()
+	budget, budgetAt := float64(msgBurst), time.Now()
 	// Live streams the phone has switched on, keyed by message type.
-	streams := map[string]func(context.Context, *websocket.Conn){"stats": s.streamStats, "media": s.streamMedia}
+	streams := map[string]func(context.Context, *websocket.Conn){"stats": s.streamStats, "media": s.streamMedia, "mixer": s.streamMixer}
 	stop := map[string]context.CancelFunc{}
 	defer func() {
 		for _, f := range stop {
@@ -244,9 +366,33 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 	for {
+		// The phone sends a ping every 15 s. WebSocket protocol pings are not
+		// used: Safari on iOS 15 did not answer them, so connections were cut
+		// after 30-40 s. Silence for longer than idleTimeout means a dead link
+		// (phone asleep, Wi-Fi gone).
 		var msg clientMsg
-		if err := wsjson.Read(ctx, c, &msg); err != nil {
+		rctx, rcancel := context.WithTimeout(ctx, idleTimeout)
+		err := wsjson.Read(rctx, c, &msg)
+		rcancel()
+		if err != nil {
+			log.Printf("disconnected: %s (%s)", name, closeReason(ctx, err))
 			return
+		}
+		lastMsg.Store(time.Now().UnixNano())
+		if msg.Type == "ping" {
+			if err := wsjson.Write(ctx, c, serverMsg{Type: "pong"}); err != nil {
+				log.Printf("disconnected: %s (%s)", name, closeReason(ctx, err))
+				return
+			}
+			continue
+		}
+		// Pings are exempt, so a flood cannot make the phone think the link died.
+		now := time.Now()
+		budget = min(float64(msgBurst), budget+now.Sub(budgetAt).Seconds()*msgRate) - 1
+		budgetAt = now
+		if budget < 0 {
+			budget = 0
+			continue // too many messages; drop this one
 		}
 		if stream, ok := streams[msg.Type]; ok {
 			if f := stop[msg.Type]; f != nil {
@@ -262,8 +408,41 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		if msg.Type == "volume" {
-			if msg.Level != nil && *msg.Level >= 0 && *msg.Level <= 100 {
-				s.setVolume(*msg.Level)
+			if msg.Level == nil || *msg.Level < 0 || *msg.Level > 100 {
+				continue
+			}
+			if msg.App != "" {
+				if s.knownApp(msg.App) {
+					s.setMixerVolume(msg.App, *msg.Level)
+				}
+			} else if s.knownSource(msg.Source) {
+				s.setVolume(msg.Source, *msg.Level)
+			}
+			continue
+		}
+		if msg.Type == "mouse" {
+			pad.Do(pointer.Event{Action: msg.Action, Button: msg.Button, DX: msg.DX, DY: msg.DY})
+			continue
+		}
+		if msg.Type == "micmute" {
+			s.setMic(msg.On)
+			// Answer with what the microphone really is now, so the phone does
+			// not have to guess (its own picture can be stale on a slow link).
+			if err := wsjson.Write(ctx, c, serverMsg{Type: "micack", Mic: s.readMixer().Mic}); err != nil {
+				log.Printf("disconnected: %s (%s)", name, closeReason(ctx, err))
+				return
+			}
+			continue
+		}
+		if msg.Type == "mute" {
+			if s.knownApp(msg.App) {
+				s.toggleMute(msg.App)
+			}
+			continue
+		}
+		if msg.Type == "mediactl" {
+			if media.ValidAction(msg.Action) && msg.Source != "" && s.knownSource(msg.Source) {
+				s.control(msg.Source, msg.Action)
 			}
 			continue
 		}
@@ -273,7 +452,9 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		reply := serverMsg{Type: "result", ID: msg.ID}
 		if err := s.press(msg.ID, &last); err != nil {
 			reply.Error = err.Error()
-			log.Printf("%s pressed %q: %v", name, msg.ID, err)
+			if !errors.Is(err, errAlreadyRunning) {
+				log.Printf("%s pressed %q: %v", name, msg.ID, err)
+			}
 		} else {
 			reply.OK = true
 		}
@@ -283,12 +464,30 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) authenticate(ctx context.Context, c *websocket.Conn) (auth.Device, bool) {
+// closeReason describes why a connection ended, for the log.
+func closeReason(ctx context.Context, err error) string {
+	if ctx.Err() != nil {
+		return "closed by DeskLink"
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "no message for " + idleTimeout.String() + ", phone asleep or out of Wi-Fi"
+	}
+	if st := websocket.CloseStatus(err); st != -1 {
+		return "closed by phone, " + st.String()
+	}
+	// The phone vanished without a goodbye: page killed, Wi-Fi dropped.
+	return "connection lost"
+}
+
+func (s *Server) authenticate(ctx context.Context, c *websocket.Conn, cookieToken string) (auth.Device, bool) {
 	ctx, cancel := context.WithTimeout(ctx, authTimeout)
 	defer cancel()
 	var msg clientMsg
 	if err := wsjson.Read(ctx, c, &msg); err != nil || msg.Type != "auth" {
 		return auth.Device{}, false
+	}
+	if msg.Token == "" {
+		msg.Token = cookieToken
 	}
 	d, ok := s.auth.Verify(msg.Token)
 	if !ok {
@@ -308,7 +507,31 @@ func (s *Server) press(id string, last *sync.Map) error {
 		return nil
 	}
 	last.Store(id, now)
+	if s.gameOpen(cfg, id) {
+		return errAlreadyRunning
+	}
 	return s.run(a)
+}
+
+// gameOpen reports whether the game behind a game id or a game button is
+// already running, found by the name of its program (the program in
+// "icon_from", or the target). Steam games are left to Steam, which does not
+// start a second copy itself, and so are games whose program is unknown (a
+// shortcut or launcher): those can always be started.
+func (s *Server) gameOpen(cfg *config.Config, id string) bool {
+	g, ok := cfg.GameOf(id)
+	if !ok || g.SteamAppID > 0 || s.running == nil {
+		return false
+	}
+	s.cfgMu.RLock()
+	refs := s.gameExes
+	s.cfgMu.RUnlock()
+	for _, r := range refs {
+		if r.id == g.ID {
+			return s.running()[r.exe]
+		}
+	}
+	return false
 }
 
 // streamStats sends a reading every second until ctx is cancelled.
@@ -328,28 +551,60 @@ func (s *Server) streamStats(ctx context.Context, c *websocket.Conn) {
 	}
 }
 
+// setVolume picks the system or the per-app volume.
+func setVolume(w *media.Watcher) func(string, int) {
+	return func(source string, level int) {
+		if source == "" {
+			w.SetVolume(level)
+		} else {
+			w.SetAppVolume(source, level)
+		}
+	}
+}
+
+// knownSource reports whether id is "" (the system) or a source that is playing.
+func (s *Server) knownSource(id string) bool {
+	if id == "" {
+		return true
+	}
+	_, ok := s.nowPlaying().Find(id)
+	return ok
+}
+
 // streamMedia sends the now-playing state when it changes (and every few
-// seconds to resync the progress bar). Cover art is only sent for a new track.
+// seconds to resync the progress bars). Each cover is sent once per connection.
 func (s *Server) streamMedia(ctx context.Context, c *websocket.Conn) {
 	t := time.NewTicker(statsInterval)
 	defer t.Stop()
-	var prev media.Info
+	var prev media.State
 	var sentAt time.Time
-	sentArt := ""
+	sentArt := map[string]bool{}
 	for first := true; ; first = false {
-		info := s.nowPlaying()
-		if first || !info.Same(prev) || time.Since(sentAt) >= mediaResync {
-			msg := serverMsg{Type: "media", Media: &info}
-			if info.ArtID != sentArt {
-				if b := s.media.Art(info.ArtID); b != nil {
-					msg.Art = "data:" + http.DetectContentType(b) + ";base64," + base64.StdEncoding.EncodeToString(b)
+		st := s.nowPlaying()
+		if first || !st.Same(prev) || time.Since(sentAt) >= mediaResync {
+			msg := serverMsg{Type: "media", Media: &st}
+			current := map[string]bool{}
+			for _, src := range st.Sources {
+				if src.ArtID == "" {
+					continue
 				}
-				sentArt = info.ArtID
+				if sentArt[src.ArtID] {
+					current[src.ArtID] = true
+					continue
+				}
+				if b := s.media.Art(src.ArtID); b != nil {
+					if msg.Art == nil {
+						msg.Art = map[string]string{}
+					}
+					msg.Art[src.ArtID] = "data:" + http.DetectContentType(b) + ";base64," + base64.StdEncoding.EncodeToString(b)
+					current[src.ArtID] = true
+				}
 			}
 			if err := wsjson.Write(ctx, c, msg); err != nil {
 				return
 			}
-			prev, sentAt = info, time.Now()
+			sentArt = current
+			prev, sentAt = st, time.Now()
 		}
 		select {
 		case <-ctx.Done():
@@ -359,24 +614,69 @@ func (s *Server) streamMedia(ctx context.Context, c *websocket.Conn) {
 	}
 }
 
-// keepAlive pings so dead connections (phone locked, Wi-Fi dropped) are noticed.
-func keepAlive(ctx context.Context, c *websocket.Conn, cancel context.CancelFunc) {
-	t := time.NewTicker(pingInterval)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-			pctx, pcancel := context.WithTimeout(ctx, 10*time.Second)
-			err := c.Ping(pctx)
-			pcancel()
-			if err != nil {
-				cancel()
-				return
-			}
-		}
+// setTokenCookie stores the device token in a long-lived cookie as a second
+// copy next to the page's localStorage, which iOS may clear for home screen
+// apps. HttpOnly keeps scripts from reading it; SameSite=Strict keeps other
+// sites from sending it.
+func setTokenCookie(w http.ResponseWriter, token string) {
+	http.SetCookie(w, &http.Cookie{
+		Name: tokenCookie, Value: token, Path: "/", MaxAge: 10 * 365 * 24 * 3600,
+		HttpOnly: true, SameSite: http.SameSiteStrictMode,
+	})
+}
+
+// handleReport writes script errors from the phone into the log, so problems
+// that only happen on the device can be diagnosed from the PC. Reports are
+// short, rate limited, and need no pairing (a broken page may not have paired).
+func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Message string `json:"message"`
+		Where   string `json:"where"`
 	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 2048)).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	s.reportMu.Lock()
+	allowed := time.Since(s.reportAt) > 2*time.Second
+	if allowed {
+		s.reportAt = time.Now()
+	}
+	s.reportMu.Unlock()
+	if allowed {
+		clip := func(v string, n int) string {
+			v = strings.Map(func(c rune) rune {
+				if c < 32 {
+					return ' '
+				}
+				return c
+			}, v)
+			if len(v) > n {
+				v = v[:n]
+			}
+			return v
+		}
+		log.Printf("phone %s reports: %s (%s)", r.RemoteAddr, clip(req.Message, 300), clip(req.Where, 200))
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleSession lets an already paired phone (from before the cookie
+// existed) store its token in the cookie as well.
+func (s *Server) handleSession(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 512)).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	if _, ok := s.auth.Verify(req.Token); !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unknown"})
+		return
+	}
+	setTokenCookie(w, req.Token)
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
 // staticFiles serves the panel with an ETag per file and Cache-Control:
@@ -384,27 +684,60 @@ func keepAlive(ctx context.Context, c *websocket.Conn, cancel context.CancelFunc
 // changed. Embedded files have no modification time, and without any
 // validator iOS kept serving a stale index.html next to a new app.js after an
 // update, which broke the panel.
+//
+// On top of that, index.html is never cached and refers to every script and
+// stylesheet with ?v=<content hash>, so a phone holding an old copy of a file
+// from an earlier version cannot use it: the URL itself is new.
 func staticFiles(files fs.FS) http.Handler {
-	etags := map[string]string{}
+	hashes := map[string]string{}
 	fs.WalkDir(files, ".", func(p string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return nil
 		}
 		if b, err := fs.ReadFile(files, p); err == nil {
 			sum := sha256.Sum256(b)
-			etags["/"+p] = `"` + hex.EncodeToString(sum[:8]) + `"`
+			hashes[p] = hex.EncodeToString(sum[:6])
 		}
 		return nil
 	})
-	etags["/"] = etags["/index.html"]
+	index, _ := fs.ReadFile(files, "index.html")
+	page := string(index)
+	for p, h := range hashes {
+		for _, attr := range []string{`src="`, `href="`} {
+			page = strings.ReplaceAll(page, attr+p+`"`, attr+p+"?v="+h+`"`)
+		}
+	}
 	fileServer := http.FileServerFS(files)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if tag, ok := etags[r.URL.Path]; ok {
-			w.Header().Set("ETag", tag)
+		if r.URL.Path == "/" || r.URL.Path == "/index.html" {
+			h := w.Header()
+			h.Set("Content-Type", "text/html; charset=utf-8")
+			h.Set("Cache-Control", "no-store")
+			io.WriteString(w, page)
+			return
+		}
+		if h, ok := hashes[strings.TrimPrefix(r.URL.Path, "/")]; ok {
+			w.Header().Set("ETag", `"`+h+`"`)
 		}
 		w.Header().Set("Cache-Control", "no-cache")
 		fileServer.ServeHTTP(w, r)
 	})
+}
+
+// AssetVersion is a short hash of the panel's files, used in the QR code's
+// URL so that scanning it always loads the current version of the panel.
+func AssetVersion(files fs.FS) string {
+	sum := sha256.New()
+	fs.WalkDir(files, ".", func(p string, d fs.DirEntry, err error) error {
+		if err == nil && !d.IsDir() {
+			if b, err := fs.ReadFile(files, p); err == nil {
+				sum.Write([]byte(p))
+				sum.Write(b)
+			}
+		}
+		return nil
+	})
+	return hex.EncodeToString(sum.Sum(nil)[:4])
 }
 
 // lanOnly rejects requests that do not come from loopback or a private network.
@@ -462,4 +795,11 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(v)
+}
+
+// padder is one phone's trackpad.
+type padder interface {
+	Do(pointer.Event)
+	Release()
+	Holding() bool
 }

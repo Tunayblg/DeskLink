@@ -274,7 +274,7 @@ body.pairing .rail .tab, body.pairing .tab-pill { visibility: hidden; }
   content: "";
 }
 
-.np { display: flex; align-items: center; gap: 16px; min-height: 0; }
+.np { display: flex; align-items: center; gap: 16px; min-height: 0; will-change: transform; }
 .np-art {
   position: relative;
   flex: 0 0 auto;
@@ -292,22 +292,48 @@ body.pairing .rail .tab, body.pairing .tab-pill { visibility: hidden; }
   margin: -19px 0 0 -19px;
   fill: none; stroke: rgba(255, 255, 255, .3); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
 }
+/* Track change: inside the cover frame the old cover slides out and shrinks
+   while the new one slides in from the other side (direction follows next /
+   previous). --dir is 1 for "next" (in from the right), -1 for "previous". */
 .np-art img {
+  --dir: 1;
   position: absolute;
   top: 0; left: 0;
   width: 100%; height: 100%;
   object-fit: cover;
+  /* Rounded on the image itself: Safari does not clip a moving child to the
+     parent's rounded corners, which showed the cover as a square mid-slide. */
+  border-radius: 14px;
+  -webkit-backface-visibility: hidden;
   opacity: 0;
-  transform: scale(1.04);
-  transition: opacity .7s var(--ease), transform .9s var(--ease);
+  transform: translateX(calc(var(--dir) * 16%)) scale(.94);
+  transition: opacity .5s cubic-bezier(.4, 0, .2, 1), transform .85s cubic-bezier(.22, 1, .36, 1);
+  will-change: transform, opacity;
 }
-.np-art img.shown { opacity: 1; transform: none; }
+.np-art img.shown { z-index: 1; opacity: 1; transform: none; }
+/* The old cover fades a beat later than the new one appears, so the frame is
+   always covered. */
+.np-art img.gone {
+  opacity: 0;
+  transform: translateX(calc(var(--dir) * -16%)) scale(.94);
+  transition: opacity .45s .12s cubic-bezier(.4, 0, .2, 1), transform .85s cubic-bezier(.22, 1, .36, 1);
+}
+.np-art img.instant { transition: none; }
+/* With a cover the empty-frame look (tint and note icon) is gone. */
+.np-art svg { transition: opacity .3s; }
+.np-art.has-art { background: rgba(0, 0, 0, .35); }
+.np-art.has-art svg { opacity: 0; }
 /* Paused: the whole cover settles back a little, as in Apple Music. */
-.np-art { transition: transform .5s var(--ease); }
+.np-art { transition: transform .5s var(--ease); isolation: isolate; -webkit-transform: translateZ(0); }
 .np:not(.playing):not(.idle) .np-art { transform: scale(.94); }
 
-.np-meta { min-width: 0; display: flex; flex-direction: column; gap: 4px; transition: opacity .2s, transform .3s var(--ease); }
-.np-meta.swap { opacity: 0; transform: translateY(4px); }
+/* Text: the old title and artist lift away, the new ones rise into place;
+   the artist follows the title by a beat. */
+.np-meta { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.np-title, .np-artist { transition: opacity .38s cubic-bezier(.4, 0, .2, 1), transform .55s cubic-bezier(.22, 1, .36, 1); }
+.np-artist { transition-delay: .05s; }
+.np-meta.out .np-title, .np-meta.out .np-artist { opacity: 0; transform: translateY(-8px); transition-duration: .2s, .25s; }
+.np-meta.in .np-title, .np-meta.in .np-artist { opacity: 0; transform: translateY(10px); transition: none; }
 .np-app {
   display: flex;
   align-items: center;
@@ -352,6 +378,11 @@ body.pairing .rail .tab, body.pairing .tab-pill { visibility: hidden; }
   font-variant-numeric: tabular-nums;
 }
 .np.idle ~ .np-progress { opacity: .35; }
+
+/* One dot per app playing media; swipe the card to switch. */
+.np-dots { position: absolute; top: 0; right: 0; display: flex; gap: 5px; pointer-events: none; }
+.np-dots i { width: 6px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .28); transition: width .35s var(--ease), background .35s var(--ease); }
+.np-dots i.on { width: 16px; background: rgba(255, 255, 255, .85); }
 
 /* Transport: big filled glyphs, no buttons drawn around them (as in Apple
    Music). A soft disc blooms behind a glyph only while it is pressed. */
@@ -596,6 +627,14 @@ body.pairing .rail .tab, body.pairing .tab-pill { visibility: hidden; }
 .ibtn .chip { width: 38px; height: 38px; border-radius: 12px; }
 .ibtn .chip svg { width: 19px; height: 19px; }
 
+/* Without game tiles (or on a tablet, under them) the quick card gets a small
+   mixer, and the CPU/GPU rings stay compact instead of stretching over the
+   whole card. */
+.home-mix { flex: 1.3; min-height: 0; display: flex; gap: 6px; }
+.quick .home-mix ~ .mini { flex: 0 0 auto; height: 86px; }
+.quick .home-mix ~ .mini .mini-item { gap: 3px; padding: 6px; }
+.quick .home-mix ~ .mini .donut { width: 50px; height: 50px; }
+
 .mini { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
 .mini-item {
   display: flex;
@@ -644,6 +683,81 @@ body.pairing .rail .tab, body.pairing .tab-pill { visibility: hidden; }
   border: 1px solid var(--edge);
 }
 .tile .label { position: relative; z-index: 1; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #9aa1b2; }
+
+/* ---------- Trackpad ---------- */
+
+/* A plain black surface; the two click areas at the bottom glow instead of
+   looking like buttons. */
+.pad { padding: 0; background: #000; touch-action: none; }
+.pad-surface { position: absolute; top: 0; right: 0; bottom: 0; left: 0; }
+.pad-hint {
+  position: absolute;
+  top: 38%; left: 0; right: 0;
+  margin: 0;
+  padding: 0 24px;
+  text-align: center;
+  font-size: 13px;
+  letter-spacing: .04em;
+  color: rgba(255, 255, 255, .26);
+  transition: opacity .7s var(--ease);
+  pointer-events: none;
+}
+.pad-hint.gone { opacity: 0; }
+.pad-zones { position: absolute; left: 16px; right: 16px; bottom: 14px; height: 62px; display: flex; gap: 12px; }
+.pad-zone {
+  position: relative;
+  flex: 1;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(var(--c), .1), rgba(var(--c), .015));
+  box-shadow: 0 0 0 1px rgba(var(--c), .12);
+  transition: transform .18s var(--ease);
+}
+.pad-zone.left { --c: 56, 189, 248; }
+.pad-zone.right { --c: 167, 139, 250; }
+/* The lit edge on top of each area. */
+.pad-zone::before {
+  position: absolute;
+  top: 0; left: 14%; right: 14%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgb(var(--c)), transparent);
+  opacity: .85;
+  content: "";
+}
+/* The glow that fills the area while it is held. */
+.pad-zone::after {
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  background: radial-gradient(75% 150% at 50% 0%, rgba(var(--c), .6), transparent 72%);
+  opacity: 0;
+  transition: opacity .35s var(--ease);
+  content: "";
+}
+.pad-zone.down { transform: scale(.985); transition-duration: .05s; }
+.pad-zone.down::after { opacity: 1; transition-duration: .04s; }
+.pad-zone svg {
+  position: relative;
+  z-index: 1;
+  width: 24px; height: 24px;
+  fill: none; stroke: rgb(var(--c)); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;
+  opacity: .55;
+  transition: opacity .2s;
+}
+.pad-zone svg .hl { fill: rgb(var(--c)); stroke: none; }
+.pad-zone.down svg { opacity: 1; }
+/* A ring where a tap landed. */
+.pad-ripple {
+  position: absolute;
+  width: 70px; height: 70px;
+  margin: -35px 0 0 -35px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(var(--c, 255, 255, 255), .35), transparent 68%);
+  pointer-events: none;
+  animation: ripple .55s var(--ease) forwards;
+}
+@keyframes ripple { from { opacity: 1; transform: scale(.3); } to { opacity: 0; transform: scale(1.5); } }
 
 /* ---------- Games ---------- */
 
@@ -756,6 +870,114 @@ body.pairing .rail .tab, body.pairing .tab-pill { visibility: hidden; }
 
 /* ---------- Stats (game mode) ---------- */
 
+/* Game mode has two pages side by side: stats, then the volume mixer. */
+.stats-view { padding: 0; overflow: hidden; }
+.pager {
+  position: absolute;
+  top: 0; bottom: 0; left: 0;
+  width: 200%;
+  display: flex;
+  transition: transform .55s var(--ease);
+}
+.pager.on-mixer { transform: translateX(-50%); }
+.page { position: relative; width: 50%; height: 100%; padding: 10px 12px 12px; }
+.page-dots { position: absolute; z-index: 2; top: 15px; left: 50%; display: flex; gap: 5px; transform: translateX(-50%); }
+.page-dots i { width: 6px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .25); transition: width .35s var(--ease), background .35s var(--ease); }
+.page-dots i.on { width: 16px; background: rgba(255, 255, 255, .8); }
+
+/* Mixer: one column per program, like the Windows volume mixer. */
+.mixer { display: flex; flex-direction: column; gap: 8px; }
+.mix-row { position: relative; flex: 1; min-height: 0; display: flex; gap: 8px; }
+.mix {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 104px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 8px 8px;
+  border-radius: 18px;
+  background: var(--card, rgba(255, 255, 255, .04));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06);
+}
+.mix.master { background: linear-gradient(180deg, rgba(56, 189, 248, .14), rgba(56, 189, 248, .03)); }
+.mix.is-game { background: linear-gradient(180deg, rgba(167, 139, 250, .2), rgba(167, 139, 250, .04)); }
+.mix-icon { position: relative; width: 30px; height: 30px; flex: 0 0 auto; }
+.mix-icon img { width: 100%; height: 100%; object-fit: contain; }
+.mix-icon svg { width: 100%; height: 100%; fill: none; stroke: #fff; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+/* A green dot on the icon while the program is playing sound. */
+.mix.active:not(.master) .mix-icon::after {
+  position: absolute;
+  right: -3px; bottom: -3px;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 0 2px #101116;
+  content: "";
+}
+.mix-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  color: rgba(255, 255, 255, .75);
+}
+.mix-tag { margin-top: -4px; font-size: 8px; font-weight: 800; letter-spacing: .16em; color: var(--violet); }
+.vslider {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-width: 58px;
+  overflow: hidden;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .1);
+  -webkit-mask-image: -webkit-radial-gradient(white, black);
+  touch-action: none;
+  transition: transform .2s var(--ease);
+}
+.vslider.dragging { transform: scaleX(1.06); }
+.vslider i {
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg, #fff, #dfe3ea);
+  transform: translateY(100%);
+  transition: transform .18s linear;
+}
+.vslider.dragging i { transition: none; }
+.mix.master .vslider i { background: linear-gradient(180deg, #7dd3fc, var(--cyan)); }
+.mix.is-game .vslider i { background: linear-gradient(180deg, #c4b5fd, var(--violet)); }
+.mix.muted .vslider i { background: rgba(255, 255, 255, .35); }
+.vslider .pct {
+  position: absolute;
+  left: 0; right: 0; bottom: 8px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #0b0c10;
+}
+.vslider.low .pct { color: rgba(255, 255, 255, .8); }
+.mix-mute {
+  width: 34px; height: 34px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .08);
+  color: #fff;
+}
+.mix-mute svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.mix.muted .mix-mute { background: rgba(239, 68, 68, .9); }
+.mix-mute:active { transform: scale(.92); }
+.mix-empty { align-self: center; margin: 0 0 0 12px; max-width: 220px; font-size: 13px; color: var(--muted); }
+
 .stats {
   display: grid;
   grid-template-rows: auto minmax(0, 1.15fr) minmax(0, 1fr);
@@ -813,6 +1035,39 @@ body.pairing .rail .tab, body.pairing .tab-pill { visibility: hidden; }
 .gauge .sub { display: block; font-size: 10px; color: var(--muted); letter-spacing: .04em; margin-top: 1px; }
 
 .lower { display: grid; grid-template-columns: 1.35fr 1fr; gap: 8px; min-height: 0; }
+/* Under the gauges: the microphone switch and a small mixer (the full one is
+   on the next page). */
+.quick-mix { display: flex; gap: 8px; padding: 8px; }
+.mic {
+  flex: 0 0 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, .06);
+  color: #fff;
+  font: inherit;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  transition: background .25s var(--ease), transform .15s var(--ease), opacity .25s;
+}
+.mic svg { width: 28px; height: 28px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.mic .slash { opacity: 0; transition: opacity .2s; }
+.mic.muted { background: rgba(239, 68, 68, .92); }
+.mic.muted .slash { opacity: 1; }
+.mic.none { opacity: .35; }
+.mic:active { transform: scale(.95); }
+.mini-mix { flex: 1; min-width: 0; display: flex; gap: 6px; }
+.mix.mini { gap: 5px; padding: 6px 4px; border-radius: 13px; }
+.mix.mini .mix-icon { width: 18px; height: 18px; }
+.mix.mini .mix-name { display: none; }
+.mix.mini .vslider { max-width: 42px; border-radius: 10px; }
+.mix.mini .vslider .pct { bottom: 4px; font-size: 10px; }
+.mix.mini.active:not(.master) .mix-icon::after { right: -2px; bottom: -2px; width: 7px; height: 7px; }
 
 .card {
   position: relative;
@@ -823,17 +1078,6 @@ body.pairing .rail .tab, body.pairing .tab-pill { visibility: hidden; }
   background: linear-gradient(160deg, var(--panel-2), var(--panel));
 }
 
-.chart-card { display: flex; flex-direction: column; }
-.card-head { display: flex; justify-content: space-between; font-size: 10px; font-weight: 700; letter-spacing: .14em; color: var(--muted); }
-.legend { display: flex; align-items: center; gap: 5px; letter-spacing: .08em; }
-.legend i { width: 8px; height: 3px; border-radius: 2px; margin-left: 6px; }
-.c-cpu { background: var(--cyan); }
-.c-gpu { background: var(--violet); }
-.chart { flex: 1; width: 100%; min-height: 0; margin-top: 6px; overflow: visible; }
-.chart .grid { stroke: rgba(255, 255, 255, .05); stroke-width: 1; vector-effect: non-scaling-stroke; }
-.chart .line { fill: none; stroke-width: 2; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
-.chart .line.cpu { stroke: var(--cyan); }
-.chart .line.gpu { stroke: var(--violet); }
 
 .details { display: flex; flex-direction: column; justify-content: space-between; }
 .fan-row { display: flex; align-items: center; gap: 10px; }
@@ -866,22 +1110,37 @@ body.pairing .rail .tab, body.pairing .tab-pill { visibility: hidden; }
 /* ---------- Clock ---------- */
 
 /* A plain black screen: the gradients, the connection banner and the rail go
-   away; a tap brings the rail back for a few seconds (body.rail-peek). */
+   away. A tap shows a back button and the face picker for a few seconds
+   (body.rail-peek); the rail itself stays out of the way entirely. */
 body.clock-mode { background: #000; }
 body { position: relative; }
 body.clock-mode .conn { display: none; }
-body.clock-mode .rail {
+body.clock-mode .rail { display: none; }
+
+.clock-exit {
   position: absolute;
-  z-index: 8;
-  top: 0; bottom: 0; left: 0;
-  background: #07080c;
-  border-right-color: rgba(255, 255, 255, .05);
+  z-index: 3;
+  top: 14px;
+  left: 14px;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16), inset 0 0 0 1px rgba(255, 255, 255, .08);
+  color: #fff;
   opacity: 0;
-  transform: translateX(-100%);
+  transform: scale(.85);
   pointer-events: none;
-  transition: transform .45s var(--ease), opacity .35s;
+  transition: opacity .3s, transform .35s var(--ease);
 }
-body.clock-mode.rail-peek .rail { opacity: 1; transform: none; pointer-events: auto; }
+.clock-exit svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.clock-exit:active { background: rgba(255, 255, 255, .22); }
+body.rail-peek .clock-exit { opacity: 1; transform: none; pointer-events: auto; }
 
 .clock-view { padding: 0; background: #000; }
 .face {
@@ -907,8 +1166,12 @@ body.clock-mode.rail-peek .rail { opacity: 1; transform: none; pointer-events: a
 .tach .digital { font: 600 21px -apple-system, "Segoe UI", sans-serif; fill: #f6c400; text-anchor: middle; dominant-baseline: central; letter-spacing: .04em; }
 .tach .digital .ss { font-size: 13px; fill: rgba(246, 196, 0, .55); }
 .hand { transform-origin: 200px 200px; transition: transform .6s cubic-bezier(.4, 1.5, .6, 1); }
-/* Ignition spin: one fast turn that settles with a slight overshoot, like a needle on a spring. */
-.tach .hand.settle { transition: transform 1.35s cubic-bezier(.3, .9, .35, 1.08); }
+/* Ignition: a quick rev to the end of the scale, then the needle falls back
+   onto the time with a slight overshoot, like a needle on a spring. */
+.tach .hand.rev { transition: transform .65s cubic-bezier(.5, 0, .7, .4); }
+.tach .hand.settle { transition: transform 1.3s cubic-bezier(.25, 1.25, .45, 1); }
+/* Every minute the needle moves on; at the top of the hour it drops back to the start. */
+.tach .hand { transition: transform .8s cubic-bezier(.3, .8, .3, 1); }
 .tach .led { transition: fill .12s; }
 
 .simple .sec { transition: none; }
@@ -1065,6 +1328,77 @@ body.rail-peek .face-dots { opacity: 1; pointer-events: auto; }
   font-size: 13px;
   transform: translateX(-50%);
   box-shadow: 0 10px 30px -10px rgba(0, 0, 0, .8);
+}
+
+/* ---------- Taller screens (tablets) ----------
+   app.js scales the page up on tablets (fitViewport), so they lay out at about
+   760 CSS px wide; but a tablet is closer to 4:3 than a phone's 16:9, so the
+   extra height goes to the parts that can use it instead of empty space.
+   Phones in landscape are at most ~430 px tall and never match. */
+@media (min-height: 450px) {
+  /* Now playing: a bigger cover, title and transport. */
+  .np { gap: 20px; }
+  .np-art { width: calc(var(--vh) * 36); height: calc(var(--vh) * 36); max-width: 250px; max-height: 250px; border-radius: 18px; }
+  .np-art img { border-radius: 18px; }
+  .np-title { font-size: 24px; }
+  .np-artist { font-size: 16px; }
+  .np-app { font-size: 11px; }
+  .np-progress .times { font-size: 12px; }
+  .transport { gap: 44px; }
+  .tbtn { width: 64px; height: 64px; }
+  .tbtn svg { width: 34px; height: 34px; }
+  .tbtn.main { width: 80px; height: 80px; }
+  .tbtn.main svg { width: 50px; height: 50px; }
+  .vol { height: 58px; }
+  .vbtn { flex-basis: 54px; width: 54px; height: 54px; }
+  .slider { height: 56px; border-radius: 28px; }
+
+  /* Quick card: taller buttons and CPU/GPU rings that fill their boxes. */
+  .home-clock { font-size: 13px; }
+  .icon-row { max-height: 84px; }
+  .ibtn .chip, .list .chip { width: 46px; height: 46px; border-radius: 14px; }
+  .ibtn .chip svg, .list .chip svg { width: 23px; height: 23px; }
+  .segment { max-height: 96px; }
+  .donut { width: calc(var(--vh) * 17); height: calc(var(--vh) * 17); max-width: 116px; max-height: 116px; }
+  .donut b { font-size: 17px; }
+  .mini-label { font-size: 11px; }
+  .quick .home-mix ~ .mini { height: 110px; }
+  .quick .home-mix ~ .mini .donut { width: 70px; height: 70px; }
+  .quick .home-mix ~ .mini .donut b { font-size: 14px; }
+
+  /* Games: poster-shaped cards instead of thin strips. */
+  .game { flex-basis: calc(var(--vh) * 40); max-width: calc(var(--vh) * 62); }
+  .game .name { font-size: 18px; }
+  .game .info { padding: 0 18px 18px; }
+
+  /* Game mode: the rings are as wide as their boxes, so give less height to
+     them and more to the mixer and the GPU details under them. */
+  .stats { grid-template-rows: auto minmax(0, 1fr) minmax(0, 1.05fr); }
+  .ring .num { font-size: 34px; }
+  .ring .unit { font-size: 14px; }
+  .gauge .name, .gauge .sub { font-size: 11px; }
+  .gauge { padding: 10px 8px 8px; }
+  .fan { width: 46px; height: 46px; flex-basis: 46px; }
+  .fan-row b { font-size: 26px; }
+  .fan-row .sub, .meter-head { font-size: 11px; }
+  .bar { height: 9px; }
+  .details { padding: 14px 16px; }
+  .mic { flex-basis: 88px; font-size: 9px; }
+  .mic svg { width: 34px; height: 34px; }
+  .mix.mini .mix-icon { width: 24px; height: 24px; }
+  .mix.mini .vslider { max-width: 52px; }
+
+  /* Mixer page */
+  .mixer .mix-row { justify-content: center; }
+  .mix { max-width: 150px; }
+  .mix-icon { width: 36px; height: 36px; }
+  .mix-name { font-size: 11px; }
+  .vslider { max-width: 66px; border-radius: 18px; }
+  .mix-mute { width: 40px; height: 40px; }
+
+  /* Trackpad */
+  .pad-zones { height: 78px; left: 20px; right: 20px; bottom: 18px; }
+  .pad-hint { font-size: 15px; }
 }
 
 /* ---------- Rotate hint & toast ---------- */

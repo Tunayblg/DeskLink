@@ -143,6 +143,21 @@ type deviceStatus struct {
 	Online   bool      `json:"online"`
 }
 
+// adminUsage is the PC's CPU and RAM, and DeskLink's own footprint. The
+// dashboard asks for it every second while its overview is open; unlike the
+// status it is cheap (no QR code), and nothing is sampled when nobody asks.
+type adminUsage struct {
+	CPU        float64 `json:"cpu"` // percent, all cores
+	RAMUsedMB  uint64  `json:"ram_used_mb"`
+	RAMTotalMB uint64  `json:"ram_total_mb"`
+	Process    any     `json:"process"`
+}
+
+func (s *Server) handleAdminUsage(w http.ResponseWriter, r *http.Request) {
+	sys := s.system()
+	writeJSON(w, http.StatusOK, adminUsage{CPU: sys.CPU.Usage, RAMUsedMB: sys.RAM.UsedMB, RAMTotalMB: sys.RAM.TotalMB, Process: s.meter.Read()})
+}
+
 func (s *Server) handleAdminStatus(w http.ResponseWriter, r *http.Request) {
 	code := s.auth.Current()
 	st := adminStatus{
@@ -160,7 +175,8 @@ func (s *Server) handleAdminStatus(w http.ResponseWriter, r *http.Request) {
 	// right away. The code sits in the URL fragment, which browsers never send
 	// to a server.
 	if len(s.Addresses) > 0 {
-		st.PairURL = s.Addresses[0] + "/#pair=" + code.Long
+		// ?v= makes the scan open a fresh page even if the phone has an old copy cached.
+		st.PairURL = s.Addresses[0] + "/?v=" + s.assetVersion + "#pair=" + code.Long
 		st.QR = qrSVG(st.PairURL)
 	}
 	online := map[string]bool{}

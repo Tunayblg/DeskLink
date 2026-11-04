@@ -48,37 +48,99 @@ func Load(games []config.Game) map[string]Art {
 	return out
 }
 
-func load(g config.Game) (Art, error) {
-	exe := g.IconFrom
-	if exe == "" && g.SteamAppID > 0 {
-		exe = steamGameExe(g.SteamAppID)
-	} else if exe == "" {
-		exe = g.Target
+// GameExe is the executable a game runs as (its icon source), or "".
+func GameExe(g config.Game) string {
+	switch {
+	case g.IconFrom != "":
+		return g.IconFrom
+	case g.SteamAppID > 0:
+		return steamGameExe(g.SteamAppID)
 	}
+	return g.Target
+}
 
-	var cover string
-	if g.Cover != "" {
-		cover = g.Cover
-	} else if g.SteamAppID > 0 {
-		if cover = steamCover(g.SteamAppID); cover == "" {
-			return Art{}, fmt.Errorf("no Steam cover found for app %d", g.SteamAppID)
+// AppIcon returns an executable's icon at most size pixels wide as a PNG data
+// URI, or "".
+func AppIcon(exe string, size int) string {
+	img, err := exeIcon(exe)
+	if err != nil {
+		return ""
+	}
+	var buf bytes.Buffer
+	if png.Encode(&buf, shrink(img, size)) != nil {
+		return ""
+	}
+	return dataURI("image/png", buf.Bytes())
+}
+
+// shrink scales img down by a whole factor (averaging each block of pixels)
+// so it is at most size pixels wide.
+func shrink(img image.Image, size int) image.Image {
+	b := img.Bounds()
+	k := (b.Dx() + size - 1) / size
+	if k <= 1 {
+		return img
+	}
+	out := image.NewNRGBA(image.Rect(0, 0, b.Dx()/k, b.Dy()/k))
+	for y := 0; y < out.Rect.Dy(); y++ {
+		for x := 0; x < out.Rect.Dx(); x++ {
+			var r, g, bl, a uint32
+			for dy := 0; dy < k; dy++ {
+				for dx := 0; dx < k; dx++ {
+					pr, pg, pb, pa := img.At(b.Min.X+x*k+dx, b.Min.Y+y*k+dy).RGBA()
+					r, g, bl, a = r+pr, g+pg, bl+pb, a+pa
+				}
+			}
+			if a == 0 {
+				continue
+			}
+			// RGBA() is premultiplied; NRGBA is not.
+			o := out.PixOffset(x, y)
+			out.Pix[o] = uint8(r * 255 / a)
+			out.Pix[o+1] = uint8(g * 255 / a)
+			out.Pix[o+2] = uint8(bl * 255 / a)
+			out.Pix[o+3] = uint8(a / uint32(k*k) >> 8)
 		}
 	}
+	return out
+}
+
+func load(g config.Game) (Art, error) {
+	exe := GameExe(g)
+
+	cover := g.Cover
+	if cover == "" && g.SteamAppID > 0 {
+		cover = steamCover(g.SteamAppID)
+	}
+	var coverErr error
 	if cover != "" {
 		a, err := coverFile(cover)
-		if err == nil && exe != "" {
-			if icon, img, err := iconPNG(exe); err == nil && icon != "" {
-				a.Icon, a.IconTint = icon, tint(img)
+		if err == nil {
+			if exe != "" {
+				if icon, img, err := iconPNG(exe); err == nil && icon != "" {
+					a.Icon, a.IconTint = icon, tint(img)
+				}
 			}
+			return a, nil
 		}
-		return a, err
+		coverErr = err
 	}
 
+	// No cover (Steam only keeps the ones it has shown in its library): use
+	// the game's own icon rather than a blank tile.
 	icon, img, err := iconPNG(exe)
-	if err != nil || icon == "" {
-		return Art{}, err
+	if err == nil && icon != "" {
+		return Art{Image: icon, Kind: "icon", Tint: tint(img)}, coverErr
 	}
-	return Art{Image: icon, Kind: "icon", Tint: tint(img)}, nil
+	switch {
+	case coverErr != nil:
+		return Art{}, coverErr
+	case err != nil:
+		return Art{}, err
+	case g.SteamAppID > 0:
+		return Art{}, fmt.Errorf("no cover or icon found for Steam app %d", g.SteamAppID)
+	}
+	return Art{}, nil
 }
 
 // iconPNG extracts an executable's icon as a PNG data URI.
@@ -229,15 +291,28 @@ func steamCover(appID int) string {
 	if root == "" {
 		return ""
 	}
-	cache := filepath.Join(root, "appcache", "librarycache")
-	// Newer Steam: librarycache/<appid>/<hash>/library_600x900.jpg
-	if m, _ := filepath.Glob(filepath.Join(cache, fmt.Sprint(appID), "*", "library_600x900.jpg")); len(m) > 0 {
-		return m[0]
+	return coverIn(filepath.Join(root, "appcache", "librarycache"), appID)
+}
+
+// coverNames are Steam's cached portrait posters, best first. Steam only caches
+// the ones it has shown in its library, and a localized copy
+// (library_600x900_turkish.jpg) can exist instead of the plain one. Without a
+// poster the game's own icon is used; other cached images (capsules, headers)
+// are not posters and are ignored.
+var coverNames = []string{"library_600x900.jpg", "library_600x900_*.jpg"}
+
+// coverIn finds a game's portrait image in a librarycache folder.
+func coverIn(cache string, appID int) string {
+	app := filepath.Join(cache, fmt.Sprint(appID))
+	for _, name := range coverNames {
+		// Newer Steam: <appid>/<hash>/<name>; a little older: <appid>/<name>.
+		for _, pattern := range []string{filepath.Join(app, "*", name), filepath.Join(app, name)} {
+			if m, _ := filepath.Glob(pattern); len(m) > 0 {
+				return m[0]
+			}
+		}
 	}
-	if p := filepath.Join(cache, fmt.Sprint(appID), "library_600x900.jpg"); fileExists(p) {
-		return p
-	}
-	// Older Steam: librarycache/<appid>_library_600x900.jpg
+	// Oldest Steam: <appid>_library_600x900.jpg
 	if p := filepath.Join(cache, fmt.Sprintf("%d_library_600x900.jpg", appID)); fileExists(p) {
 		return p
 	}

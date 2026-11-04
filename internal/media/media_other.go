@@ -6,6 +6,8 @@ type source struct{}
 
 func newSource() source { return source{} }
 
-func (source) read(string) (Info, []byte) { return Info{Volume: -1}, nil }
+func (source) read(map[string]string) (State, map[string][]byte) { return State{Volume: -1}, nil }
 
-func (source) setVolume(int) {}
+func (source) readMixer() Mixer { return Mixer{Volume: -1} }
+
+func (source) do(command) {}

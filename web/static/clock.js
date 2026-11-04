@@ -1,7 +1,9 @@
 // Clock screen: two faces on a black screen. Swipe (or use the dots) to switch.
-//   tach:   a clock dial dressed as a classic yellow sports-car rev counter: black
-//           hour hand, red needle for minutes, and three shift-light strips
-//           around it that fill one light per second.
+//   tach:   a yellow sports-car rev counter. The scale runs 1 to 12 over 270°
+//           (bottom left round to bottom right); a black hour hand and a long
+//           red minute needle both sweep it, and the minute needle drops back
+//           at the top of the hour like revs after a gear change. Three strips
+//           of shift lights (green, amber, red) fill one light every 2 s.
 //   simple: a plain round analog clock with the date and a small digital time.
 // Only transforms, opacity and SVG fills change, and nothing runs while hidden.
 window.DeskClock = (function () {
@@ -37,14 +39,18 @@ window.DeskClock = (function () {
 
   // ---- Rev-counter dial ----------------------------------------------------
 
-  // 60 shift lights in three strips (left, top, right), filled clockwise from
-  // the bottom of the left strip: one light per second.
+  // Scale value 0-12 to an angle: a 270° sweep starting at the bottom left.
+  // 0 is an unmarked start tick; 1 sits just above it and 12 at the bottom right.
+  function tachAngle(v) { return -135 + v * 22.5; }
+
+  // 30 shift lights in three strips of 10 (left, top, right), filled clockwise
+  // from the bottom of the left strip: one light every 2 seconds.
   var STRIPS = [
-    { from: 238, color: "#22c55e" },
-    { from: 328, color: "#ef4444" },
-    { from: 58, color: "#3b82f6" }
+    { from: 236, color: "#22c55e" },
+    { from: 330, color: "#facc15" },
+    { from: 64, color: "#ef4444" }
   ];
-  var PER_STRIP = 20, STRIP_SPAN = 64;
+  var PER_STRIP = 10, STRIP_SPAN = 60;
 
   function tachSVG() {
     var s = '<svg viewBox="-28 -28 456 456" aria-hidden="true"><defs>' +
@@ -54,21 +60,28 @@ window.DeskClock = (function () {
     STRIPS.forEach(function (st) {
       for (var i = 0; i < PER_STRIP; i++) {
         var p = pt(214, st.from + i * STRIP_SPAN / (PER_STRIP - 1));
-        s += '<circle class="led" cx="' + p[0] + '" cy="' + p[1] + '" r="4.2" data-color="' + st.color + '" fill="#1b1b1f"/>';
+        s += '<circle class="led" cx="' + p[0] + '" cy="' + p[1] + '" r="5.5" data-color="' + st.color + '" fill="#1b1b1f"/>';
       }
     });
     s += '<circle cx="200" cy="200" r="196" fill="url(#tb)"/><circle cx="200" cy="200" r="187" fill="#0d0d0f"/>' +
       '<circle cx="200" cy="200" r="179" fill="url(#tf)"/>';
-    // Redline between 10 and 12, as on a rev counter.
-    var a = pt(166, 300), b = pt(166, 360);
+    // Redline from 10 to 12.
+    var a = pt(166, tachAngle(10)), b = pt(166, tachAngle(12));
     s += '<path d="M' + a[0] + " " + a[1] + "A166 166 0 0 1 " + b[0] + " " + b[1] + '" fill="none" stroke="#d1001c" stroke-width="16"/>';
-    s += ticks(60, 175, 5, 150, 165, "#111", 5, 2.5, 0.8);
+    // Ticks: major at every number, minor at the half and quarter marks.
+    for (var q = 0; q <= 48; q++) {
+      var v = q / 4, major = q % 4 === 0, half = q % 2 === 0;
+      var p1 = pt(175, tachAngle(v)), p2 = pt(major ? 148 : half ? 160 : 166, tachAngle(v));
+      s += '<line x1="' + p1[0] + '" y1="' + p1[1] + '" x2="' + p2[0] + '" y2="' + p2[1] + '" stroke="#111" stroke-width="' +
+        (major ? 5 : half ? 3 : 2) + '" stroke-linecap="round"/>';
+    }
     for (var h = 1; h <= 12; h++) {
-      var n = pt(126, h * 30);
+      var n = pt(124, tachAngle(h));
       s += '<text x="' + n[0] + '" y="' + n[1] + '" class="num">' + h + "</text>";
     }
-    s += '<rect x="148" y="250" width="104" height="38" rx="10" fill="#0c0c0e" stroke="#2c2c30" stroke-width="2"/>' +
-      '<text x="200" y="270" class="digital"><tspan class="hm"></tspan><tspan class="ss" dx="3"></tspan></text>' +
+    // The hands never reach the bottom of the dial, so the readout sits there.
+    s += '<rect x="148" y="276" width="104" height="38" rx="10" fill="#0c0c0e" stroke="#2c2c30" stroke-width="2"/>' +
+      '<text x="200" y="296" class="digital"><tspan class="hm"></tspan><tspan class="ss" dx="3"></tspan></text>' +
       // Hands point up (12) and are rotated by CSS around the centre.
       '<g class="hand hour"><path d="M193 216 L197.5 98 Q200 92 202.5 98 L207 216 Z" fill="#141414"/></g>' +
       '<g class="hand min"><path d="M195 222 L198.8 40 Q200 35 201.2 40 L205 222 Z" fill="#e10600"/></g>' +
@@ -131,12 +144,20 @@ window.DeskClock = (function () {
 
   function rotate(node, deg) { node.style.transform = "rotate(" + deg.toFixed(2) + "deg)"; }
 
+  // Rev-counter hands: the hour on the 1-12 scale, the minute needle as
+  // minutes/5 (every number is 5 minutes, like a clock face).
+  function tachAngles(now) {
+    var h = now.getHours() % 12, m = now.getMinutes(), s = now.getSeconds();
+    return { hour: tachAngle(h + m / 60), min: tachAngle(m / 5 + s / 300) };
+  }
+
   function tick() {
     var now = new Date(), a = angles(now), h = now.getHours(), m = now.getMinutes(), s = now.getSeconds();
     if (!ignition) {
-      rotate(el.tach.hour, a.hour);
-      rotate(el.tach.min, a.min);
-      setLeds(s + 1);
+      var ta = tachAngles(now);
+      rotate(el.tach.hour, ta.hour);
+      rotate(el.tach.min, ta.min);
+      setLeds(Math.floor(s / 2) + 1);
     }
     el.tach.hm.textContent = pad(h) + ":" + pad(m);
     el.tach.ss.textContent = pad(s);
@@ -156,30 +177,37 @@ window.DeskClock = (function () {
     }
   }
 
-  // Ignition: both hands spin round once and settle on the time, while the
-  // shift lights run up to full and drop back to the current second.
+  // Ignition, as when a car starts: both needles rev from 0 to the redline end
+  // and fall back onto the time, while the shift lights run up and drop back.
   function ignite() {
     ignition = true;
-    var a = angles(new Date());
-    [el.tach.hour, el.tach.min].forEach(function (hand, i) {
+    var hands = [el.tach.hour, el.tach.min];
+    hands.forEach(function (hand) {
       hand.classList.remove("settle");
       hand.style.transition = "none";
-      rotate(hand, (i ? a.min : a.hour) - 360);
+      rotate(hand, tachAngle(0));
       void hand.getBoundingClientRect();
       hand.style.transition = "";
-      hand.classList.add("settle");
-      rotate(hand, i ? a.min : a.hour);
+      hand.classList.add("rev");
+      rotate(hand, tachAngle(12));
     });
     setLeds(0);
     for (var i = 1; i <= el.leds.length; i++) {
-      (function (n) { setTimeout(function () { if (ignition) setLeds(n); }, n * 11); })(i);
+      (function (n) { setTimeout(function () { if (ignition) setLeds(n); }, n * 22); })(i);
     }
+    setTimeout(function () {
+      var ta = tachAngles(new Date());
+      hands.forEach(function (hand, i) {
+        hand.classList.remove("rev");
+        hand.classList.add("settle");
+        rotate(hand, i ? ta.min : ta.hour);
+      });
+    }, 720);
     setTimeout(function () {
       ignition = false;
       tick();
-      el.tach.hour.classList.remove("settle");
-      el.tach.min.classList.remove("settle");
-    }, 1500);
+      hands.forEach(function (hand) { hand.classList.remove("settle"); });
+    }, 2100);
   }
 
   // The simple clock's seconds hand is a CSS animation started at the current second.

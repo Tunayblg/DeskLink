@@ -2,8 +2,14 @@ package media
 
 import (
 	"errors"
+	"fmt"
 	"math"
+	"os"
+	"path/filepath"
 	"runtime"
+	"sort"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 	"unsafe"
@@ -14,16 +20,23 @@ import (
 // Windows metadata; methods 0-5 of every WinRT interface are IUnknown/IInspectable.
 
 var (
-	combase  = syscall.NewLazyDLL("combase.dll")
-	ole32    = syscall.NewLazyDLL("ole32.dll")
-	shcore   = syscall.NewLazyDLL("shcore.dll")
-	roInit   = combase.NewProc("RoInitialize")
-	roFact   = combase.NewProc("RoGetActivationFactory")
-	hsCreate = combase.NewProc("WindowsCreateString")
-	hsDelete = combase.NewProc("WindowsDeleteString")
-	hsBuffer = combase.NewProc("WindowsGetStringRawBuffer")
-	coCreate = ole32.NewProc("CoCreateInstance")
-	streamOv = shcore.NewProc("CreateStreamOverRandomAccessStream")
+	combase   = syscall.NewLazyDLL("combase.dll")
+	ole32     = syscall.NewLazyDLL("ole32.dll")
+	shcore    = syscall.NewLazyDLL("shcore.dll")
+	kernel32  = syscall.NewLazyDLL("kernel32.dll")
+	roInit    = combase.NewProc("RoInitialize")
+	roFact    = combase.NewProc("RoGetActivationFactory")
+	hsCreate  = combase.NewProc("WindowsCreateString")
+	hsDelete  = combase.NewProc("WindowsDeleteString")
+	hsBuffer  = combase.NewProc("WindowsGetStringRawBuffer")
+	coCreate  = ole32.NewProc("CoCreateInstance")
+	coFree    = ole32.NewProc("CoTaskMemFree")
+	streamOv  = shcore.NewProc("CreateStreamOverRandomAccessStream")
+	imageName = kernel32.NewProc("QueryFullProcessImageNameW")
+	version   = syscall.NewLazyDLL("version.dll")
+	verSize   = version.NewProc("GetFileVersionInfoSizeW")
+	verInfo   = version.NewProc("GetFileVersionInfoW")
+	verQuery  = version.NewProc("VerQueryValueW")
 )
 
 type guid struct {
@@ -33,12 +46,16 @@ type guid struct {
 }
 
 var (
-	iidManagerStatics = guid{0x2050c4ee, 0x11a0, 0x57de, [8]byte{0xae, 0xd7, 0xc9, 0x7c, 0x70, 0x33, 0x82, 0x45}}
-	iidAsyncInfo      = guid{0x00000036, 0, 0, [8]byte{0xc0, 0, 0, 0, 0, 0, 0, 0x46}}
-	iidStream         = guid{0x0000000c, 0, 0, [8]byte{0xc0, 0, 0, 0, 0, 0, 0, 0x46}}
-	clsidEnumerator   = guid{0xbcde0395, 0xe52f, 0x467c, [8]byte{0x8e, 0x3d, 0xc4, 0x57, 0x92, 0x91, 0x69, 0x2e}}
-	iidEnumerator     = guid{0xa95664d2, 0x9614, 0x4f35, [8]byte{0xa7, 0x46, 0xde, 0x8d, 0xb6, 0x36, 0x17, 0xe6}}
-	iidEndpointVolume = guid{0x5cdf2c82, 0x841e, 0x4546, [8]byte{0x97, 0x22, 0x0c, 0xf7, 0x40, 0x78, 0x22, 0x9a}}
+	iidManagerStatics  = guid{0x2050c4ee, 0x11a0, 0x57de, [8]byte{0xae, 0xd7, 0xc9, 0x7c, 0x70, 0x33, 0x82, 0x45}}
+	iidAsyncInfo       = guid{0x00000036, 0, 0, [8]byte{0xc0, 0, 0, 0, 0, 0, 0, 0x46}}
+	iidStream          = guid{0x0000000c, 0, 0, [8]byte{0xc0, 0, 0, 0, 0, 0, 0, 0x46}}
+	clsidEnumerator    = guid{0xbcde0395, 0xe52f, 0x467c, [8]byte{0x8e, 0x3d, 0xc4, 0x57, 0x92, 0x91, 0x69, 0x2e}}
+	iidEnumerator      = guid{0xa95664d2, 0x9614, 0x4f35, [8]byte{0xa7, 0x46, 0xde, 0x8d, 0xb6, 0x36, 0x17, 0xe6}}
+	iidEndpointVolume  = guid{0x5cdf2c82, 0x841e, 0x4546, [8]byte{0x97, 0x22, 0x0c, 0xf7, 0x40, 0x78, 0x22, 0x9a}}
+	iidSessionManager2 = guid{0x77aa99a0, 0x1bd6, 0x484f, [8]byte{0x8b, 0xc7, 0x2c, 0x65, 0x4c, 0x9a, 0x9b, 0x6f}}
+	iidSessionControl2 = guid{0xbfb7ff88, 0x7239, 0x4fc9, [8]byte{0x8f, 0xa2, 0x07, 0xc9, 0x50, 0xbe, 0x9c, 0x6d}}
+	iidSimpleVolume    = guid{0x87ce5498, 0x68d6, 0x44e5, [8]byte{0x92, 0x15, 0x6f, 0x9d, 0x9e, 0xb4, 0xa2, 0xf5}}
+	iidChannelVolume   = guid{0x1c158861, 0xb533, 0x4b30, [8]byte{0xb1, 0xcf, 0xe8, 0x53, 0xe5, 0x1c, 0x59, 0xb8}}
 )
 
 // com is a COM interface pointer: its first word points to the vtable.
@@ -89,15 +106,12 @@ func (o *com) getString(i int) string {
 	return syscall.UTF16ToString(unsafe.Slice(*(**uint16)(unsafe.Pointer(&p)), n))
 }
 
-// await waits for a WinRT IAsyncOperation and returns its result.
-func await(op *com) *com {
-	if op == nil {
-		return nil
-	}
-	defer op.release()
+// wait waits for a WinRT async operation to finish and reports whether it
+// completed. It does not release op.
+func wait(op *com) bool {
 	info := op.out(0, ptr(&iidAsyncInfo))
 	if info == nil {
-		return nil
+		return false
 	}
 	defer info.release()
 	deadline := time.Now().Add(2 * time.Second)
@@ -105,12 +119,23 @@ func await(op *com) *com {
 		var status int32
 		info.call(7, ptr(&status)) // get_Status
 		if status == 1 {           // Completed
-			break
+			return true
 		}
 		if status != 0 || time.Now().After(deadline) { // Canceled, Error, or stuck
-			return nil
+			return false
 		}
 		time.Sleep(3 * time.Millisecond)
+	}
+}
+
+// await waits for a WinRT IAsyncOperation that returns an object.
+func await(op *com) *com {
+	if op == nil {
+		return nil
+	}
+	defer op.release()
+	if !wait(op) {
+		return nil
 	}
 	return op.out(8) // GetResults
 }
@@ -121,14 +146,16 @@ type source struct {
 }
 
 type request struct {
-	prevArt   string
-	setVolume int // 0-100, or -1 for a normal reading
-	reply     chan reply
+	prevArt map[string]string // source ID -> art ID of the last reading
+	cmd     *command          // nil for a reading
+	mixer   bool              // read the volume mixer instead
+	reply   chan reply
 }
 
 type reply struct {
-	info Info
-	art  []byte
+	state State
+	art   map[string][]byte // source ID -> new cover image
+	mixer Mixer
 }
 
 func newSource() source {
@@ -137,65 +164,199 @@ func newSource() source {
 	return s
 }
 
-func (s source) read(prevArt string) (Info, []byte) {
+func (s source) read(prevArt map[string]string) (State, map[string][]byte) {
 	r := make(chan reply, 1)
-	s.req <- request{prevArt: prevArt, setVolume: -1, reply: r}
+	s.req <- request{prevArt: prevArt, reply: r}
 	out := <-r
-	return out.info, out.art
+	return out.state, out.art
 }
 
-func (s source) setVolume(level int) {
+func (s source) readMixer() Mixer {
 	r := make(chan reply, 1)
-	s.req <- request{setVolume: level, reply: r}
+	s.req <- request{mixer: true, reply: r}
+	return (<-r).mixer
+}
+
+func (s source) do(c command) {
+	r := make(chan reply, 1)
+	s.req <- request{cmd: &c, reply: r}
 	<-r
 }
 
 type worker struct {
 	manager    *com
 	enumerator *com
-	trackKey   string
+	trackKeys  map[string]string  // source ID -> the track its cover belongs to
+	procs      map[uint32]proc    // process ID -> its executable
+	names      map[string]string  // executable path -> display name
+	unmuted    map[string]float32 // mixer IDs -> volume before a mute, where mute is volume zero
 }
+
+type proc struct{ id, path string }
 
 func (s source) loop() {
 	runtime.LockOSThread()
 	roInit.Call(1) // RO_INIT_MULTITHREADED
-	var w worker
+	w := worker{trackKeys: map[string]string{}, procs: map[uint32]proc{}, names: map[string]string{}, unmuted: map[string]float32{}}
 	for req := range s.req {
-		if req.setVolume >= 0 {
-			w.endpoint(func(ep *com) {
-				ep.call(7, uintptr(math.Float32bits(float32(req.setVolume)/100)), 0) // SetMasterVolumeLevelScalar
-			})
+		if req.mixer {
+			req.reply <- reply{mixer: w.readMixer()}
+			continue
+		}
+		if req.cmd != nil {
+			w.do(*req.cmd)
 			req.reply <- reply{}
 			continue
 		}
-		info, art := w.read(req.prevArt)
-		req.reply <- reply{info, art}
+		st, art := w.read(req.prevArt)
+		req.reply <- reply{state: st, art: art}
 	}
 }
 
-func (w *worker) read(prevArt string) (Info, []byte) {
-	info := Info{Volume: -1}
-	info.Volume, info.Muted = w.volume()
+func (w *worker) do(c command) {
+	level := uintptr(math.Float32bits(float32(c.level) / 100))
+	switch c.kind {
+	case "volume":
+		w.endpoint(func(ep *com) {
+			ep.call(7, level, 0) // SetMasterVolumeLevelScalar
+		})
+	case "appvolume":
+		w.appSessions(c.exes, func(_ bool, vol appVolume) {
+			vol.setLevel(float32(c.level) / 100)
+		})
+	case "micset":
+		w.mics(func(ep *com) {
+			ep.call(14, uintptr(c.level), 0) // SetMute
+		})
+	case "mastermute":
+		w.endpoint(func(ep *com) {
+			var m int32
+			ep.call(15, ptr(&m)) // GetMute
+			set := uintptr(1)
+			if m != 0 {
+				set = 0
+			}
+			ep.call(14, set, 0) // SetMute
+		})
+	case "mute":
+		key := strings.Join(c.exes, ",")
+		muted, found := false, false
+		w.appSessions(c.exes, func(_ bool, vol appVolume) {
+			if !found {
+				muted, found = vol.muted(), true
+				if !muted && vol.simple == nil {
+					w.unmuted[key] = vol.level()
+				}
+			}
+		})
+		if !found {
+			return
+		}
+		restore, ok := w.unmuted[key]
+		if !ok || restore == 0 {
+			restore = 1
+		}
+		w.appSessions(c.exes, func(_ bool, vol appVolume) {
+			switch {
+			case vol.simple != nil:
+				set := uintptr(1)
+				if muted {
+					set = 0
+				}
+				vol.simple.call(5, set, 0) // SetMute
+			case muted:
+				vol.setLevel(restore)
+			default:
+				vol.setLevel(0)
+			}
+		})
+	case "toggle", "next", "prev":
+		method := map[string]int{"toggle": 20, "next": 16, "prev": 17}[c.kind] // TryTogglePlayPause/TrySkipNext/TrySkipPrevious
+		w.sessions(func(id string, s *com) {
+			if id == c.source {
+				if op := s.out(method); op != nil {
+					wait(op)
+					op.release()
+				}
+			}
+		})
+	}
+}
 
+// sessions calls f for every app that publishes media controls. Two sessions
+// of the same app (two browser tabs) get "#2", "#3" appended to their ID.
+func (w *worker) sessions(f func(id string, s *com)) {
 	if w.manager == nil {
-		w.manager = requestManager()
-		if w.manager == nil {
-			return info, nil
+		if w.manager = requestManager(); w.manager == nil {
+			return
 		}
 	}
-	session := w.manager.out(6) // GetCurrentSession
-	if session == nil {
-		w.trackKey = ""
-		return info, nil
+	list := w.manager.out(7) // GetSessions
+	if list == nil {
+		return
 	}
-	defer session.release()
+	defer list.release()
+	var n uint32
+	list.call(7, ptr(&n)) // IVectorView::get_Size
+	seen := map[string]int{}
+	for i := uint32(0); i < n && i < 12; i++ {
+		s := list.out(6, uintptr(i)) // IVectorView::GetAt
+		if s == nil {
+			continue
+		}
+		id := s.getString(6) // get_SourceAppUserModelId
+		if seen[id]++; seen[id] > 1 {
+			id += "#" + strconv.Itoa(seen[id])
+		}
+		f(id, s)
+		s.release()
+	}
+}
 
-	info.App = appName(session.getString(6)) // get_SourceAppUserModelId
+func (w *worker) read(prevArt map[string]string) (State, map[string][]byte) {
+	st := State{}
+	st.Volume, st.Muted = w.volume()
+	art := map[string][]byte{}
+	keys := map[string]string{}
+	w.sessions(func(id string, s *com) {
+		src, key, img := w.readSession(id, s)
+		if key != "" && key == w.trackKeys[id] {
+			src.ArtID = prevArt[id]
+			keys[id] = key
+		} else if img != nil {
+			art[id] = img
+			keys[id] = key
+		}
+		// Without a cover yet, players often publish it a moment later; the
+		// key stays unset so the next reading tries again.
+		src.Volume = -1
+		w.appSessions(sourceExes(id), func(active bool, vol appVolume) {
+			if src.Volume >= 0 && !active {
+				return
+			}
+			src.Volume, src.Muted = int(vol.level()*100+0.5), vol.muted()
+		})
+		st.Sources = append(st.Sources, src)
+	})
+	w.trackKeys = keys
+	if w.manager != nil {
+		if cur := w.manager.out(6); cur != nil { // GetCurrentSession
+			st.Current = cur.getString(6)
+			cur.release()
+		}
+	}
+	return st, art
+}
+
+// readSession reads one app's track. key identifies the track; img is its
+// cover, read only when the track differs from the one seen last time.
+func (w *worker) readSession(id string, session *com) (src Source, key string, img []byte) {
+	src = Source{ID: id, App: appName(id)}
 
 	if pb := session.out(9); pb != nil { // GetPlaybackInfo
 		var status int32
 		pb.call(7, ptr(&status)) // get_PlaybackStatus
-		info.Playing = status == 4
+		src.Playing = status == 4
 		pb.release()
 	}
 
@@ -205,34 +366,31 @@ func (w *worker) read(prevArt string) (Info, []byte) {
 		tl.call(10, ptr(&pos))     // get_Position
 		tl.call(11, ptr(&updated)) // get_LastUpdatedTime (DateTime, 100 ns since 1601)
 		tl.release()
-		if info.Playing && updated > 0 {
+		if src.Playing && updated > 0 {
 			pos += fileTimeNow() - updated
 		}
-		info.DurationMs = end / 10000
-		info.PositionMs = min(max(pos/10000, 0), info.DurationMs)
+		src.DurationMs = end / 10000
+		src.PositionMs = min(max(pos/10000, 0), src.DurationMs)
 	}
 
 	props := await(session.out(7)) // TryGetMediaPropertiesAsync
 	if props == nil {
-		return info, nil
+		return src, "", nil
 	}
 	defer props.release()
-	info.Title = props.getString(6)
-	info.Artist = props.getString(9)
-	info.Album = props.getString(10)
+	src.Title = props.getString(6)
+	src.Artist = props.getString(9)
+	src.Album = props.getString(10)
 
-	key := info.App + "\x00" + info.Title + "\x00" + info.Artist + "\x00" + info.Album
-	if key == w.trackKey {
-		info.ArtID = prevArt
-		return info, nil
+	key = src.Title + "\x00" + src.Artist + "\x00" + src.Album
+	if key == w.trackKeys[id] {
+		return src, key, nil
 	}
-	art, err := thumbnail(props)
+	img, err := thumbnail(props)
 	if err != nil {
-		// Players often publish the title before the cover; try again next time.
-		return info, nil
+		return src, "", nil
 	}
-	w.trackKey = key
-	return info, art
+	return src, key, img
 }
 
 func requestManager() *com {
@@ -281,28 +439,91 @@ func thumbnail(props *com) ([]byte, error) {
 	return out, nil
 }
 
-// endpoint runs f with the default playback device's volume control. The
-// device is looked up each time, so switching speakers/headphones just works.
-func (w *worker) endpoint(f func(ep *com)) bool {
-	const clsctxAll = 0x17
+const clsctxAll = 0x17
+
+// device runs f with the default playback device. It is looked up each time,
+// so switching speakers/headphones just works.
+func (w *worker) device(f func(dev *com)) bool {
+	return w.defaultDevice(0, 1, f) // eRender, eMultimedia
+}
+
+// defaultDevice runs f with the default device for a flow (0 playback,
+// 1 recording) and role (0 console, 1 multimedia, 2 communications).
+func (w *worker) defaultDevice(flow, role uintptr, f func(dev *com)) bool {
 	if w.enumerator == nil {
 		if r, _, _ := coCreate.Call(ptr(&clsidEnumerator), 0, clsctxAll, ptr(&iidEnumerator), ptr(&w.enumerator)); int32(r) < 0 {
 			w.enumerator = nil
 			return false
 		}
 	}
-	device := w.enumerator.out(4, 0, 1) // GetDefaultAudioEndpoint(eRender, eMultimedia)
-	if device == nil {
+	dev := w.enumerator.out(4, flow, role) // GetDefaultAudioEndpoint
+	if dev == nil {
 		return false
 	}
-	defer device.release()
-	ep := device.out(3, ptr(&iidEndpointVolume), clsctxAll, 0) // Activate
-	if ep == nil {
-		return false
-	}
-	defer ep.release()
-	f(ep)
+	defer dev.release()
+	f(dev)
 	return true
+}
+
+// endpoint runs f with the default playback device's volume control.
+func (w *worker) endpoint(f func(ep *com)) bool {
+	ok := false
+	w.device(func(dev *com) {
+		ep := dev.out(3, ptr(&iidEndpointVolume), clsctxAll, 0) // Activate
+		if ep == nil {
+			return
+		}
+		defer ep.release()
+		f(ep)
+		ok = true
+	})
+	return ok
+}
+
+// mics runs f with the volume control of the default microphone and, if it
+// is a different one, the default microphone for calls (Discord, Teams).
+func (w *worker) mics(f func(ep *com)) {
+	seen := map[string]bool{}
+	for _, role := range []uintptr{0, 2} {
+		w.defaultDevice(1, role, func(dev *com) {
+			var p *uint16
+			if dev.call(5, ptr(&p)) < 0 || p == nil { // GetId
+				return
+			}
+			id := syscall.UTF16ToString(unsafe.Slice(p, wcslen(p)))
+			coFree.Call(uintptr(unsafe.Pointer(p)))
+			if seen[id] {
+				return
+			}
+			seen[id] = true
+			if ep := dev.out(3, ptr(&iidEndpointVolume), clsctxAll, 0); ep != nil { // Activate
+				f(ep)
+				ep.release()
+			}
+		})
+	}
+}
+
+// wcslen is the length of a NUL-terminated UTF-16 string (at most 512).
+func wcslen(p *uint16) int {
+	n := 0
+	for n < 512 && *(*uint16)(unsafe.Add(unsafe.Pointer(p), n*2)) != 0 {
+		n++
+	}
+	return n
+}
+
+// mic reports whether there is a microphone and whether it is muted.
+func (w *worker) mic() *Mic {
+	var m *Mic
+	w.mics(func(ep *com) {
+		if m == nil {
+			var muted int32
+			ep.call(15, ptr(&muted)) // GetMute
+			m = &Mic{Muted: muted != 0}
+		}
+	})
+	return m
 }
 
 // volume reads the master volume and mute state.
@@ -317,6 +538,227 @@ func (w *worker) volume() (int, bool) {
 		return -1, false
 	}
 	return int(level*100 + 0.5), muted != 0
+}
+
+// appVolume is one mixer entry's volume. Windows normally offers
+// ISimpleAudioVolume; some builds only hand out IChannelAudioVolume, which has
+// no mute, so there a mute is a volume of zero.
+type appVolume struct {
+	simple, channel *com
+}
+
+func (v appVolume) level() float32 {
+	var level float32
+	if v.simple != nil {
+		v.simple.call(4, ptr(&level)) // GetMasterVolume
+		return level
+	}
+	var n uint32
+	v.channel.call(3, ptr(&n)) // GetChannelCount
+	for i := uint32(0); i < n && i < 16; i++ {
+		var l float32
+		v.channel.call(5, uintptr(i), ptr(&l)) // GetChannelVolume
+		level = max(level, l)
+	}
+	return level
+}
+
+func (v appVolume) setLevel(level float32) {
+	bits := uintptr(math.Float32bits(level))
+	if v.simple != nil {
+		v.simple.call(3, bits, 0) // SetMasterVolume
+		return
+	}
+	var n uint32
+	v.channel.call(3, ptr(&n))
+	for i := uint32(0); i < n && i < 16; i++ {
+		v.channel.call(4, uintptr(i), bits, 0) // SetChannelVolume
+	}
+}
+
+func (v appVolume) muted() bool {
+	if v.simple != nil {
+		var m int32
+		v.simple.call(6, ptr(&m)) // GetMute
+		return m != 0
+	}
+	return v.level() == 0
+}
+
+// mixerSessions calls f with every live entry of the volume mixer.
+func (w *worker) mixerSessions(f func(p proc, active bool, vol appVolume)) {
+	w.device(func(dev *com) {
+		mgr := dev.out(3, ptr(&iidSessionManager2), clsctxAll, 0) // Activate
+		if mgr == nil {
+			return
+		}
+		defer mgr.release()
+		list := mgr.out(5) // GetSessionEnumerator
+		if list == nil {
+			return
+		}
+		defer list.release()
+		var n int32
+		list.call(3, ptr(&n)) // GetCount
+		for i := int32(0); i < n && i < 64; i++ {
+			ctl := list.out(4, uintptr(i)) // GetSession
+			if ctl == nil {
+				continue
+			}
+			var state int32
+			ctl.call(3, ptr(&state)) // GetState: 0 inactive, 1 active, 2 expired
+			c2 := ctl.out(0, ptr(&iidSessionControl2))
+			var vol appVolume
+			if vol.simple = ctl.out(0, ptr(&iidSimpleVolume)); vol.simple == nil {
+				vol.channel = ctl.out(0, ptr(&iidChannelVolume))
+			}
+			if c2 != nil && (vol.simple != nil || vol.channel != nil) && state != 2 {
+				var pid uint32
+				c2.call(14, ptr(&pid)) // GetProcessId
+				if p := w.process(pid); p.id != "" {
+					f(p, state == 1, vol)
+				}
+			}
+			vol.simple.release()
+			vol.channel.release()
+			c2.release()
+			ctl.release()
+		}
+	})
+}
+
+// appSessions calls f with the volume control of every mixer entry that
+// belongs to one of the given mixer IDs (a browser can have several).
+func (w *worker) appSessions(exes []string, f func(active bool, vol appVolume)) {
+	w.mixerSessions(func(p proc, active bool, vol appVolume) {
+		for _, e := range exes {
+			if p.id == e {
+				f(active, vol)
+				return
+			}
+		}
+	})
+}
+
+// self is DeskLink's own executable, left out of the mixer.
+var self = func() string {
+	exe, _ := os.Executable()
+	return strings.ToLower(strings.TrimSuffix(filepath.Base(exe), filepath.Ext(exe)))
+}()
+
+// readMixer lists the programs in the mixer, one entry per program: those
+// playing sound first, then the rest, each group by name.
+func (w *worker) readMixer() Mixer {
+	m := Mixer{}
+	m.Volume, m.Muted = w.volume()
+	m.Mic = w.mic()
+	at := map[string]int{}
+	w.mixerSessions(func(p proc, active bool, vol appVolume) {
+		if p.id == self {
+			return
+		}
+		i, ok := at[p.id]
+		if !ok {
+			i = len(m.Apps)
+			at[p.id] = i
+			m.Apps = append(m.Apps, MixerApp{ID: p.id, Name: w.displayName(p), Path: p.path, Volume: -1})
+		}
+		a := &m.Apps[i]
+		if a.Volume < 0 || (active && !a.Active) {
+			a.Volume, a.Muted = int(vol.level()*100+0.5), vol.muted()
+		}
+		a.Active = a.Active || active
+	})
+	sort.SliceStable(m.Apps, func(i, j int) bool {
+		a, b := m.Apps[i], m.Apps[j]
+		if a.Active != b.Active {
+			return a.Active
+		}
+		return strings.ToLower(a.Name) < strings.ToLower(b.Name)
+	})
+	return m
+}
+
+// process returns a process's executable: its mixer ID (name, lowercase,
+// without ".exe") and full path.
+func (w *worker) process(pid uint32) proc {
+	if pid == 0 {
+		return proc{}
+	}
+	if p, ok := w.procs[pid]; ok {
+		return p
+	}
+	const queryLimited = 0x1000 // PROCESS_QUERY_LIMITED_INFORMATION
+	h, err := syscall.OpenProcess(queryLimited, false, pid)
+	if err != nil {
+		return proc{}
+	}
+	defer syscall.CloseHandle(h)
+	buf := make([]uint16, 512)
+	size := uint32(len(buf))
+	if r, _, _ := imageName.Call(uintptr(h), 0, ptr(&buf[0]), ptr(&size)); r == 0 {
+		return proc{}
+	}
+	path := syscall.UTF16ToString(buf[:size])
+	p := proc{id: strings.ToLower(strings.TrimSuffix(strings.TrimSuffix(filepath.Base(path), ".exe"), ".EXE")), path: path}
+	if len(w.procs) > 256 {
+		clear(w.procs)
+	}
+	w.procs[pid] = p
+	return p
+}
+
+// displayName is the program's own description of itself ("Spotify",
+// "Google Chrome"), or its file name.
+func (w *worker) displayName(p proc) string {
+	if n, ok := w.names[p.path]; ok {
+		return n
+	}
+	name := fileDescription(p.path)
+	if name == "" || len(name) > 40 {
+		name = strings.TrimSuffix(filepath.Base(p.path), filepath.Ext(p.path))
+	}
+	if len(w.names) > 256 {
+		clear(w.names)
+	}
+	w.names[p.path] = name
+	return name
+}
+
+// fileDescription reads the FileDescription from an executable's version info.
+func fileDescription(path string) string {
+	p, err := syscall.UTF16PtrFromString(path)
+	if err != nil {
+		return ""
+	}
+	size, _, _ := verSize.Call(uintptr(unsafe.Pointer(p)), 0)
+	if size == 0 || size > 1<<20 {
+		return ""
+	}
+	data := make([]byte, size)
+	if r, _, _ := verInfo.Call(uintptr(unsafe.Pointer(p)), 0, size, uintptr(unsafe.Pointer(&data[0]))); r == 0 {
+		return ""
+	}
+	query := func(q string) (uintptr, uint32) {
+		qp, _ := syscall.UTF16PtrFromString(q)
+		var out uintptr
+		var n uint32
+		if r, _, _ := verQuery.Call(uintptr(unsafe.Pointer(&data[0])), uintptr(unsafe.Pointer(qp)), ptr(&out), ptr(&n)); r == 0 || out == 0 {
+			return 0, 0
+		}
+		return out, n
+	}
+	langs := []string{"040904b0", "040904e4", "000004b0"}
+	if t, n := query(`\VarFileInfo\Translation`); n >= 4 {
+		pair := *(**[2]uint16)(unsafe.Pointer(&t))
+		langs = append([]string{fmt.Sprintf("%04x%04x", pair[0], pair[1])}, langs...)
+	}
+	for _, l := range langs {
+		if s, n := query(`\StringFileInfo\` + l + `\FileDescription`); n > 0 {
+			return strings.TrimSpace(syscall.UTF16ToString(unsafe.Slice(*(**uint16)(unsafe.Pointer(&s)), n)))
+		}
+	}
+	return ""
 }
 
 func fileTimeNow() int64 {

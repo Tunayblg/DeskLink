@@ -42,21 +42,41 @@ const cacheFor = 800 * time.Millisecond
 
 // Collector takes readings. The zero value is ready to use.
 type Collector struct {
-	mu   sync.Mutex
-	at   time.Time
-	last Snapshot
-	cpu  cpuSampler
-	gpu  gpuSampler
+	mu    sync.Mutex
+	at    time.Time // when CPU and RAM were last read
+	gpuAt time.Time // when the GPU was last read
+	last  Snapshot
+	cpu   cpuSampler
+	gpu   gpuSampler
 }
 
-// Sample returns a fresh reading, or the cached one if it is very recent.
+// refresh reads CPU and RAM unless that was done very recently.
+func (c *Collector) refresh() {
+	if time.Since(c.at) < cacheFor {
+		return
+	}
+	c.last.CPU, c.last.RAM = c.cpu.sample(), sampleRAM()
+	c.at = time.Now()
+}
+
+// Sample returns a fresh reading of everything, or the cached one if it is
+// very recent.
 func (c *Collector) Sample() Snapshot {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if time.Since(c.at) < cacheFor {
-		return c.last
+	c.refresh()
+	if time.Since(c.gpuAt) >= cacheFor {
+		c.last.GPU = c.gpu.sample()
+		c.gpuAt = time.Now()
 	}
-	c.last = Snapshot{CPU: c.cpu.sample(), RAM: sampleRAM(), GPU: c.gpu.sample()}
-	c.at = time.Now()
 	return c.last
+}
+
+// System returns only CPU and RAM, for the PC dashboard. It shares the cache
+// with Sample, and never touches the GPU.
+func (c *Collector) System() Snapshot {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.refresh()
+	return Snapshot{CPU: c.last.CPU, RAM: c.last.RAM}
 }

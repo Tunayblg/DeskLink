@@ -4,9 +4,8 @@
 
   var TOKEN_KEY = "desklink.token";
   var VIEW_KEY = "desklink.view";
-  var VIEWS = ["home", "games", "stats", "clock"];
+  var VIEWS = ["home", "games", "stats", "pad", "clock"];
   var RETRY_MAX = 10000;
-  var HISTORY = 60;
   var STATS_AFTER_LAUNCH = 1600; // ms before switching to stats after a game starts
   var SHIFT_EVERY = 3 * 60 * 1000;
 
@@ -28,8 +27,10 @@
       paused: "Paused", media: "Media", play: "PLAY",
       launching: "Launching…", toGameMode: "Switching to game mode",
       noAnswer: "No answer from the PC", launchFailed: "Could not start the game",
-      gameMode: "GAME MODE", load60: "LOAD · 60s", gpuFan: "GPU FAN", gpuFanIdle: "GPU FAN · IDLE",
-      coreClock: "CORE CLOCK", noGpu: "No NVIDIA GPU found. GPU stats are only available for NVIDIA cards for now."
+      alreadyRunning: "Already running", doubleTap: "Double-tap to start",
+      gameMode: "GAME MODE", gpuFan: "GPU FAN", gpuFanIdle: "GPU FAN · IDLE",
+      coreClock: "CORE CLOCK", noGpu: "No NVIDIA GPU found. GPU stats are only available for NVIDIA cards for now.",
+      mic: "MIC", noMic: "NO MIC", padHint: "Slide to move · tap to click · two fingers: right click · three: middle click", sound: "SOUND", soundHint: "Swipe back for stats", master: "PC", game: "GAME", noApps: "Programs that play sound show up here."
     },
     tr: {
       connecting: "Bağlanıyor…", offline: "Bilgisayar kapalı · {} sn sonra tekrar", notPaired: "Eşleşmedi",
@@ -44,8 +45,10 @@
       paused: "Duraklatıldı", media: "Medya", play: "OYNA",
       launching: "Başlatılıyor…", toGameMode: "Oyun moduna geçiliyor",
       noAnswer: "Bilgisayardan yanıt gelmedi", launchFailed: "Oyun başlatılamadı",
-      gameMode: "OYUN MODU", load60: "YÜK · 60 sn", gpuFan: "GPU FANI", gpuFanIdle: "GPU FANI · DURDU",
-      coreClock: "ÇEKİRDEK HIZI", noGpu: "NVIDIA ekran kartı bulunamadı. GPU verileri şimdilik sadece NVIDIA kartlarda var."
+      alreadyRunning: "Zaten çalışıyor", doubleTap: "Açmak için çift dokun",
+      gameMode: "OYUN MODU", gpuFan: "GPU FANI", gpuFanIdle: "GPU FANI · DURDU",
+      coreClock: "ÇEKİRDEK HIZI", noGpu: "NVIDIA ekran kartı bulunamadı. GPU verileri şimdilik sadece NVIDIA kartlarda var.",
+      mic: "MİKROFON", noMic: "MİKROFON YOK", padHint: "Kaydırarak hareket ettir · dokun: tıkla · iki parmak: sağ tık · üç parmak: orta tık", sound: "SES", soundHint: "İstatistikler için geri kaydır", master: "ANA SES", game: "OYUN", noApps: "Ses çalan programlar burada görünür."
     }
   };
   var LANG = /^tr\b/i.test(navigator.language || "") ? "tr" : "en";
@@ -103,6 +106,8 @@
     t.addEventListener("click", function () { showView(t.dataset.view); });
   });
 
+  var padReset = null; // lets go of trackpad buttons (set by the trackpad code)
+
   function showView(name, remember) {
     var prev = document.querySelector(".view.active");
     var next = $("view-" + name);
@@ -115,8 +120,11 @@
       next.classList.add("active");
       if (name === "stats") statsHoldUntil = Date.now() + 480;
     }
+    if (name !== "pad" && padReset) padReset();
     document.body.classList.toggle("pairing", name === "pair");
-    // The clock screen is a plain black screen: the rail hides until a tap.
+    // The clock screen is a plain black screen without the rail; remember
+    // where it was opened from for its back button.
+    if (name === "clock" && view !== "clock" && VIEWS.indexOf(view) >= 0) beforeClock = view;
     document.body.classList.toggle("clock-mode", name === "clock");
     document.body.classList.remove("rail-peek");
     if (window.DeskClock && $("view-clock")) {
@@ -137,30 +145,74 @@
 
   // ---- Connection --------------------------------------------------------
 
+  // Keeping the link healthy on a phone:
+  //  - a socket that is still connecting after CONNECT_TIMEOUT is given up and
+  //    retried (iOS can leave one hanging right after waking up);
+  //  - the page pings every PING_EVERY, and treats SILENCE without any message
+  //    from the PC as a dead link (the PC also streams data and answers pings).
+  var CONNECT_TIMEOUT = 5000, LAYOUT_TIMEOUT = 30000, PING_EVERY = 15000, SILENCE = 35000;
+  var lastHeard = 0, cookieTried = false, sessionSynced = false;
+
   function connect() {
     clearTimeout(retryTimer);
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
 
-    var token = load(TOKEN_KEY);
-    if (!token) { showPairing(); return; }
+    // Without a token in localStorage, try once anyway: the PC may know this
+    // phone from the cookie it set at pairing.
+    var token = load(TOKEN_KEY) || "";
+    if (!token && cookieTried) { showPairing(); return; }
 
     setStatus("connecting", t("connecting"));
     var sock = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
     ws = sock;
     streaming = {};
+    // Only the handshake is timed out. Once connected, the first message (the
+    // layout, with game art) may take a while on weak Wi-Fi, so it gets longer.
+    var giveUp = setTimeout(function () { if (sock.readyState === WebSocket.CONNECTING) sock.close(); }, CONNECT_TIMEOUT);
+    var noLayout = setTimeout(function () { if (!layout) sock.close(); }, LAYOUT_TIMEOUT);
 
-    sock.onopen = function () { sock.send(JSON.stringify({ type: "auth", token: token })); };
+    sock.onopen = function () {
+      lastHeard = Date.now();
+      sock.send(JSON.stringify({ type: "auth", token: token }));
+    };
     sock.onmessage = function (ev) {
+      lastHeard = Date.now();
       var msg;
       try { msg = JSON.parse(ev.data); } catch (e) { return; }
+      if (msg.type === "layout") clearTimeout(noLayout);
+      if (msg.type === "unauthorized" && !token) {
+        // Not known by cookie either: this phone needs pairing.
+        cookieTried = true;
+        showPairing();
+        return;
+      }
       handle(msg);
     };
-    sock.onclose = function () {
+    sock.onclose = function (ev) {
+      clearTimeout(giveUp);
+      clearTimeout(noLayout);
       if (ws !== sock) return;
       ws = null;
+      layout = null;
       streaming = {};
-      if (load(TOKEN_KEY)) scheduleRetry();
+      if (!document.body.classList.contains("pairing")) scheduleRetry();
     };
+  }
+
+  setInterval(function () {
+    if (!ws || ws.readyState !== WebSocket.OPEN || document.visibilityState !== "visible") return;
+    if (Date.now() - lastHeard > SILENCE) { ws.close(); return; }
+    send({ type: "ping" });
+  }, PING_EVERY);
+
+  // Phones paired before the PC kept a cookie get one now, so they stay
+  // paired even if iOS clears the page's storage.
+  function syncSession() {
+    var token = load(TOKEN_KEY);
+    if (sessionSynced || !token) return;
+    sessionSynced = true;
+    fetch("/api/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: token }) })
+      .catch(function () { sessionSynced = false; });
   }
 
   function scheduleRetry() {
@@ -186,6 +238,7 @@
         renderGames(msg.games || []);
         setStatus("online", "Connected");
         showView(view, false);
+        syncSession();
         break;
       case "result":
         if (gameIDs[msg.id]) {
@@ -199,7 +252,15 @@
         if (msg.stats) queueStats(msg.stats);
         break;
       case "media":
-        if (msg.media) renderMedia(msg.media, msg.art);
+        if (msg.media) onMedia(msg.media, msg.art);
+        break;
+      case "mixer":
+        if (msg.mixer) renderMixer(msg.mixer, msg.icons);
+        break;
+      case "micack":
+        // Answers arrive in order, so once the last one is in, this is the truth.
+        if (micPending) micPending--;
+        if (!micPending) renderMic(msg.mic ? msg.mic.muted : null);
         break;
       case "unauthorized":
         save(TOKEN_KEY, null);
@@ -214,8 +275,9 @@
     var live = !document.body.classList.contains("pairing") &&
       document.visibilityState === "visible" && ws && ws.readyState === WebSocket.OPEN;
     var want = {
-      stats: !!(live && (view === "stats" || (view === "home" && miniEls))),
-      media: !!(live && view === "home" && np)
+      stats: !!(live && ((view === "stats" && statsPage === 0) || (view === "home" && miniEls))),
+      media: !!(live && view === "home" && np),
+      mixer: !!(live && (view === "stats" || (view === "home" && homeMix)))
     };
     Object.keys(want).forEach(function (k) {
       if (want[k] !== !!streaming[k] && send({ type: k, on: want[k] })) streaming[k] = want[k];
@@ -223,6 +285,12 @@
     clearInterval(progressTimer);
     progressTimer = want.media ? setInterval(function () { tickProgress(false); }, 1000) : null;
   }
+
+  // iOS pans (rubber-bands) the whole page on a drag even though nothing
+  // scrolls. Only the games list scrolls; everything else stays fixed.
+  document.addEventListener("touchmove", function (e) {
+    if (!(e.target.closest && e.target.closest(".game-list"))) e.preventDefault();
+  }, { passive: false });
 
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState === "visible") { retryDelay = 1000; connect(); }
@@ -232,14 +300,21 @@
     syncStreams();
   });
 
-  // On the clock screen a tap brings back the rail and the face picker for a few seconds.
-  var peekTimer = null;
+  // On the clock screen a tap shows the back button and the face picker for a
+  // few seconds. Back returns to the screen the clock was opened from.
+  var peekTimer = null, beforeClock = "home";
   if ($("view-clock")) $("view-clock").addEventListener("click", function () {
     document.body.classList.add("rail-peek");
     clearTimeout(peekTimer);
     peekTimer = setTimeout(function () { document.body.classList.remove("rail-peek"); }, 4000);
   });
+  if ($("clock-exit")) $("clock-exit").addEventListener("click", function (e) {
+    e.stopPropagation();
+    showView(beforeClock);
+  });
   window.addEventListener("online", function () { retryDelay = 1000; connect(); });
+  // iOS can restore the page from its cache without a visibility change.
+  window.addEventListener("pageshow", function () { retryDelay = 1000; connect(); });
 
   // ---- Controls ----------------------------------------------------------
 
@@ -299,6 +374,11 @@
     if (b.confirm && !window.confirm(b.label + "?")) return;
     send({ type: "press", id: b.id });
     flash(b.id, "pressed", 160);
+    // Remember which way the next track change goes, for the cover slide.
+    if (np && (b.id === np.prevId || b.id === np.nextId)) {
+      np.dir = b.id === np.prevId ? -1 : 1;
+      np.dirAt = Date.now();
+    }
   }
 
   // ---- Home --------------------------------------------------------------
@@ -329,8 +409,9 @@
       var transport = document.createElement("div");
       transport.className = "transport";
       var glyphs = [GLYPH.prev, GLYPH.play, GLYPH.next];
+      var acts = ["prev", "toggle", "next"];
       buttons.slice(0, 3).forEach(function (b, i) {
-        var el = control("button", "tbtn" + (i === 1 ? " main" : ""), b.id, null, function () { press(b); });
+        var el = control("button", "tbtn" + (i === 1 ? " main" : ""), b.id, null, function () { mediaControl(acts[i], b); });
         el.setAttribute("aria-label", b.label);
         el.innerHTML = svg(glyphs[i]);
         transport.appendChild(el);
@@ -343,7 +424,7 @@
       var muteBtn = null;
       if (buttons[3]) {
         var mb = buttons[3];
-        muteBtn = control("button", "vbtn", mb.id, null, function () { press(mb); toggleMuteLocally(); });
+        muteBtn = control("button", "vbtn", mb.id, null, function () { mediaControl("mute", mb); toggleMuteLocally(); });
         muteBtn.setAttribute("aria-label", mb.label);
         var mic = iconOf(mb);
         muteBtn.innerHTML = mic ? svg(mic[0]) : "";
@@ -370,14 +451,23 @@
         dur: body.querySelector(".np-progress .dur"),
         bar: body.querySelector(".np-progress .track i"),
         play: transport.children[1],
+        prevId: buttons[0] && buttons[0].id,
+        nextId: buttons[2] && buttons[2].id,
+        dir: 1,
+        dirAt: 0,
         vol: vol,
         slider: vol.querySelector(".slider"),
         level: vol.querySelector(".slider i"),
         spk: vol.querySelector(".slider .spk"),
         pct: vol.querySelector(".pct"),
         mute: muteBtn,
+        dots: body.appendChild(document.createElement("div")),
+        volSource: "",
         state: null
       };
+      np.dots.className = "np-dots";
+      bindSwipe(card);
+      if (mediaState) renderMedia();
     },
     // list: one row per button; consecutive game buttons share one row as tiles.
     list: function (body, buttons) {
@@ -409,6 +499,19 @@
         row.className = "game-row";
         games.forEach(function (b) { row.appendChild(gameTile(b, gamesById[b.game])); });
         body.appendChild(row);
+      }
+      // No games to show: that space becomes a small volume mixer (the PC and
+      // the programs playing sound), the same one as in game mode. A tablet
+      // has room for it under the game tiles as well.
+      if (!games.length || tallScreen()) {
+        var mix = document.createElement("div");
+        mix.className = "home-mix";
+        mix.id = "home-mix";
+        body.appendChild(mix);
+        homeMixPanel.cols = {};
+        homeMixPanel.order = "";
+        homeMix = true;
+        if (lastMixerApps) renderMixPanel(homeMixPanel, lastMixerApps.slice(0, homeMixPanel.limit));
       }
       if (others.length) {
         var icons = document.createElement("div");
@@ -461,10 +564,9 @@
   function gameTile(b, game) {
     var g = asIcon(game);
     var img = null;
-    var el = control("button", "gtile", b.id, g.tint || null, function () {
-      flash(b.id, "pressed", 180);
+    var el = control("button", "gtile", b.id, g.tint || null, doubleTap(b.id, function () {
       startLaunch(b.id, g, img && g.kind === "icon" ? img : el);
-    });
+    }));
     el.setAttribute("aria-label", b.label || g.name);
     gameIDs[b.id] = true;
     if (g.image) {
@@ -481,6 +583,12 @@
 
   var clockEl = null;
   var miniEls = null; // CPU/GPU mini charts on the home screen, if any
+  var homeMix = false; // the home screen shows the mini mixer
+
+  // A tablet-like screen (style.css has the same min-height breakpoint).
+  function tallScreen() {
+    return !!(window.matchMedia && window.matchMedia("(min-height: 450px)").matches);
+  }
 
   function renderHome(groups) {
     var home = $("view-home");
@@ -488,6 +596,7 @@
     np = null;
     clockEl = null;
     miniEls = null;
+    homeMix = false;
     home.style.gridTemplateColumns = groups.map(function (g) {
       return g.style === "media" ? "1.55fr" : "1fr";
     }).join(" ") || "1fr";
@@ -524,33 +633,201 @@
     return Math.floor(s / 60) + ":" + ("0" + (s % 60)).slice(-2);
   }
 
-  function renderMedia(m, art) {
-    if (!np) return;
+  // Several apps can be playing (Spotify, a browser tab…). The card shows one
+  // source at a time; swiping it switches source, and the transport, mute and
+  // volume slider act on the source shown (its own volume in the Windows mixer).
+  var mediaState = null;    // the last media message: { sources, current, volume, muted }
+  var arts = {};            // art ID -> data URI, each sent once per connection
+  var selected = null;      // ID of the source the user picked, null to follow Windows
+  var pickedAt = 0;         // when the user last swiped
+  var FOLLOW_AFTER = 10000; // a source that starts playing takes over unless the user swiped this recently
+
+  function onMedia(m, art) {
+    if (art) Object.keys(art).forEach(function (id) { arts[id] = art[id]; });
+    var prev = mediaState;
+    var list = m.sources || [];
+    var wasPlaying = {};
+    if (prev) (prev.sources || []).forEach(function (s) { wasPlaying[s.id] = s.playing; });
+    if (selected && !list.some(function (s) { return s.id === selected; })) selected = null;
+    if (Date.now() - pickedAt > FOLLOW_AFTER) {
+      list.forEach(function (s) {
+        if (s.playing && !wasPlaying[s.id] && prev && s.id !== selected) pickSource(s.id, false);
+      });
+    }
+    // Forget covers no source shows any more.
+    var keep = {};
+    list.forEach(function (s) { if (s.art_id && arts[s.art_id]) keep[s.art_id] = arts[s.art_id]; });
+    arts = keep;
+    mediaState = m;
+    renderMedia();
+  }
+
+  // shownSource is the picked source, else one that is playing (Windows' own
+  // choice first), else Windows' choice, else the first.
+  function shownSource() {
+    var list = mediaState && mediaState.sources || [];
+    var by = function (f) { for (var i = 0; i < list.length; i++) if (f(list[i])) return list[i]; return null; };
+    var cur = mediaState && mediaState.current;
+    return by(function (s) { return s.id === selected; }) ||
+      by(function (s) { return s.playing && s.id === cur; }) ||
+      by(function (s) { return s.playing; }) ||
+      by(function (s) { return s.id === cur; }) || list[0] || null;
+  }
+
+  // pickSource shows a source; the cover slides in from the side it is on.
+  function pickSource(id, byUser) {
+    var list = mediaState && mediaState.sources || [];
+    var from = shownSource(), a = -1, b = -1;
+    for (var i = 0; i < list.length; i++) {
+      if (from && list[i].id === from.id) a = i;
+      if (list[i].id === id) b = i;
+    }
+    if (np && a >= 0 && b >= 0 && a !== b) { np.dir = b > a ? 1 : -1; np.dirAt = Date.now(); }
+    selected = id;
+    if (byUser) pickedAt = Date.now();
+  }
+
+  function swipeSource(step) {
+    var list = mediaState && mediaState.sources || [];
+    var cur = shownSource();
+    if (list.length < 2 || !cur) return;
+    var i = 0;
+    while (i < list.length && list[i].id !== cur.id) i++;
+    var next = list[(i + step + list.length) % list.length];
+    pickSource(next.id, true);
+    volumeLockUntil = 0;
+    renderMedia(true);
+  }
+
+  // slideSource switches source with the card's top part (cover and titles)
+  // sliding out the way the finger went and the next one sliding in; the
+  // progress bar, buttons and slider stay put.
+  function slideSource(step) {
+    var r = np.root;
+    r.style.transition = "transform .2s cubic-bezier(.4,0,1,1), opacity .2s ease-in";
+    r.style.transform = "translateX(" + (-step * 70) + "px)";
+    r.style.opacity = "0";
+    setTimeout(function () {
+      if (!np || np.root !== r) return;
+      swipeSource(step);
+      r.style.transition = "none";
+      r.style.transform = "translateX(" + (step * 70) + "px)";
+      void r.offsetWidth;
+      r.style.transition = "transform .55s cubic-bezier(.22,1,.36,1), opacity .4s ease-out";
+      r.style.transform = "";
+      r.style.opacity = "";
+    }, 200);
+  }
+
+  // Transport and mute act on the source shown; without one they fall back to
+  // the configured buttons (media keys).
+  function mediaControl(action, b) {
+    var src = shownSource();
+    if (!src || (action === "mute" && src.volume < 0)) { if (b) press(b); return false; }
+    if (!ws || ws.readyState !== WebSocket.OPEN) { toast(t("notConnected")); return false; }
+    send({ type: "mediactl", source: src.id, action: action });
+    if (b) flash(b.id, "pressed", 160);
+    if (np && (action === "prev" || action === "next")) { np.dir = action === "prev" ? -1 : 1; np.dirAt = Date.now(); }
+    return true;
+  }
+
+  // renderMedia shows the source on the card. instant skips the track-change
+  // animations (used while the card itself slides to another source).
+  function renderMedia(instant) {
+    if (!np || !mediaState) return;
+    var m = shownSource() || {};
+    var list = mediaState.sources || [];
+    var art = m.art_id ? arts[m.art_id] : null;
     var has = !!m.title;
+    var sameSource = np.lastSource === m.id;
+    np.lastSource = m.id;
     if (!has) showArt(null);
-    else if (art) showArt(art);
-    else if (np.lastArt) revealArt(true);
+    else if (art) showArt(art, instant);
+    // A new track's title often arrives before its cover: keep the old cover
+    // until then instead of flashing the empty frame.
+    else if (np.lastArt && sameSource) revealArt(true);
+    else showArt(null);
+    renderDots(list, m.id);
     np.root.classList.toggle("idle", !has);
     np.root.classList.toggle("playing", has && m.playing);
 
     var app = has ? (m.app || t("media")) + (m.playing ? "" : " · " + t("paused")) : t("notPlaying");
     var title = has ? m.title : t("nothingPlaying");
     var artist = has ? (m.artist || m.album || "") : t("startMusic");
-    if (title !== np.title.textContent || artist !== np.artist.textContent) {
-      // New track: fade the text out, swap it, fade back in.
-      np.meta.classList.add("swap");
-      setTimeout(function () {
+    if (instant) {
+      clearTimeout(np.textTimer);
+      np.meta.classList.remove("out", "in");
+      np.title.textContent = title;
+      np.artist.textContent = artist;
+    } else if (title !== np.title.textContent || artist !== np.artist.textContent) {
+      // New track: the old text lifts away, then the new text rises into place.
+      var meta = np.meta, first = !np.title.textContent;
+      clearTimeout(np.textTimer);
+      meta.classList.add("out");
+      np.textTimer = setTimeout(function () {
         np.title.textContent = title;
         np.artist.textContent = artist;
-        np.meta.classList.remove("swap");
-      }, np.title.textContent ? 200 : 0);
+        meta.classList.remove("out");
+        meta.classList.add("in");
+        void meta.offsetWidth;
+        meta.classList.remove("in");
+      }, first ? 0 : 230);
     }
     np.app.textContent = app;
     np.play.innerHTML = svg(has && m.playing ? GLYPH.pause : GLYPH.play);
 
     playback = has ? { pos: m.position_ms, dur: m.duration_ms, playing: m.playing, t: Date.now() } : null;
     tickProgress(true);
-    if (m.volume >= 0 && Date.now() > volumeLockUntil) setVolume(m.volume, m.muted);
+    // The slider shows the app's own volume, or the PC's if the app is not in the mixer.
+    var own = m.id && m.volume >= 0;
+    np.volSource = own ? m.id : "";
+    np.slider.classList.toggle("app", !!own);
+    var v = own ? m.volume : mediaState.volume, muted = own ? m.muted : mediaState.muted;
+    if (v >= 0 && Date.now() > volumeLockUntil) setVolume(v, muted);
+  }
+
+  function renderDots(list, id) {
+    var html = "";
+    if (list.length > 1) list.forEach(function (s) { html += '<i class="' + (s.id === id ? "on" : "") + '"></i>'; });
+    if (np.dots.innerHTML !== html) np.dots.innerHTML = html;
+  }
+
+  // Horizontal swipes on the card switch source (the volume slider keeps its
+  // own drag). The cover and titles follow the finger; with a single source
+  // they only give a little and spring back.
+  function bindSwipe(el) {
+    var x0 = null, y0 = 0, axis = null, dx = 0;
+    function many() { return !!(mediaState && mediaState.sources && mediaState.sources.length > 1); }
+    el.addEventListener("touchstart", function (e) {
+      x0 = e.target.closest && e.target.closest(".slider") ? null : e.touches[0].clientX;
+      y0 = e.touches[0].clientY;
+      axis = null;
+      dx = 0;
+    }, { passive: true });
+    el.addEventListener("touchmove", function (e) {
+      if (x0 === null || !np) return;
+      dx = e.touches[0].clientX - x0;
+      var dy = e.touches[0].clientY - y0;
+      if (!axis && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+      if (axis !== "x") return;
+      e.preventDefault();
+      var r = np.root;
+      r.style.transition = "none";
+      r.style.transform = "translateX(" + (dx * (many() ? 0.45 : 0.12)).toFixed(1) + "px)";
+      r.style.opacity = many() ? Math.max(0.3, 1 - Math.abs(dx) / 400).toFixed(2) : "";
+    }, { passive: false });
+    function end() {
+      if (x0 === null) return;
+      x0 = null;
+      if (axis !== "x" || !np) return;
+      if (many() && Math.abs(dx) > 45) { slideSource(dx < 0 ? 1 : -1); return; }
+      var r = np.root;
+      r.style.transition = "transform .45s cubic-bezier(.22,1,.36,1), opacity .3s ease-out";
+      r.style.transform = "";
+      r.style.opacity = "";
+    }
+    el.addEventListener("touchend", end);
+    el.addEventListener("touchcancel", end);
   }
 
   // Moves the progress bar on the phone between server updates.
@@ -611,7 +888,9 @@
         clearTimeout(timer);
         timer = null;
         lastSent = Date.now();
-        send({ type: "volume", level: pending });
+        var msg = { type: "volume", level: pending };
+        if (np && np.volSource) msg.source = np.volSource;
+        send(msg);
       } else if (!timer) {
         timer = setTimeout(function () { timer = null; push(pending, true); }, wait);
       }
@@ -644,6 +923,340 @@
     });
   }
 
+  // ---- Volume mixer (second page of game mode) ----------------------------
+
+  var statsPage = 0;      // 0: PC stats, 1: volume mixer
+  var mixIcons = {};      // mixer app ID -> icon data URI, each sent once per connection
+  var mixLock = {};       // app ID -> ignore server levels until this time (after a local change)
+  var micMuted = null;    // null without a microphone
+  var micPending = 0;     // micmute requests the PC has not answered yet
+  var micPendingAt = 0;
+  // The mixer is drawn twice: in full on its own page, and small (the PC plus
+  // the first few programs, those playing sound first) on the stats page.
+  var homeMixPanel = { row: "home-mix", limit: 4, mini: true, cols: {}, order: "" };
+  var mixPanels = [
+    { row: "mix-row", limit: 8, mini: false, cols: {}, order: "" },
+    { row: "mini-mix", limit: 4, mini: true, cols: {}, order: "" },
+    homeMixPanel
+  ];
+  var lastMixerApps = null; // the PC and its programs from the last mixer message
+
+  function showStatsPage(p) {
+    statsPage = p;
+    $("stats-pager").classList.toggle("on-mixer", p === 1);
+    var dots = $("stats-dots").children;
+    for (var i = 0; i < dots.length; i++) dots[i].classList.toggle("on", i === p);
+    syncStreams();
+  }
+
+  (function bindStatsPager() {
+    var el = $("view-stats"), x0 = null, y0 = 0;
+    el.addEventListener("touchstart", function (e) {
+      x0 = e.target.closest && e.target.closest(".vslider") ? null : e.touches[0].clientX;
+      y0 = e.touches[0].clientY;
+    }, { passive: true });
+    el.addEventListener("touchend", function (e) {
+      if (x0 === null) return;
+      var dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+      x0 = null;
+      if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.5) showStatsPage(dx < 0 ? 1 : 0);
+    });
+    Array.prototype.forEach.call($("stats-dots").children, function (d, i) {
+      d.addEventListener("click", function () { showStatsPage(i); });
+    });
+    $("mic-btn").addEventListener("click", function () {
+      if (micMuted === null) return;
+      if (!ws || ws.readyState !== WebSocket.OPEN) { toast(t("notConnected")); return; }
+      // Ask for a state, not a flip, so a second tap or a slow link cannot undo
+      // the first. Until the PC answers, mixer updates (which may predate the
+      // change) are ignored for the microphone.
+      var want = !micMuted;
+      send({ type: "micmute", on: want });
+      micPending++;
+      micPendingAt = Date.now();
+      renderMic(want);
+    });
+  })();
+
+  function renderMic(muted) {
+    micMuted = muted;
+    var b = $("mic-btn");
+    b.classList.toggle("muted", muted === true);
+    b.classList.toggle("none", muted === null);
+    b.querySelector("span").textContent = muted === null ? t("noMic") : t("mic");
+  }
+
+  function renderMixer(m, icons) {
+    if (icons) Object.keys(icons).forEach(function (id) { mixIcons[id] = icons[id]; });
+    var apps = [{ id: "", name: t("master"), volume: m.volume, muted: m.muted, active: true, master: true }].concat(m.apps || []);
+    lastMixerApps = apps;
+    mixPanels.forEach(function (p) { renderMixPanel(p, apps.slice(0, p.limit)); });
+    // A mixer update may have been sent before our last tap reached the PC; wait for the answer (but not forever).
+    if (micPending && Date.now() - micPendingAt > 4000) micPending = 0;
+    if (!micPending) renderMic(m.mic ? m.mic.muted : null);
+  }
+
+  function renderMixPanel(p, apps) {
+    var order = apps.map(function (a) { return a.id; }).join("\n");
+    var row = $(p.row);
+    if (!row) return; // this panel is not on screen (e.g. the home screen has game tiles)
+    if (order !== p.order) {
+      p.order = order;
+      p.cols = {};
+      row.innerHTML = "";
+      apps.forEach(function (a) { row.appendChild(mixColumn(a, p)); });
+      if (apps.length === 1 && !p.mini) row.insertAdjacentHTML("beforeend", '<p class="mix-empty">' + t("noApps") + "</p>");
+    }
+    apps.forEach(function (a) {
+      var col = p.cols[a.id];
+      if (!col) return;
+      col.name.textContent = a.name;
+      col.root.classList.toggle("active", !!a.active);
+      if (!col.icon.firstChild && mixIcons[a.id]) col.icon.innerHTML = '<img alt="" src="' + mixIcons[a.id] + '">';
+      if (a.volume >= 0 && !(mixLock[a.id] > Date.now())) setMixLevel(col, a.volume, a.muted);
+    });
+  }
+
+  // eachCol runs f for an app's column in every panel that shows it.
+  function eachCol(id, f) {
+    mixPanels.forEach(function (p) { if (p.cols[id]) f(p.cols[id]); });
+  }
+
+  function mixColumn(a, panel) {
+    var root = document.createElement("div");
+    root.className = "mix" + (panel.mini ? " mini" : "") + (a.master ? " master" : "") + (a.game ? " is-game" : "");
+    root.innerHTML =
+      '<div class="mix-icon"></div>' +
+      '<span class="mix-name"></span>' +
+      (a.game && !panel.mini ? '<span class="mix-tag">' + t("game") + "</span>" : "") +
+      '<div class="vslider" role="slider" aria-valuemin="0" aria-valuemax="100"><i></i><span class="pct"></span></div>' +
+      (panel.mini ? "" : '<button type="button" class="mix-mute" aria-label="Mute"></button>');
+    var col = {
+      root: root,
+      icon: root.querySelector(".mix-icon"),
+      name: root.querySelector(".mix-name"),
+      slider: root.querySelector(".vslider"),
+      fill: root.querySelector(".vslider i"),
+      pct: root.querySelector(".vslider .pct"),
+      mute: root.querySelector(".mix-mute"),
+      level: 0,
+      muted: false
+    };
+    if (a.master) col.icon.innerHTML = svg('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>');
+    col.slider.setAttribute("aria-label", a.name);
+    panel.cols[a.id] = col;
+    bindVSlider(col.slider, function (v) {
+      mixLock[a.id] = Date.now() + 1500;
+      eachCol(a.id, function (c) { setMixLevel(c, v, c.muted && v === 0); });
+      var msg = { type: "volume", level: v };
+      if (a.id) msg.app = a.id;
+      return msg;
+    });
+    if (col.mute) col.mute.addEventListener("click", function () {
+      if (!ws || ws.readyState !== WebSocket.OPEN) { toast(t("notConnected")); return; }
+      send(a.id ? { type: "mute", app: a.id } : { type: "mute" });
+      mixLock[a.id] = Date.now() + 1500;
+      var muted = !col.muted;
+      eachCol(a.id, function (c) { setMixLevel(c, c.level, muted); });
+    });
+    return root;
+  }
+  function setMixLevel(col, v, muted) {
+    col.level = v;
+    col.muted = muted;
+    col.fill.style.transform = "translateY(" + (100 - v) + "%)";
+    col.pct.textContent = v;
+    col.slider.classList.toggle("low", v < 12);
+    col.slider.setAttribute("aria-valuenow", v);
+    col.root.classList.toggle("muted", muted);
+    var glyph = speakerFor(v, muted);
+    if (col.mute && col.glyph !== glyph) { col.glyph = glyph; col.mute.innerHTML = svg(glyph); }
+  }
+
+  // A vertical slider: drag (or tap) to set the level. update(v) shows the
+  // level and returns the message to send, at most every 80 ms plus once on release.
+  function bindVSlider(el, update) {
+    var dragging = false, lastSent = 0, pending = null, timer = null;
+    function levelAt(y) {
+      var r = el.getBoundingClientRect();
+      return Math.round(Math.max(0, Math.min(1, (r.bottom - y) / r.height)) * 100);
+    }
+    function push(msg, force) {
+      pending = msg;
+      var wait = 80 - (Date.now() - lastSent);
+      if (force || wait <= 0) {
+        clearTimeout(timer);
+        timer = null;
+        lastSent = Date.now();
+        send(pending);
+      } else if (!timer) {
+        timer = setTimeout(function () { timer = null; push(pending, true); }, wait);
+      }
+    }
+    function move(y, force) { push(update(levelAt(y)), force); }
+    function start(y) { dragging = true; el.classList.add("dragging"); move(y); }
+    function end(y) {
+      if (!dragging) return;
+      dragging = false;
+      el.classList.remove("dragging");
+      if (y !== undefined) move(y, true); else if (pending) push(pending, true);
+    }
+    el.addEventListener("touchstart", function (e) { e.preventDefault(); start(e.touches[0].clientY); }, { passive: false });
+    el.addEventListener("touchmove", function (e) { e.preventDefault(); if (dragging) move(e.touches[0].clientY); }, { passive: false });
+    el.addEventListener("touchend", function () { end(); });
+    el.addEventListener("touchcancel", function () { end(); });
+    el.addEventListener("mousedown", function (e) {
+      start(e.clientY);
+      function mm(ev) { move(ev.clientY); }
+      function mu(ev) { document.removeEventListener("mousemove", mm); document.removeEventListener("mouseup", mu); end(ev.clientY); }
+      document.addEventListener("mousemove", mm);
+      document.addEventListener("mouseup", mu);
+    });
+  }
+
+  // ---- Trackpad -------------------------------------------------------------
+  //
+  // One finger moves the pointer (faster swipes go further), a tap clicks, two
+  // fingers right-click (or scroll when they slide), three fingers middle-click.
+  // Tap, then touch again quickly and hold: a drag. The two glowing areas at the
+  // bottom are the left and right buttons; they can be held with one finger
+  // while another moves the pointer.
+
+  (function trackpad() {
+    var el = $("view-pad"), hint = $("pad-hint");
+    var TAP_MS = 300, DOUBLE_MS = 320, DEAD = 4, TAP_MOVE = 10;
+    var touches = {};   // surface touch id -> { x, y, sx, sy, t, armed }
+    var zones = {};     // zone touch id -> zone element
+    var g = null;       // the current surface gesture
+    var lastTap = 0;    // when a lone finger last tapped (for tap-and-drag)
+    var pend = { x: 0, y: 0, sy: 0, sx: 0 }, raf = 0;
+
+    function pad(msg) {
+      msg.type = "mouse";
+      return send(msg);
+    }
+
+    function count() { return Object.keys(touches).length; }
+
+    function flush() {
+      raf = 0;
+      var dx = Math.trunc(pend.x), dy = Math.trunc(pend.y);
+      if (dx || dy) { pend.x -= dx; pend.y -= dy; pad({ action: "move", dx: dx, dy: dy }); }
+      var sy = Math.trunc(pend.sy), sx = Math.trunc(pend.sx);
+      if (sy) { pend.sy -= sy; pad({ action: "scroll", dy: sy }); }
+      if (sx) { pend.sx -= sx; pad({ action: "hscroll", dy: sx }); }
+    }
+    function queue() { if (!raf) raf = requestAnimationFrame(flush); }
+
+    function ripple(x, y, rgb) {
+      var r = document.createElement("i");
+      r.className = "pad-ripple";
+      var box = el.getBoundingClientRect();
+      r.style.left = (x - box.left) + "px";
+      r.style.top = (y - box.top) + "px";
+      if (rgb) r.style.setProperty("--c", rgb);
+      el.appendChild(r);
+      setTimeout(function () { if (r.parentNode) r.parentNode.removeChild(r); }, 600);
+    }
+
+    el.addEventListener("touchstart", function (e) {
+      if (!hint.classList.contains("gone")) hint.classList.add("gone");
+      for (var i = 0; i < e.changedTouches.length; i++) {
+        var t = e.changedTouches[i];
+        var zone = t.target.closest && t.target.closest(".pad-zone");
+        if (zone) {
+          zones[t.identifier] = zone;
+          zone.classList.add("down");
+          pad({ action: "down", button: zone.dataset.btn });
+          continue;
+        }
+        var now = Date.now();
+        touches[t.identifier] = { x: t.clientX, y: t.clientY, sx: t.clientX, sy: t.clientY, t: now, armed: false };
+        if (!g) {
+          g = { t0: now, maxN: 0, moved: false, drag: false };
+          // Touching again right after a tap and holding: drag with the left button.
+          if (now - lastTap < DOUBLE_MS) { g.drag = true; pad({ action: "down", button: "left" }); }
+        }
+        g.maxN = Math.max(g.maxN, count());
+      }
+    }, { passive: true });
+
+    el.addEventListener("touchmove", function (e) {
+      if (!g) return;
+      var n = count();
+      for (var i = 0; i < e.changedTouches.length; i++) {
+        var t = e.changedTouches[i], p = touches[t.identifier];
+        if (!p) continue;
+        if (Math.hypot(t.clientX - p.sx, t.clientY - p.sy) > TAP_MOVE) g.moved = true;
+        // A small dead zone, so a tap does not nudge the pointer.
+        if (!p.armed) {
+          if (Math.hypot(t.clientX - p.sx, t.clientY - p.sy) < DEAD) continue;
+          p.armed = true;
+          p.x = t.clientX; p.y = t.clientY; p.t = Date.now();
+          continue;
+        }
+        var dx = t.clientX - p.x, dy = t.clientY - p.y, now = Date.now();
+        var dt = Math.max(8, now - p.t);
+        p.x = t.clientX; p.y = t.clientY; p.t = now;
+        if (n === 1 && (g.maxN === 1 || g.drag)) {
+          // Faster swipes get more reach, as on a laptop trackpad.
+          var gain = 2 + Math.min(Math.hypot(dx, dy) / dt * 1.4, 3);
+          pend.x += dx * gain;
+          pend.y += dy * gain;
+        } else if (n === 2 && !g.drag) {
+          pend.sy += dy / 2 * 5;      // content follows the fingers
+          pend.sx += -dx / 2 * 5;
+        }
+      }
+      queue();
+    }, { passive: true });
+
+    function lift(e, cancelled) {
+      for (var i = 0; i < e.changedTouches.length; i++) {
+        var t = e.changedTouches[i];
+        if (zones[t.identifier]) {
+          var z = zones[t.identifier];
+          delete zones[t.identifier];
+          z.classList.remove("down");
+          pad({ action: "up", button: z.dataset.btn });
+          continue;
+        }
+        if (!touches[t.identifier]) continue;
+        delete touches[t.identifier];
+        if (count() > 0 || !g) continue;
+        // The last finger is up: a quick, still touch is a tap.
+        flush();
+        var now = Date.now(), tap = !cancelled && !g.moved && !g.drag && now - g.t0 < TAP_MS;
+        if (tap) {
+          var btn = g.maxN === 1 ? "left" : g.maxN === 2 ? "right" : "middle";
+          pad({ action: "click", button: btn });
+          ripple(t.clientX, t.clientY, btn === "right" ? "167, 139, 250" : btn === "middle" ? "52, 211, 153" : null);
+          lastTap = g.maxN === 1 ? now : 0;
+        } else {
+          lastTap = 0;
+        }
+        if (g.drag) pad({ action: "up", button: "left" });
+        g = null;
+      }
+    }
+    el.addEventListener("touchend", function (e) { lift(e, false); }, { passive: true });
+    el.addEventListener("touchcancel", function (e) { lift(e, true); }, { passive: true });
+
+    // Let go of everything: leaving the screen, locking the phone, losing the PC.
+    padReset = function () {
+      Object.keys(zones).forEach(function (id) {
+        zones[id].classList.remove("down");
+        pad({ action: "up", button: zones[id].dataset.btn });
+      });
+      if (g && g.drag) pad({ action: "up", button: "left" });
+      zones = {};
+      touches = {};
+      g = null;
+      pend.x = pend.y = pend.sx = pend.sy = 0;
+    };
+    document.addEventListener("visibilitychange", function () { if (document.visibilityState !== "visible") padReset(); });
+  })();
+
   // ---- Clock -------------------------------------------------------------
 
   function updateClock() {
@@ -661,32 +1274,67 @@
 
   // Cover art: the new cover loads into the hidden layer, then both the art
   // and the color backdrop cross-fade. src null hides the art.
-  function showArt(src) {
+  function showArt(src, instant) {
     if (!np) return;
     if (!src) { revealArt(false); return; }
     if (src === np.lastArt) { revealArt(true); return; }
     np.lastArt = src;
-    var back = 1 - np.front, img = np.imgs[back];
+    var back = 1 - np.front, img = np.imgs[back], old = np.imgs[np.front];
+    if (instant) {
+      // Swap without the slide; the old cover stays until the new one has loaded.
+      img.onload = function () {
+        paintGlow(back, img);
+        np.front = back;
+        old.classList.add("instant");
+        img.classList.add("instant");
+        img.classList.remove("gone");
+        revealArt(true);
+        void img.offsetWidth;
+        old.classList.remove("instant");
+        img.classList.remove("instant");
+      };
+      img.src = src;
+      return;
+    }
+    // Slide direction: "previous" pressed in the last few seconds brings the
+    // new cover in from the left, anything else (next, autoplay) from the right.
+    var dir = np.dirAt && Date.now() - np.dirAt < 8000 ? np.dir : 1;
+    np.dirAt = 0;
+    // Park the incoming cover on its entry side without animating there.
+    img.classList.add("instant");
+    img.classList.remove("shown", "gone");
+    img.style.setProperty("--dir", dir);
+    void img.offsetWidth;
+    img.classList.remove("instant");
     img.onload = function () {
-      var c = palette(img);
-      if (c) {
-        // Two soft glows in the cover's colors from opposite corners: the card
-        // takes on the mood of the cover without showing a smeared copy of it.
-        np.bgs[back].style.background =
-          "radial-gradient(90% 85% at 0% 0%, rgba(" + c[0] + ",.55), transparent 62%)," +
-          "radial-gradient(80% 90% at 100% 100%, rgba(" + c[1] + ",.42), transparent 60%)," +
-          "linear-gradient(160deg, rgba(" + c[0] + ",.14), rgba(" + c[1] + ",.06))";
+      if (old.classList.contains("shown")) {
+        old.style.setProperty("--dir", dir);
+        old.classList.add("gone");
       }
+      paintGlow(back, img);
       np.front = back;
       revealArt(true);
     };
     img.src = src;
   }
 
+  // Two soft glows in the cover's colors from opposite corners: the card
+  // takes on the mood of the cover without showing a smeared copy of it.
+  function paintGlow(layer, img) {
+    var c = palette(img);
+    if (!c) return;
+    np.bgs[layer].style.background =
+      "radial-gradient(90% 85% at 0% 0%, rgba(" + c[0] + ",.55), transparent 62%)," +
+      "radial-gradient(80% 90% at 100% 100%, rgba(" + c[1] + ",.42), transparent 60%)," +
+      "linear-gradient(160deg, rgba(" + c[0] + ",.14), rgba(" + c[1] + ",.06))";
+  }
+
   function revealArt(on) {
+    np.imgs[0].parentNode.classList.toggle("has-art", on);
     for (var i = 0; i < 2; i++) {
       var show = on && i === np.front;
       np.imgs[i].classList.toggle("shown", show);
+      if (show || !on) np.imgs[i].classList.remove("gone");
       np.bgs[i].classList.toggle("shown", show);
     }
   }
@@ -737,11 +1385,10 @@
     games.forEach(function (g, i) {
       gameIDs[g.id] = true;
       var img = null;
-      var el = control("button", "game", g.id, g.tint || null, function () {
-        flash(g.id, "pressed", 180);
+      var el = control("button", "game", g.id, g.tint || null, doubleTap(g.id, function () {
         // Fly from the picture itself: the whole card for covers, the icon otherwise.
         startLaunch(g.id, g, img && g.kind !== "cover" ? img : el);
-      });
+      }));
       el.style.setProperty("--i", i);
       if (g.image) {
         img = document.createElement("img");
@@ -767,6 +1414,24 @@
   // the PC confirms the launch, and the overlay hands over to the stats screen.
 
   var launching = null; // { id, t0, timers[] }
+
+  // Starting a game takes two quick taps, so a stray touch or a hand resting
+  // on the screen never opens one. The first tap only says so.
+  var DOUBLE_TAP_MS = 500;
+  function doubleTap(id, start) {
+    var first = 0;
+    return function () {
+      var now = Date.now();
+      if (first && now - first < DOUBLE_TAP_MS) {
+        first = 0;
+        flash(id, "pressed", 180);
+        start();
+        return;
+      }
+      first = now;
+      toast(t("doubleTap"));
+    };
+  }
 
   function startLaunch(id, g, fromEl) {
     if (launching) return;
@@ -844,7 +1509,7 @@
   // Called with the PC's answer to a game press.
   function launchResult(id, ok, error) {
     if (!launching || launching.id !== id) return;
-    if (!ok) { launchFailed(error || t("launchFailed")); return; }
+    if (!ok) { launchFailed(error === "already_running" ? t("alreadyRunning") : error || t("launchFailed")); return; }
     var wait = Math.max(0, launching.t0 + 1000 - Date.now()); // let the art land first
     var l = launching;
     l.timers.forEach(clearTimeout);
@@ -937,26 +1602,6 @@
     requestAnimationFrame(step);
   }
 
-  var history = { cpu: [], gpu: [] };
-
-  function pushHistory(key, v) {
-    var h = history[key];
-    h.push(v);
-    if (h.length > HISTORY) h.shift();
-  }
-
-  function drawSeries(key) {
-    var h = history[key];
-    if (h.length < 2) return;
-    var step = 300 / (HISTORY - 1);
-    var x0 = 300 - (h.length - 1) * step;
-    var pts = h.map(function (v, i) {
-      return (x0 + i * step).toFixed(1) + " " + (98 - v * 0.94).toFixed(1);
-    });
-    $("line-" + key).setAttribute("d", "M" + pts.join("L"));
-    $("area-" + key).setAttribute("d", "M" + x0.toFixed(1) + " 100L" + pts.join("L") + "L300 100Z");
-  }
-
   // While the stats screen slides in, hold readings back: animating the gauges
   // during the slide is what made it stutter on the iPhone 6s.
   var statsHoldUntil = 0, pendingStats = null, holdTimer = null;
@@ -988,8 +1633,6 @@
 
   function renderStats(s) {
     var g = s.gpu;
-    pushHistory("cpu", s.cpu.usage);
-    if (g) pushHistory("gpu", g.usage);
     drawMini("cpu", s.cpu.usage);
     drawMini("gpu", g ? g.usage : null);
     // On the home screen only the mini charts are visible; skip the rest.
@@ -997,7 +1640,6 @@
 
     setGauge("cpu", s.cpu.usage);
     setGauge("ram", s.ram.usage, gb(s.ram.used_mb) + " / " + gb(s.ram.total_mb) + " GB");
-    drawSeries("cpu");
 
     $("no-gpu").hidden = !!g;
     $("details").style.opacity = g ? "" : ".35";
@@ -1009,7 +1651,6 @@
     $("gpu-name").textContent = g.name.replace(/^NVIDIA\s+/, "");
     setGauge("gpu", g.usage);
     setGauge("temp", g.temp);
-    drawSeries("gpu");
 
     tween($("fan-val"), g.fan, 0);
     $("fan-sub").textContent = g.fan > 0 ? t("gpuFan") : t("gpuFanIdle");
@@ -1055,7 +1696,13 @@
 
   var PAIR_ERRORS = { bad_code: "badCode", too_many: "tooMany", expired_link: "expiredLink" };
 
+  var pairing = false;
+
   function pair(body) {
+    // One request at a time: typing the sixth digit and tapping Pair would
+    // otherwise pair the phone twice.
+    if (pairing) return Promise.resolve();
+    pairing = true;
     $("pair-error").textContent = "";
     return fetch("/api/pair", {
       method: "POST",
@@ -1081,7 +1728,7 @@
       connect();
     }).catch(function () {
       showPairing(t("unreachable"));
-    });
+    }).then(function () { pairing = false; });
   }
 
   function submitCode() {
@@ -1100,6 +1747,13 @@
   // First thing on load: a QR code (#pair=) or a home screen handoff (#h=).
   function startup() {
     var m = /[#&]pair=([a-z2-7]{16})/.exec(location.hash);
+    // A home screen app can be saved with the QR link in its URL (iOS keeps the
+    // address the page was opened with). That code has long expired; such an
+    // app is already paired by its token or cookie, so just connect.
+    if (m && (standalone || load(TOKEN_KEY))) {
+      setHash("");
+      m = null;
+    }
     if (m) {
       setHash("");
       pair({ code: m[1], name: deviceName() });
@@ -1129,13 +1783,47 @@
 
   // ---- Viewport ----------------------------------------------------------
 
+  // Tablets: the layout is sized for a phone in landscape (about 667×375 CSS
+  // px). On a bigger touch screen it is scaled up through the viewport, so the
+  // page lays out at about 760 CSS px wide and every control grows with it,
+  // instead of phone-sized controls floating in large, empty cards. Touch
+  // coordinates stay in CSS px, so nothing else has to know about it.
+  var viewportMeta = document.querySelector('meta[name="viewport"]');
+  var viewportBase = viewportMeta ? viewportMeta.getAttribute("content") : "";
+  var TABLET_WIDTH = 760, TABLET_HEIGHT = 440, TABLET_MAX_SCALE = 1.6;
+  function fitViewport() {
+    if (!viewportMeta) return;
+    var sw = screen.width, sh = screen.height;
+    var touch = navigator.maxTouchPoints > 0 || "ontouchstart" in window;
+    var content = viewportBase;
+    if (touch && Math.min(sw, sh) >= 600) {
+      // iOS keeps screen.width/height in portrait terms; Android swaps them.
+      var landscape = screen.orientation && screen.orientation.type ?
+        screen.orientation.type.indexOf("landscape") === 0 :
+        typeof window.orientation === "number" ? Math.abs(window.orientation) === 90 : sw > sh;
+      var w = landscape ? Math.max(sw, sh) : Math.min(sw, sh);
+      var h = landscape ? Math.min(sw, sh) : Math.max(sw, sh);
+      var s = Math.min(w / TABLET_WIDTH, h / TABLET_HEIGHT, TABLET_MAX_SCALE);
+      if (s > 1.05) {
+        s = Math.round(s * 100) / 100;
+        content = "width=" + Math.round(w / s) + ", initial-scale=" + s + ", minimum-scale=" + s +
+          ", maximum-scale=" + s + ", user-scalable=no, viewport-fit=cover";
+      }
+    }
+    if (viewportMeta.getAttribute("content") !== content) viewportMeta.setAttribute("content", content);
+  }
+
   // 100vh is wrong in iOS Safari while the toolbar is visible; use the real height.
   function fixHeight() {
     document.documentElement.style.setProperty("--vh", window.innerHeight / 100 + "px");
   }
   window.addEventListener("resize", fixHeight);
-  window.addEventListener("orientationchange", function () { setTimeout(fixHeight, 250); });
+  window.addEventListener("orientationchange", function () {
+    fitViewport();
+    setTimeout(fixHeight, 250);
+  });
 
+  fitViewport();
   buildGauges();
   fixHeight();
   showView(view, false);

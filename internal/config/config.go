@@ -8,19 +8,26 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"regexp"
 
 	"github.com/Tunayblg/DeskLink/internal/actions"
 )
 
+// configVersion numbers the shape of config.json. Version 2 added a shut down
+// button to the Quick group.
+const configVersion = 2
+
 // Config is the content of config.json.
 type Config struct {
-	Port   int     `json:"port"`
-	Groups []Group `json:"groups"`
-	Games  []Game  `json:"games"`
+	Version int     `json:"version,omitempty"`
+	Port    int     `json:"port"`
+	Groups  []Group `json:"groups"`
+	Games   []Game  `json:"games"`
 
-	index map[string]actions.Action
+	index  map[string]actions.Action
+	gameOf map[string]int // game id or game button id -> position in Games
 }
 
 // Group is a card of buttons on the home screen.
@@ -103,7 +110,61 @@ func Load(path string) (*Config, error) {
 	} else if err != nil {
 		return nil, err
 	}
-	return Parse(data)
+	c, err := Parse(data)
+	if err != nil {
+		return nil, err
+	}
+	if c.Version < configVersion {
+		c.migrate()
+		if saved, err := c.Save(path); err == nil {
+			c = saved
+		} else {
+			log.Printf("config: could not save the updated config.json: %v", err)
+		}
+	}
+	return c, nil
+}
+
+// migrate brings an older config up to date. It only adds what a newer release
+// ships by default, and only once (the version is saved with it), so a button
+// the user removes later stays removed.
+func (c *Config) migrate() {
+	if c.Version < 2 {
+		c.addShutdownButton()
+	}
+	c.Version = configVersion
+}
+
+// addShutdownButton puts a shut down button after the lock button of the Quick
+// group. Configs without the usual sleep/lock buttons are left alone.
+func (c *Config) addShutdownButton() {
+	for _, g := range c.Groups {
+		for _, b := range g.Buttons {
+			if b.ID == "shutdown" || (b.Action.Type == "system" && b.Action.Command == "shutdown") {
+				return // already there, or the ID is taken
+			}
+		}
+	}
+	for gi := range c.Groups {
+		g := &c.Groups[gi]
+		if g.Style != "quick" {
+			continue
+		}
+		lock := -1
+		for i, b := range g.Buttons {
+			if b.Action.Type == "system" && b.Action.Command == "lock" {
+				lock = i
+			}
+		}
+		if lock < 0 {
+			continue
+		}
+		btn := Button{ID: "shutdown", Label: "Shut down", Icon: "power", Confirm: true,
+			Action: actions.Action{Type: "system", Command: "shutdown"}}
+		rest := append([]Button{btn}, g.Buttons[lock+1:]...)
+		g.Buttons = append(g.Buttons[:lock+1], rest...)
+		return
+	}
 }
 
 // Parse decodes and validates a config.
@@ -133,6 +194,7 @@ func (c *Config) validate() error {
 	}
 
 	c.index = map[string]actions.Action{}
+	c.gameOf = map[string]int{}
 	add := func(id string, a actions.Action) error {
 		if !idPattern.MatchString(id) {
 			return fmt.Errorf("id %q must be 1-32 chars of a-z, 0-9, _ or -", id)
@@ -149,7 +211,8 @@ func (c *Config) validate() error {
 
 	// Games first, so buttons can point at them.
 	games := map[string]actions.Action{}
-	for _, g := range c.Games {
+	gamePos := map[string]int{}
+	for gi, g := range c.Games {
 		if g.Name == "" || len(g.Name) > 40 {
 			return fmt.Errorf("game %q: name must be 1-40 characters", g.ID)
 		}
@@ -163,6 +226,8 @@ func (c *Config) validate() error {
 			return fmt.Errorf("game %w", err)
 		}
 		games[g.ID] = g.Action()
+		gamePos[g.ID] = gi
+		c.gameOf[g.ID] = gi
 	}
 
 	for gi, g := range c.Groups {
@@ -182,15 +247,20 @@ func (c *Config) validate() error {
 				return fmt.Errorf("button %q: label must be 1-40 characters", b.ID)
 			}
 			a := b.Action
+			pos := -1
 			if a.Type == "game" {
 				ga, ok := games[a.Target]
 				if !ok {
 					return fmt.Errorf("button %q: no game with id %q", b.ID, a.Target)
 				}
+				pos = gamePos[a.Target]
 				a = ga
 			}
 			if err := add(b.ID, a); err != nil {
 				return fmt.Errorf("button %w", err)
+			}
+			if pos >= 0 {
+				c.gameOf[b.ID] = pos
 			}
 		}
 	}
@@ -297,6 +367,15 @@ func (c *Config) Find(id string) (actions.Action, bool) {
 	return a, ok
 }
 
+// GameOf returns the game that a game id or a game button launches.
+func (c *Config) GameOf(id string) (Game, bool) {
+	i, ok := c.gameOf[id]
+	if !ok || i < 0 || i >= len(c.Games) {
+		return Game{}, false
+	}
+	return c.Games[i], true
+}
+
 // Public returns the home screen layout without action details.
 func (c *Config) Public() []PublicGroup {
 	out := make([]PublicGroup, len(c.Groups))
@@ -319,6 +398,7 @@ func (c *Config) Public() []PublicGroup {
 
 // Default is written to config.json on first run.
 const Default = `{
+  "version": 2,
   "port": 8765,
   "groups": [
     {
@@ -337,7 +417,8 @@ const Default = `{
       "buttons": [
         { "id": "spotify", "label": "Spotify",    "icon": "music",      "action": { "type": "launch", "target": "spotify:" } },
         { "id": "sleep",   "label": "Sleep",      "icon": "moon",       "confirm": true, "action": { "type": "system", "command": "sleep" } },
-        { "id": "lock",    "label": "Lock PC",    "icon": "lock",       "confirm": true, "action": { "type": "system", "command": "lock" } }
+        { "id": "lock",    "label": "Lock PC",    "icon": "lock",       "confirm": true, "action": { "type": "system", "command": "lock" } },
+        { "id": "shutdown", "label": "Shut down", "icon": "power",      "confirm": true, "action": { "type": "system", "command": "shutdown" } }
       ]
     }
   ],

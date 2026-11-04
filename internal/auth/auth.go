@@ -36,8 +36,9 @@ const (
 	// MaxAttempts is how many wrong codes are accepted per window; after that,
 	// pairing is refused until the next code appears.
 	MaxAttempts = 5
-	// HandoffTTL is how long a handoff code can be redeemed.
-	HandoffTTL = 15 * time.Minute
+	// HandoffTTL is how long a handoff code can be redeemed: long enough to add
+	// the page to the home screen later in the day.
+	HandoffTTL = 24 * time.Hour
 )
 
 var (

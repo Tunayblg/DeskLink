@@ -9,10 +9,11 @@ import (
 
 // Usage is one reading of this process.
 type Usage struct {
-	PrivateMB    float64 `json:"private_mb"`     // private working set (Task Manager's "Memory")
-	WorkingSetMB float64 `json:"working_set_mb"` // includes shared/image pages
-	HeapMB       float64 `json:"heap_mb"`        // live Go heap
-	CPU          float64 `json:"cpu"`            // percent of all cores since the last reading
+	PrivateMB    float64 `json:"private_mb"`          // private working set (Task Manager's "Memory")
+	WorkingSetMB float64 `json:"working_set_mb"`      // includes shared/image pages
+	PeakWSMB     float64 `json:"peak_working_set_mb"` // highest working set since start (kept by Windows)
+	HeapMB       float64 `json:"heap_mb"`             // live Go heap
+	CPU          float64 `json:"cpu"`                 // percent of all cores since the last reading
 	Goroutines   int     `json:"goroutines"`
 }
 
@@ -31,6 +32,7 @@ func (m *Meter) Read() Usage {
 	u := Usage{HeapMB: mb(ms.HeapAlloc), Goroutines: runtime.NumGoroutine()}
 	private, ws := memory()
 	u.PrivateMB, u.WorkingSetMB = mb(private), mb(ws)
+	u.PeakWSMB = mb(peakWorkingSet())
 
 	now, busy := time.Now(), cpuTime()
 	if !m.lastAt.IsZero() {

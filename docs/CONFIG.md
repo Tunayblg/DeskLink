@@ -23,7 +23,8 @@
         { "id": "q_cs2",  "label": "Counter-Strike 2", "icon": "gamepad", "action": { "type": "game", "target": "cs2" } },
         { "id": "obs",    "label": "OBS",     "icon": "monitor", "action": { "type": "launch", "target": "C:\\Program Files\\obs-studio\\bin\\64bit\\obs64.exe" } },
         { "id": "sleep",  "label": "Sleep",   "icon": "moon",    "confirm": true, "action": { "type": "system", "command": "sleep" } },
-        { "id": "lock",   "label": "Lock PC", "icon": "lock",    "confirm": true, "action": { "type": "system", "command": "lock" } }
+        { "id": "lock",   "label": "Lock PC", "icon": "lock",    "confirm": true, "action": { "type": "system", "command": "lock" } },
+        { "id": "shutdown", "label": "Shut down", "icon": "power", "confirm": true, "action": { "type": "system", "command": "shutdown" } }
       ]
     }
   ],
@@ -51,7 +52,7 @@
 |---|---|---|
 | `launch` | `target`, optional `args` | Opens an app, file, folder or URI (`spotify:`, `https://…`) as if double-clicked. `%VAR%` is expanded and programs start in their own folder. |
 | `keys` | `keys`: 1–4 key names | Presses a key combination. |
-| `system` | `command`: `lock` or `sleep` | Locks the PC or puts it to sleep. |
+| `system` | `command`: `lock`, `sleep` or `shutdown` | Locks the PC, puts it to sleep, or shuts it down (a program with unsaved work can still hold the shutdown back). Give shutdown `"confirm": true`. |
 | `game` | `target`: a game `id` | Launches one of your `games`. |
 | `page` | `target`: `home`, `games`, `stats` or `clock` | Switches the phone to another screen. |
 
@@ -67,7 +68,10 @@ The easiest way to add games is the dashboard: open it from the tray icon, go to
 
 - **Steam:** set `steam_appid` (the number in the game's store URL). DeskLink launches it through Steam, uses the cover art from your local Steam library, and takes the icon from the game's main executable.
 - **Anything else:** set `target` to the game's `.exe` (plus `args` if needed). If the game is started through a launcher, set `icon_from` to the game's own executable so the tile shows the right icon.
+- **A shortcut:** `target` can also be a `.lnk` shortcut (for example the one behind a pinned taskbar icon, which is in `%AppData%\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar`). Set `icon_from` to the game's real `.exe` so the tile gets its icon.
 - **Custom art:** set `cover` to a JPEG or PNG file.
+
+On the phone a game starts with a **double tap**; a single tap only shows a hint. If the game's program is already running, DeskLink does not start it again and the phone says so. DeskLink knows the program from `icon_from`, or from `target` when that is an `.exe`; a game with neither (a bare shortcut) can always be started, and Steam games are left to Steam.
 
 DeskLink checks the whole config at startup and tells you exactly what is wrong if something does not add up.
 

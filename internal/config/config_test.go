@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -125,7 +126,7 @@ func TestRejectsBadConfigs(t *testing.T) {
 		"unknown type":   btn(`{"type":"shell","target":"rm -rf"}`),
 		"empty target":   btn(`{"type":"launch","target":" "}`),
 		"unknown page":   btn(`{"type":"page","target":"settings"}`),
-		"unknown system": btn(`{"type":"system","command":"shutdown"}`),
+		"unknown system": btn(`{"type":"system","command":"reboot"}`),
 		"bad id":         `{"groups":[{"title":"G","buttons":[{"id":"A B","label":"A","action":{"type":"keys","keys":["a"]}}]}]}`,
 		"bad style":      `{"groups":[{"title":"G","style":"fancy","buttons":[{"id":"a","label":"A","action":{"type":"keys","keys":["a"]}}]}]}`,
 		"empty group":    `{"groups":[{"title":"G","buttons":[]}]}`,
@@ -137,6 +138,102 @@ func TestRejectsBadConfigs(t *testing.T) {
 	for name, cfg := range cases {
 		if _, err := Parse([]byte(cfg)); err == nil {
 			t.Errorf("%s: expected an error", name)
+		}
+	}
+}
+
+func TestDefaultHasShutdown(t *testing.T) {
+	c, err := Parse([]byte(Default))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, ok := c.Find("shutdown")
+	if !ok || a.Type != "system" || a.Command != "shutdown" {
+		t.Fatalf("default config has no shutdown button: %+v", a)
+	}
+	if c.Version != configVersion {
+		t.Errorf("default version %d, want %d", c.Version, configVersion)
+	}
+}
+
+// An older config.json gets the shut down button once, after the lock button;
+// removing it later sticks.
+func TestShutdownMigration(t *testing.T) {
+	old := strings.Replace(Default, `"version": 2,`, "", 1)
+	i := strings.Index(old, `,
+        { "id": "shutdown"`)
+	j := strings.Index(old[i:], "}\n") // end of the shutdown line's object
+	if i < 0 || j < 0 {
+		t.Fatal("test setup: cannot find the shutdown button in Default")
+	}
+	old = old[:i] + old[i+j+1:]
+	if strings.Contains(old, "shutdown") {
+		t.Fatalf("test setup: still has a shutdown button:\n%s", old)
+	}
+	path := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(path, []byte(old), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	c, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := c.Find("shutdown"); !ok || c.Version != configVersion {
+		t.Fatalf("not migrated: version %d", c.Version)
+	}
+	quick := c.Groups[1].Buttons
+	if quick[len(quick)-2].ID != "lock" || quick[len(quick)-1].ID != "shutdown" {
+		t.Errorf("shutdown should follow lock: %v", quick)
+	}
+	if _, err := os.Stat(path + ".bak"); err != nil {
+		t.Errorf("the old config should be kept as .bak: %v", err)
+	}
+
+	// The user removes it; the next start must not bring it back.
+	c = c.Clone()
+	c.Groups[1].Buttons = c.Groups[1].Buttons[:len(c.Groups[1].Buttons)-1]
+	if _, err := c.Save(path); err != nil {
+		t.Fatal(err)
+	}
+	again, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := again.Find("shutdown"); ok {
+		t.Error("a removed shutdown button came back")
+	}
+
+	// A config without the usual lock button is left as it is.
+	custom := `{"version": 1, "port": 8765, "groups": [{"title": "Q", "style": "quick", "buttons": [{"id": "calc", "label": "Calc", "icon": "terminal", "action": {"type": "launch", "target": "calc.exe"}}]}], "games": []}`
+	p2 := filepath.Join(t.TempDir(), "config.json")
+	os.WriteFile(p2, []byte(custom), 0o600)
+	c2, err := Load(p2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c2.Groups[0].Buttons) != 1 {
+		t.Errorf("custom config was changed: %v", c2.Groups[0].Buttons)
+	}
+}
+
+func TestGameOf(t *testing.T) {
+	c, err := Parse([]byte(`{"port":8765,
+		"games":[{"id":"a","name":"A","target":"C:/a.exe"},{"id":"b","name":"B","steam_appid":1}],
+		"groups":[{"title":"Q","buttons":[
+			{"id":"q_b","label":"B","action":{"type":"game","target":"b"}},
+			{"id":"lock","label":"Lock","action":{"type":"system","command":"lock"}}]}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for id, want := range map[string]string{"a": "a", "b": "b", "q_b": "b"} {
+		if g, ok := c.GameOf(id); !ok || g.ID != want {
+			t.Errorf("GameOf(%q) = %q, %v; want %q", id, g.ID, ok, want)
+		}
+	}
+	for _, id := range []string{"lock", "nope", ""} {
+		if _, ok := c.GameOf(id); ok {
+			t.Errorf("GameOf(%q) found a game", id)
 		}
 	}
 }

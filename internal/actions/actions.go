@@ -15,7 +15,7 @@ import (
 //
 //	launch: open an app, file, folder or URI (e.g. "spotify:") via the Windows shell
 //	keys:   press a key combination, e.g. ["ctrl", "shift", "esc"] or ["volume_up"]
-//	system: a built-in system command: "lock" or "sleep"
+//	system: a built-in system command: "lock", "sleep" or "shutdown"
 //	page:   switch the phone to another screen, e.g. "stats" (never runs on the PC)
 //	game:   launch one of the configured games by its id
 type Action struct {
@@ -48,7 +48,7 @@ func init() {
 	}
 }
 
-var systemCommands = map[string]bool{"lock": true, "sleep": true}
+var systemCommands = map[string]bool{"lock": true, "sleep": true, "shutdown": true}
 
 // Pages are screens of the phone panel that a button can open.
 var pages = map[string]bool{"home": true, "games": true, "stats": true, "clock": true}

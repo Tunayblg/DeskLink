@@ -11,6 +11,7 @@ var (
 	procQueryWorkingSet = kernel32.NewProc("K32QueryWorkingSet")
 	procGetProcessTimes = kernel32.NewProc("GetProcessTimes")
 	procGetCurrent      = kernel32.NewProc("GetCurrentProcess")
+	procMemoryInfo      = kernel32.NewProc("K32GetProcessMemoryInfo")
 )
 
 const pageSize = 4096
@@ -50,4 +51,29 @@ func cpuTime() time.Duration {
 	ticks := (uint64(kernel.HighDateTime)<<32 | uint64(kernel.LowDateTime)) +
 		(uint64(user.HighDateTime)<<32 | uint64(user.LowDateTime))
 	return time.Duration(ticks * 100)
+}
+
+// processMemoryCounters is PROCESS_MEMORY_COUNTERS.
+type processMemoryCounters struct {
+	cb                         uint32
+	pageFaultCount             uint32
+	peakWorkingSetSize         uintptr
+	workingSetSize             uintptr
+	quotaPeakPagedPoolUsage    uintptr
+	quotaPagedPoolUsage        uintptr
+	quotaPeakNonPagedPoolUsage uintptr
+	quotaNonPagedPoolUsage     uintptr
+	pagefileUsage              uintptr
+	peakPagefileUsage          uintptr
+}
+
+// peakWorkingSet is the most memory this process has had resident since it
+// started, as tracked by Windows (so it also covers moments nobody looked).
+func peakWorkingSet() uint64 {
+	h, _, _ := procGetCurrent.Call()
+	c := processMemoryCounters{cb: uint32(unsafe.Sizeof(processMemoryCounters{}))}
+	if r, _, _ := procMemoryInfo.Call(h, uintptr(unsafe.Pointer(&c)), uintptr(c.cb)); r == 0 {
+		return 0
+	}
+	return uint64(c.peakWorkingSetSize)
 }

@@ -39,6 +39,7 @@ const maxLog = 1 << 20
 func main() {
 	dataFlag := flag.String("data", "", "folder for config.json and devices.json (default: next to the executable)")
 	background := flag.Bool("background", false, "start without opening the dashboard (used when starting with Windows)")
+	debug := flag.Bool("debug", false, "log every request from the network, for diagnosing a phone that will not load")
 	flag.Parse()
 
 	exe, err := os.Executable()
@@ -80,6 +81,7 @@ func main() {
 	app.Version = version
 	app.AdminPage = web.AdminPage
 	app.ConfigPath = filepath.Join(dataDir, "config.json")
+	app.LogRequests = *debug
 	app.ChooseProgram = func() (string, bool) { return desktop.ChooseProgram("Choose a program") }
 	for _, ip := range lanIPs() {
 		app.Addresses = append(app.Addresses, fmt.Sprintf("http://%s:%d", ip, cfg.Port))

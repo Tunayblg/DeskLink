@@ -5,7 +5,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"syscall"
+	"time"
 	"unsafe"
 )
 
@@ -53,13 +55,79 @@ func Alert(msg string) {
 	messageBox.Call(0, uintptr(unsafe.Pointer(u16(msg))), uintptr(unsafe.Pointer(u16("DeskLink"))), mbIconError)
 }
 
-// OpenApp opens url as a standalone app window (no tabs or address bar) using
-// Microsoft Edge, which ships with Windows. Without Edge it falls back to the
-// default browser.
+var (
+	enumWindows     = user32.NewProc("EnumWindows")
+	getWindowText   = user32.NewProc("GetWindowTextW")
+	getClassName    = user32.NewProc("GetClassNameW")
+	isWindowVisible = user32.NewProc("IsWindowVisible")
+	isIconic        = user32.NewProc("IsIconic")
+	showWindow      = user32.NewProc("ShowWindow")
+	setForeground   = user32.NewProc("SetForegroundWindow")
+)
+
+const (
+	// The dashboard page's <title>, which an Edge app window shows as its own.
+	dashboardTitle = "DeskLink"
+	edgeWindowType = "Chrome_WidgetWin_1" // Chromium's top-level window class
+	swRestore      = 9
+	// A window takes a moment to appear; a second request in that time must not
+	// open another one.
+	openGrace = 6 * time.Second
+)
+
+var (
+	openMu     sync.Mutex
+	openedAt   time.Time
+	foundWnd   uintptr
+	enumDeskLk = syscall.NewCallback(func(h, _ uintptr) uintptr {
+		if v, _, _ := isWindowVisible.Call(h); v == 0 {
+			return 1
+		}
+		var class [64]uint16
+		getClassName.Call(h, uintptr(unsafe.Pointer(&class[0])), uintptr(len(class)))
+		if syscall.UTF16ToString(class[:]) != edgeWindowType {
+			return 1
+		}
+		var title [128]uint16
+		getWindowText.Call(h, uintptr(unsafe.Pointer(&title[0])), uintptr(len(title)))
+		if syscall.UTF16ToString(title[:]) != dashboardTitle {
+			return 1
+		}
+		foundWnd = h
+		return 0 // stop looking
+	})
+)
+
+// focusDashboard brings an already open dashboard window to the front (also
+// from the taskbar, if it was minimized). It reports whether there was one.
+// The caller holds openMu.
+func focusDashboard() bool {
+	foundWnd = 0
+	enumWindows.Call(enumDeskLk, 0)
+	if foundWnd == 0 {
+		return false
+	}
+	if iconic, _, _ := isIconic.Call(foundWnd); iconic != 0 {
+		showWindow.Call(foundWnd, swRestore)
+	}
+	setForeground.Call(foundWnd)
+	return true
+}
+
+// OpenApp shows url as a standalone app window (no tabs or address bar) using
+// Microsoft Edge, which ships with Windows. There is only ever one: if the
+// dashboard is already open it is brought to the front instead. Without Edge
+// it falls back to the default browser.
 func OpenApp(url string) {
+	openMu.Lock()
+	defer openMu.Unlock()
+	if focusDashboard() || time.Since(openedAt) < openGrace {
+		return
+	}
 	if edge := edgePath(); edge != "" {
 		cmd := exec.Command(edge, "--app="+url, "--window-size=1120,800")
 		if cmd.Start() == nil {
+			openedAt = time.Now()
 			go cmd.Wait()
 			return
 		}

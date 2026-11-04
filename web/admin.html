@@ -50,14 +50,30 @@ main { flex: 1; min-width: 0; overflow-y: auto; padding: 28px 32px 40px; }
 .head p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
 .head .btn { margin-left: auto; }
 .card { background: var(--panel); border: 1px solid var(--edge); border-radius: 14px; padding: 16px 18px; min-width: 0; }
-.metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 14px; }
+.metrics { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-bottom: 14px; }
 .label { font-size: 12px; color: var(--muted); }
 .value { margin-top: 6px; font-size: 26px; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
 .value small { font-size: 13px; font-weight: 400; color: var(--muted); margin-left: 3px; }
 .hint { margin-top: 3px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-svg.spark { display: block; width: 100%; height: 30px; margin-top: 8px; }
-svg.spark path { fill: none; stroke-width: 1.6; vector-effect: non-scaling-stroke; }
-svg.spark .area { stroke: none; }
+/* CPU and RAM charts: the last two minutes, with the peak marked. */
+.charts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-bottom: 14px; }
+.chart-head { display: flex; align-items: baseline; justify-content: space-between; }
+.chart-head .big { font-size: 26px; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.chart-head .big small { font-size: 13px; font-weight: 400; color: var(--muted); margin-left: 3px; }
+.plot { position: relative; height: 120px; margin: 12px 0 6px 40px; }
+.plot svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: visible; }
+.plot .grid { fill: none; stroke: rgba(255,255,255,.06); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.plot .line { fill: none; stroke: var(--c); stroke-width: 2; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.plot .peakline { fill: none; stroke: var(--c); stroke-width: 1; stroke-dasharray: 3 4; opacity: .7; vector-effect: non-scaling-stroke; }
+.ytop, .ybot { position: absolute; left: -40px; width: 34px; text-align: right; font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ytop { top: -6px; }
+.ybot { bottom: -6px; }
+.tag { position: absolute; padding: 1px 7px; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--edge); color: var(--c); font-size: 11px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.live { position: absolute; right: 0; width: 8px; height: 8px; margin: -4px -4px 0 0; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 4px rgba(255,255,255,.06); }
+.axis { display: flex; justify-content: space-between; margin-left: 40px; font-size: 10px; color: var(--muted); }
+.stats3 { display: flex; gap: 20px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+.stats3 em { font-style: normal; }
+.stats3 b { margin-left: 5px; color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
 h2 { margin: 0 0 10px; font-size: 14px; font-weight: 600; }
 .empty { padding: 26px 0 14px; color: var(--muted); text-align: center; }
 .empty .btn { margin-top: 12px; }
@@ -101,6 +117,7 @@ button.row:hover { border-color: var(--edge); }
 .modal { width: 440px; max-width: calc(100% - 40px); max-height: calc(100% - 40px); overflow-y: auto; padding: 22px 24px; border: 1px solid var(--edge); border-radius: 16px; background: #141824; box-shadow: 0 30px 80px -20px rgba(0,0,0,.9); }
 .modal h2 { font-size: 17px; margin-bottom: 4px; }
 .modal .sub { margin: 0 0 18px; color: var(--muted); font-size: 13px; }
+.modal .note { margin: 14px 0 0; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(245,158,11,.28); background: rgba(245,158,11,.08); color: #fcd34d; font-size: 12.5px; line-height: 1.45; }
 .modal footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 .qr { width: 220px; height: 220px; margin: 4px auto 18px; padding: 0; overflow: hidden; border-radius: 14px; background: #fff; }
 .qr svg { display: block; width: 100%; height: 100%; }
@@ -128,7 +145,7 @@ details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-
 .toast { position: fixed; bottom: 20px; left: 50%; z-index: 20; padding: 9px 16px; border-radius: 10px; background: #23283a; border: 1px solid var(--edge); font-size: 13px; transform: translate(-50%, 20px); opacity: 0; transition: opacity .25s, transform .3s; pointer-events: none; }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 .offline { margin-bottom: 14px; padding: 10px 14px; border-radius: 10px; background: rgba(244,63,94,.1); color: #fda4af; }
-@media (max-width: 900px) { .metrics { grid-template-columns: repeat(2, 1fr); } .split { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .metrics { grid-template-columns: repeat(2, 1fr); } .charts { grid-template-columns: 1fr; } .split { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -149,11 +166,44 @@ details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-
 
   <section id="v-overview">
     <div class="head"><div><h1 data-t="overview"></h1><p data-t="overviewSub"></p></div></div>
+    <div class="charts">
+      <div class="card chart" style="--c:#38bdf8">
+        <div class="chart-head"><span class="label" data-t="memChart"></span><span class="big"><b id="c-mem-now">–</b><small id="c-mem-unit"></small></span></div>
+        <div class="plot">
+          <span class="ytop" id="c-mem-top"></span><span class="ybot">0</span>
+          <svg viewBox="0 0 300 100" preserveAspectRatio="none">
+            <defs><linearGradient id="g-mem" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#38bdf8" stop-opacity=".32"/><stop offset="1" stop-color="#38bdf8" stop-opacity="0"/></linearGradient></defs>
+            <path class="grid" d="M0 25H300M0 50H300M0 75H300"/>
+            <path id="c-mem-area" fill="url(#g-mem)"/>
+            <path id="c-mem-peakline" class="peakline"/>
+            <path id="c-mem-line" class="line"/>
+          </svg>
+          <span class="tag" id="c-mem-tag" hidden></span>
+          <i class="live" id="c-mem-live" hidden></i>
+        </div>
+        <div class="axis"><span data-t="twoMin"></span><span data-t="nowL"></span></div>
+        <div class="hint" id="c-mem-hint">&nbsp;</div>
+        <div class="stats3"><span><em id="c-mem-l1"></em><b id="c-mem-s1">–</b></span><span><em id="c-mem-l2"></em><b id="c-mem-s2">–</b></span><span><em id="c-mem-l3"></em><b id="c-mem-s3">–</b></span></div>
+      </div>
+      <div class="card chart" style="--c:#a78bfa">
+        <div class="chart-head"><span class="label" data-t="cpuChart"></span><span class="big"><b id="c-cpu-now">–</b><small id="c-cpu-unit"></small></span></div>
+        <div class="plot">
+          <span class="ytop" id="c-cpu-top"></span><span class="ybot">0</span>
+          <svg viewBox="0 0 300 100" preserveAspectRatio="none">
+            <defs><linearGradient id="g-cpu" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a78bfa" stop-opacity=".32"/><stop offset="1" stop-color="#a78bfa" stop-opacity="0"/></linearGradient></defs>
+            <path class="grid" d="M0 25H300M0 50H300M0 75H300"/>
+            <path id="c-cpu-area" fill="url(#g-cpu)"/>
+            <path id="c-cpu-peakline" class="peakline"/>
+            <path id="c-cpu-line" class="line"/>
+          </svg>
+          <span class="tag" id="c-cpu-tag" hidden></span>
+          <i class="live" id="c-cpu-live" hidden></i>
+        </div>
+        <div class="axis"><span data-t="twoMin"></span><span data-t="nowL"></span></div>
+        <div class="stats3"><span><em id="c-cpu-l1"></em><b id="c-cpu-s1">–</b></span><span><em id="c-cpu-l2"></em><b id="c-cpu-s2">–</b></span><span><em id="c-cpu-l3"></em><b id="c-cpu-s3">–</b></span></div>
+      </div>
+    </div>
     <div class="metrics">
-      <div class="card"><div class="label" data-t="memory"></div><div class="value"><span id="mem">–</span><small>MB</small></div><div class="hint" id="mem-hint">&nbsp;</div>
-        <svg class="spark" viewBox="0 0 100 30" preserveAspectRatio="none"><path class="area" id="mem-area" fill="rgba(56,189,248,.12)"/><path id="mem-line" stroke="#38bdf8"/></svg></div>
-      <div class="card"><div class="label">CPU</div><div class="value"><span id="cpu">–</span><small>%</small></div><div class="hint" id="cpu-hint">&nbsp;</div>
-        <svg class="spark" viewBox="0 0 100 30" preserveAspectRatio="none"><path class="area" id="cpu-area" fill="rgba(167,139,250,.12)"/><path id="cpu-line" stroke="#a78bfa"/></svg></div>
       <div class="card"><div class="label" data-t="connectedNow"></div><div class="value" id="m-online">–</div><div class="hint" id="m-online-hint">&nbsp;</div></div>
       <div class="card"><div class="label" data-t="paired"></div><div class="value" id="m-paired">–</div><div class="hint" data-t="pairedHint"></div></div>
     </div>
@@ -209,6 +259,7 @@ details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-
     <div class="field"><label for="g-name" data-t="name"></label><input id="g-name" maxlength="40" autocomplete="off"></div>
     <div class="seg" id="g-kind"><button data-kind="program" class="on" data-t="program"></button><button data-kind="steam" data-t="steam"></button></div>
     <div id="g-program">
+      <p class="note" data-t="launcherNote"></p>
       <div class="field"><label for="g-target" data-t="programPath"></label>
         <div class="inline"><input id="g-target" spellcheck="false" placeholder="D:\Games\Game\Game.exe"><button class="btn" id="g-browse" data-t="browse"></button></div></div>
       <details><summary data-t="advanced"></summary>
@@ -236,13 +287,15 @@ details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-
   var STR = {
     en: {
       overview: "Overview", devices: "Devices", games: "Games", addDevice: "Add device", addGame: "Add game",
-      overviewSub: "DeskLink is running in the background.", memory: "Memory", connectedNow: "Connected now",
+      overviewSub: "DeskLink is running in the background.", memory: "DeskLink memory", connectedNow: "Connected now",
+      twoMin: "5 min ago", nowL: "now", nowS: "Now", peakS: "Peak", avgS: "Average", wsS: "Working set", memChart: "DeskLink memory", cpuChart: "DeskLink CPU", ramShare: "{}% of this PC's RAM", startPeak: "peak since start {} MB",
       paired: "Paired devices", pairedHint: "Phones and tablets that can connect", noneConnected: "No device is connected right now.",
       devicesSub: "Everything paired with this PC.", noDevices: "No devices yet.",
       gamesSub: "Games you can start from the phone. Changes show up on connected phones right away.", noGames: "No games yet.",
       pairSub: "Scan this with the phone's camera.", newCode: "New code", manualOpen: "Trouble scanning? Connect manually",
       manualText: "On the phone (same Wi-Fi), open this address and enter the code above:", done: "Done",
       offline: "DeskLink is not responding. Is it still running?",
+      launcherNote: "Games from Riot (Valorant, LoL) and EA can be unreliable here: their own launchers or anti-cheat often block them from being started by another program. For the most stable result, add your games from Steam.",
       gameSub: "Pick a program or one of your Steam games.", name: "Name", program: "Program", steam: "Steam",
       programPath: "Program", browse: "Browse…", advanced: "Advanced", arguments: "Launch options (optional)",
       iconFrom: "Take the icon from another .exe (optional)", steamGame: "Installed Steam game", showOnHome: "Show on the home screen",
@@ -256,13 +309,15 @@ details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-
     },
     tr: {
       overview: "Genel bakış", devices: "Cihazlar", games: "Oyunlar", addDevice: "Cihaz ekle", addGame: "Oyun ekle",
-      overviewSub: "DeskLink arka planda çalışıyor.", memory: "Bellek", connectedNow: "Şu an bağlı",
+      overviewSub: "DeskLink arka planda çalışıyor.", memory: "DeskLink belleği", connectedNow: "Şu an bağlı",
+      twoMin: "5 dk önce", nowL: "şimdi", nowS: "Şimdi", peakS: "En yüksek", avgS: "Ortalama", wsS: "Çalışma kümesi", memChart: "DeskLink belleği", cpuChart: "DeskLink işlemci", ramShare: "bu bilgisayarın RAM'inin %{}'i", startPeak: "açılıştan beri en yüksek {} MB",
       paired: "Eşleşmiş cihazlar", pairedHint: "Bağlanabilen telefon ve tabletler", noneConnected: "Şu an bağlı cihaz yok.",
       devicesSub: "Bu bilgisayarla eşleşmiş her şey.", noDevices: "Henüz cihaz yok.",
       gamesSub: "Telefondan başlatabileceğin oyunlar. Değişiklikler bağlı telefonlarda anında görünür.", noGames: "Henüz oyun yok.",
       pairSub: "Telefonun kamerasıyla okut.", newCode: "Yeni kod", manualOpen: "Okutamıyor musun? Elle bağlan",
       manualText: "Telefonda (aynı Wi-Fi) bu adresi aç ve yukarıdaki kodu gir:", done: "Tamam",
       offline: "DeskLink yanıt vermiyor. Hâlâ çalışıyor mu?",
+      launcherNote: "Riot (Valorant, LoL) ve EA oyunlarında sorun yaşanabilir: kendi başlatıcıları veya anti-cheat sistemleri başka bir programın oyunu açmasını çoğu zaman engeller. En stabil sonuç için oyunlarını Steam'den ekle.",
       gameSub: "Bir program ya da Steam oyunlarından birini seç.", name: "Ad", program: "Program", steam: "Steam",
       programPath: "Program", browse: "Gözat…", advanced: "Gelişmiş", arguments: "Başlatma seçenekleri (isteğe bağlı)",
       iconFrom: "İkonu başka bir .exe'den al (isteğe bağlı)", steamGame: "Yüklü Steam oyunu", showOnHome: "Ana ekranda göster",
@@ -326,20 +381,98 @@ details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-
     Array.prototype.forEach.call(navButtons, function (b) { b.classList.toggle("on", b.dataset.view === view); });
     ["overview", "devices", "games"].forEach(function (v) { $("v-" + v).hidden = v !== view; });
     if (view === "games") loadGames();
+    if (view === "overview") pollUsage();
     if (last) render(last);
   }
   Array.prototype.forEach.call(navButtons, function (b) { b.onclick = function () { go(b.dataset.view); }; });
 
   // ---- Status ------------------------------------------------------------
 
-  var last = null, hist = { mem: [], cpu: [] }, selected = null;
+  var last = null, selected = null;
 
-  function spark(key, v, floor) {
-    var h = hist[key]; h.push(v); if (h.length > 60) h.shift();
-    var top = Math.max(floor, Math.max.apply(null, h) * 1.25);
-    var pts = h.map(function (x, i) { return (h.length < 2 ? 100 : i * 100 / (h.length - 1)).toFixed(2) + " " + (29 - x / top * 26).toFixed(2); });
-    $(key + "-line").setAttribute("d", "M" + pts.join("L"));
-    $(key + "-area").setAttribute("d", "M0 30L" + pts.join("L") + "L100 30Z");
+  // ---- DeskLink's own memory and CPU ---------------------------------------
+  //
+  // Sampled once a second while the overview is showing (nothing is read on
+  // the PC otherwise) and kept for five minutes, so a slow memory leak would
+  // show as a climbing line. The x axis is real time: a gap while the window
+  // was hidden shows as a gap. The scale follows DeskLink's own numbers.
+
+  var WINDOW_MS = 300000;
+  var use = { mem: [], cpu: [] };   // [{ t, raw }]
+  var fmtUse = {
+    mem: function (v) { return v.toFixed(1) + " MB"; },
+    cpu: function (v) { return v.toFixed(1) + "%"; }
+  };
+  var niceTop = {
+    mem: function (peak) { return Math.max(16, Math.ceil(peak * 1.3 / 8) * 8); },
+    cpu: function (peak) { return Math.max(5, Math.ceil(peak * 1.3)); }
+  };
+
+  function applyUsage(u) {
+    var p = u.process, now = Date.now();
+    [["mem", p.private_mb], ["cpu", p.cpu]].forEach(function (s) {
+      var h = use[s[0]];
+      h.push({ t: now, raw: s[1] });
+      while (h.length && now - h[0].t > WINDOW_MS) h.shift();
+    });
+    $("c-mem-now").textContent = p.private_mb.toFixed(1);
+    $("c-mem-unit").textContent = "MB";
+    $("c-cpu-now").textContent = p.cpu.toFixed(1);
+    $("c-cpu-unit").textContent = "%";
+    var total = u.ram_total_mb;
+    $("c-mem-hint").textContent = (total ? t("ramShare", (p.private_mb / total * 100).toFixed(2)) + " · " : "") +
+      "Go heap " + p.heap_mb.toFixed(1) + " MB · " + t("startPeak", p.peak_working_set_mb.toFixed(0));
+    drawChart("mem", [t("nowS"), t("peakS"), t("wsS")], function () {
+      return [fmtUse.mem(p.private_mb), null, fmtUse.mem(p.working_set_mb)];
+    });
+    drawChart("cpu", [t("nowS"), t("peakS"), t("avgS")], function (avg) {
+      return [fmtUse.cpu(p.cpu), null, fmtUse.cpu(avg)];
+    });
+  }
+
+  function drawChart(key, labels, texts) {
+    var h = use[key];
+    if (!h.length) return;
+    var now = Date.now();
+    var peak = h[0], sum = 0;
+    h.forEach(function (p) { if (p.raw >= peak.raw) peak = p; sum += p.raw; });
+    var top = niceTop[key](peak.raw);
+    var x = function (p) { return Math.max(0, (p.t - (now - WINDOW_MS)) / WINDOW_MS * 300); };
+    var y = function (v) { return 98 - v / top * 94; };
+    var pts = h.map(function (p) { return x(p).toFixed(1) + " " + y(p.raw).toFixed(1); });
+    if (pts.length === 1) pts.push((x(h[0]) + 0.1).toFixed(1) + " " + y(h[0].raw).toFixed(1));
+    $("c-" + key + "-line").setAttribute("d", "M" + pts.join("L"));
+    $("c-" + key + "-area").setAttribute("d", "M" + x(h[0]).toFixed(1) + " 100L" + pts.join("L") + "L" + x(h[h.length - 1]).toFixed(1) + " 100Z");
+    $("c-" + key + "-top").textContent = key === "mem" ? top + " MB" : top + "%";
+
+    // The dashed line and a tag at the peak: above the line, or below it near
+    // the top, on the side with room.
+    var tag = $("c-" + key + "-tag"), line = $("c-" + key + "-peakline");
+    var show = h.length > 2 && peak.raw > 0;
+    tag.hidden = !show;
+    line.setAttribute("d", show ? "M0 " + y(peak.raw).toFixed(1) + "L300 " + y(peak.raw).toFixed(1) : "");
+    if (show) {
+      var py = y(peak.raw), px = x(peak) / 300 * 100;
+      tag.textContent = fmtUse[key](peak.raw);
+      tag.style.top = py + "%";
+      tag.style.left = px + "%";
+      tag.style.transform = "translate(" + (px > 60 ? "-100%" : "0") + "," + (py < 22 ? "4px" : "calc(-100% - 4px)") + ")";
+    }
+    var live = $("c-" + key + "-live");
+    live.hidden = false;
+    live.style.top = y(h[h.length - 1].raw) + "%";
+
+    var vals = texts(sum / h.length);
+    vals[1] = fmtUse[key](peak.raw);
+    for (var i = 0; i < 3; i++) {
+      $("c-" + key + "-l" + (i + 1)).textContent = labels[i];
+      $("c-" + key + "-s" + (i + 1)).textContent = vals[i];
+    }
+  }
+
+  function pollUsage() {
+    if (document.hidden || current !== "overview") return;
+    api("usage").then(applyUsage).catch(function () {});
   }
 
   function sessionsByDevice(st) {
@@ -357,11 +490,6 @@ details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-
     $("version").textContent = "v" + st.version;
     $("uptime").textContent = t("running", duration(st.uptime_s));
 
-    var p = st.process;
-    $("mem").textContent = p.private_mb.toFixed(1);
-    $("mem-hint").textContent = "Go heap " + p.heap_mb.toFixed(1) + " MB";
-    $("cpu").textContent = p.cpu.toFixed(1);
-    $("cpu-hint").textContent = p.goroutines + " goroutines";
     var online = sessionsByDevice(st);
     var onlineCount = Object.keys(online).length;
     $("m-online").textContent = onlineCount;
@@ -439,7 +567,10 @@ details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-
   }
 
   function refresh() {
-    return api("status").then(render).catch(function () {
+    return api("status").then(render).catch(function (e) {
+      // 403: DeskLink was restarted and has a new dashboard token, so this
+      // page's token is stale. Reload to pick up the new one.
+      if (e.message === "403") { location.reload(); return; }
       $("offline").hidden = false;
       $("dot").className = "dot bad";
     });
@@ -608,14 +739,20 @@ details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-
   // ---- Polling -----------------------------------------------------------
 
   // Poll only while the window is visible, so an open dashboard costs nothing in the background.
-  var timer = null;
-  function schedule() { clearInterval(timer); timer = document.hidden ? null : setInterval(refresh, 2000); }
-  document.addEventListener("visibilitychange", function () { if (!document.hidden) refresh(); schedule(); });
+  var timer = null, usageTimer = null;
+  function schedule() {
+    clearInterval(timer);
+    clearInterval(usageTimer);
+    timer = document.hidden ? null : setInterval(refresh, 2000);
+    usageTimer = document.hidden ? null : setInterval(pollUsage, 1000);
+  }
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) { refresh(); pollUsage(); } schedule(); });
   // Deep links: #devices, #games, #pair.
   var start = location.hash.slice(1);
   if (start === "devices" || start === "games") go(start);
   if (start === "pair") openPair();
   refresh();
+  pollUsage();
   schedule();
 })();
 </script>

@@ -3,6 +3,7 @@ package actions
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"syscall"
 	"time"
@@ -44,6 +45,19 @@ func Run(a Action) error {
 			go func() {
 				time.Sleep(500 * time.Millisecond)
 				procSetSuspendState.Call(0, 0, 0) // sleep (not hibernate), no forced suspend
+			}()
+		case "shutdown":
+			// Reply to the phone first. Without /f, a program with unsaved work
+			// can still hold the shutdown back, so nothing is lost silently.
+			go func() {
+				time.Sleep(500 * time.Millisecond)
+				root := os.Getenv("SystemRoot")
+				if root == "" {
+					root = `C:\Windows`
+				}
+				cmd := exec.Command(filepath.Join(root, "System32", "shutdown.exe"), "/s", "/t", "0")
+				cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000} // CREATE_NO_WINDOW
+				cmd.Run()
 			}()
 		}
 		return nil

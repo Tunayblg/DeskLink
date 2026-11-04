@@ -11,6 +11,7 @@
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="style.css">
+<script src="report.js"></script>
 <title>DeskLink</title>
 </head>
 <body class="booting">
@@ -25,6 +26,9 @@
   </button>
   <button class="tab" type="button" data-view="stats" aria-label="Stats">
     <svg viewBox="0 0 24 24"><path d="M4.5 17a8.5 8.5 0 1 1 15 0"/><path d="M12 13.5 16 8.5"/><circle cx="12" cy="14" r="1.6"/></svg>
+  </button>
+  <button class="tab" type="button" data-view="pad" aria-label="Trackpad">
+    <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 15h18M12 15v4"/></svg>
   </button>
   <button class="tab" type="button" data-view="clock" aria-label="Clock">
     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
@@ -42,29 +46,21 @@
     <p class="empty" id="games-empty" hidden data-t="noGames">No games yet. Add them to config.json on your PC.</p>
   </section>
 
-  <section class="view stats" id="view-stats">
+  <section class="view stats-view" id="view-stats">
+   <div class="pager" id="stats-pager">
+   <div class="page stats">
     <header class="stats-head">
       <span class="stats-title" data-t="gameMode">GAME MODE</span>
       <span class="gpu-name" id="gpu-name"></span>
     </header>
     <div class="gauges" id="gauges"></div>
     <div class="lower">
-      <div class="card chart-card">
-        <div class="card-head">
-          <span data-t="load60">LOAD · 60s</span>
-          <span class="legend"><i class="c-cpu"></i>CPU <i class="c-gpu"></i>GPU</span>
-        </div>
-        <svg class="chart" viewBox="0 0 300 100" preserveAspectRatio="none">
-          <defs>
-            <linearGradient id="fill-cpu" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#38bdf8" stop-opacity=".35"/><stop offset="1" stop-color="#38bdf8" stop-opacity="0"/></linearGradient>
-            <linearGradient id="fill-gpu" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a78bfa" stop-opacity=".35"/><stop offset="1" stop-color="#a78bfa" stop-opacity="0"/></linearGradient>
-          </defs>
-          <path class="grid" d="M0 25H300M0 50H300M0 75H300"/>
-          <path id="area-gpu" fill="url(#fill-gpu)"/>
-          <path id="area-cpu" fill="url(#fill-cpu)"/>
-          <path id="line-gpu" class="line gpu"/>
-          <path id="line-cpu" class="line cpu"/>
-        </svg>
+      <div class="card quick-mix">
+        <button type="button" class="mic" id="mic-btn" aria-label="Microphone">
+          <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/><path class="slash" d="M4 4l16 16"/></svg>
+          <span data-t="mic">MIC</span>
+        </button>
+        <div class="mini-mix" id="mini-mix"></div>
       </div>
       <div class="card details" id="details">
         <div class="fan-row">
@@ -83,9 +79,30 @@
       </div>
     </div>
     <p class="no-gpu" id="no-gpu" hidden data-t="noGpu">No NVIDIA GPU found. GPU stats are only available for NVIDIA cards for now.</p>
+   </div>
+   <div class="page mixer">
+    <header class="stats-head">
+      <span class="stats-title" data-t="sound">SOUND</span>
+      <span class="gpu-name" data-t="soundHint">Swipe for stats</span>
+    </header>
+    <div class="mix-row" id="mix-row"></div>
+   </div>
+   </div>
+   <div class="page-dots" id="stats-dots"><i class="on"></i><i></i></div>
+  </section>
+
+  <section class="view pad" id="view-pad">
+    <div class="pad-surface"><p class="pad-hint" id="pad-hint" data-t="padHint">Slide to move · tap to click · two fingers: right click</p></div>
+    <div class="pad-zones">
+      <div class="pad-zone left" data-btn="left"><svg viewBox="0 0 24 24"><path class="hl" d="M12 3v7H7V8a5 5 0 0 1 5-5z"/><rect x="7" y="3" width="10" height="18" rx="5"/><path d="M12 3v7M7 10h10"/></svg></div>
+      <div class="pad-zone right" data-btn="right"><svg viewBox="0 0 24 24"><path class="hl" d="M12 3a5 5 0 0 1 5 5v2h-5z"/><rect x="7" y="3" width="10" height="18" rx="5"/><path d="M12 3v7M7 10h10"/></svg></div>
+    </div>
   </section>
 
   <section class="view clock-view" id="view-clock">
+    <button type="button" class="clock-exit" id="clock-exit" aria-label="Back">
+      <svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg>
+    </button>
     <div class="face tach" id="face-tach"></div>
     <div class="face simple" id="face-simple"></div>
     <div class="face-dots" id="face-dots">

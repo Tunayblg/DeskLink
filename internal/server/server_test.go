@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -22,6 +24,7 @@ import (
 	"github.com/Tunayblg/DeskLink/internal/auth"
 	"github.com/Tunayblg/DeskLink/internal/config"
 	"github.com/Tunayblg/DeskLink/internal/media"
+	"github.com/Tunayblg/DeskLink/internal/pointer"
 	"github.com/Tunayblg/DeskLink/internal/stats"
 )
 
@@ -50,7 +53,30 @@ func TestPairThenPress(t *testing.T) {
 	var ran []actions.Action
 	s.run = func(a actions.Action) error { ran = append(ran, a); return nil }
 	s.sample = func() stats.Snapshot { return stats.Snapshot{CPU: stats.CPU{Usage: 42}} }
-	s.nowPlaying = func() media.Info { return media.Info{Title: "Song", Playing: true, Volume: 50} }
+	s.nowPlaying = func() media.State {
+		return media.State{Sources: []media.Source{{ID: "Spotify.exe", App: "Spotify", Title: "Song", Playing: true, Volume: 50}}, Volume: 80}
+	}
+	var controls []string
+	s.control = func(source, action string) { controls = append(controls, source+" "+action) }
+	s.setVolume = func(source string, level int) {
+		controls = append(controls, fmt.Sprintf("%s volume %d", source, level))
+	}
+	s.readMixer = func() media.Mixer {
+		return media.Mixer{Volume: 70, Apps: []media.MixerApp{
+			{ID: "testgame", Name: "TestGame", Volume: 90, Active: true},
+			{ID: "valorant-win64-shipping", Name: "VALORANT", Path: `C:\Riot Games\VALORANT\live\ShooterGame\Binaries\Win64\VALORANT-Win64-Shipping.exe`, Volume: 80},
+			{ID: "spotify", Name: "Spotify", Volume: 40},
+			{ID: "steam", Name: "Steam", Volume: 100, Active: true},
+			{ID: "discord", Name: "Discord", Volume: 60, Active: true},
+			{ID: "chrome", Name: "Google Chrome", Volume: 100},
+		}}
+	}
+	s.gameExes = []gameRef{{exe: "testgame", name: "Test Game"}, {exe: "valorant", dir: `c:\riot games\valorant\live\`, name: "Valorant"}}
+	s.setMixerVolume = func(app string, level int) { controls = append(controls, fmt.Sprintf("mixer %s %d", app, level)) }
+	s.toggleMute = func(app string) { controls = append(controls, "mute "+app) }
+	s.setMic = func(muted bool) { controls = append(controls, fmt.Sprintf("mic %v", muted)) }
+	var pads []*fakePad
+	s.newPad = func() padder { p := &fakePad{}; pads = append(pads, p); return p }
 
 	ts := httptest.NewServer(s.Handler())
 	defer ts.Close()
@@ -129,11 +155,111 @@ func TestPairThenPress(t *testing.T) {
 			t.Fatalf("media: %v", err)
 		}
 		if m.Type == "media" {
-			if m.Media == nil || m.Media.Title != "Song" {
+			if m.Media == nil || len(m.Media.Sources) != 1 || m.Media.Sources[0].Title != "Song" {
 				t.Fatalf("media: %+v", m.Media)
 			}
 			break
 		}
+	}
+
+	// Controls only reach sources that exist, with valid actions and levels.
+	wsjson.Write(ctx, c, clientMsg{Type: "mediactl", Source: "Spotify.exe", Action: "next"})
+	wsjson.Write(ctx, c, clientMsg{Type: "mediactl", Source: "Spotify.exe", Action: "shutdown"})
+	wsjson.Write(ctx, c, clientMsg{Type: "mediactl", Source: "evil.exe", Action: "toggle"})
+	level, high := 30, 101
+	wsjson.Write(ctx, c, clientMsg{Type: "volume", Source: "Spotify.exe", Level: &level})
+	wsjson.Write(ctx, c, clientMsg{Type: "volume", Level: &level})
+	wsjson.Write(ctx, c, clientMsg{Type: "volume", Source: "Spotify.exe", Level: &high})
+	wsjson.Write(ctx, c, clientMsg{Type: "volume", App: "spotify", Level: &level})
+	wsjson.Write(ctx, c, clientMsg{Type: "volume", App: "notepad", Level: &level})
+	wsjson.Write(ctx, c, clientMsg{Type: "mute", App: "testgame"})
+	wsjson.Write(ctx, c, clientMsg{Type: "mute"})
+	wsjson.Write(ctx, c, clientMsg{Type: "mute", App: "notepad"})
+	wsjson.Write(ctx, c, clientMsg{Type: "micmute", On: true})
+	wsjson.Write(ctx, c, clientMsg{Type: "micmute", On: false})
+	wsjson.Write(ctx, c, clientMsg{Type: "mouse", Action: "move", DX: 4, DY: -2})
+	wsjson.Write(ctx, c, clientMsg{Type: "mouse", Action: "down", Button: "left"})
+	wsjson.Write(ctx, c, clientMsg{Type: "ping"})
+	acks := 0
+	for i := 0; ; i++ {
+		var m serverMsg
+		if err := wsjson.Read(ctx, c, &m); err != nil || i > 10 {
+			t.Fatalf("pong: %v", err)
+		}
+		if m.Type == "micack" {
+			acks++
+		}
+		if m.Type == "pong" {
+			break
+		}
+	}
+	if acks != 2 {
+		t.Errorf("micack answers: %d, want 2 (one per micmute)", acks)
+	}
+	want := []string{"Spotify.exe next", "Spotify.exe volume 30", " volume 30", "mixer spotify 30", "mute testgame", "mute ", "mic true", "mic false"}
+	if fmt.Sprint(controls) != fmt.Sprint(want) {
+		t.Fatalf("controls %q, want %q", controls, want)
+	}
+
+	// Trackpad events reach this phone's pad, and its buttons are let go on disconnect.
+	if len(pads) != 1 {
+		t.Fatalf("pads: %d", len(pads))
+	}
+	if n, _ := pads[0].state(); n != 2 {
+		t.Fatalf("pad events: %d, want 2", n)
+	}
+
+	// The mixer stream names configured games after the game.
+	wsjson.Write(ctx, c, clientMsg{Type: "media", On: false})
+	wsjson.Write(ctx, c, clientMsg{Type: "mixer", On: true})
+	for i := 0; ; i++ {
+		var m serverMsg
+		if err := wsjson.Read(ctx, c, &m); err != nil || i > 10 {
+			t.Fatalf("mixer: %v", err)
+		}
+		if m.Type == "mixer" {
+			// Games by name, Spotify (it has media controls), Discord (playing
+			// sound); not Steam, nor a silent Chrome.
+			var got []string
+			for _, a := range m.Mixer.Apps {
+				got = append(got, fmt.Sprintf("%s/%v", a.Name, a.Game))
+			}
+			want := "[Test Game/true Valorant/true Spotify/false Discord/false]"
+			if m.Mixer.Volume != 70 || fmt.Sprint(got) != want {
+				t.Fatalf("mixer: %v, want %s", got, want)
+			}
+			break
+		}
+	}
+
+	// A flood of messages is cut off at the per-second budget.
+	before, _ := pads[0].state()
+	for i := 0; i < 1500; i++ {
+		wsjson.Write(ctx, c, clientMsg{Type: "mouse", Action: "move", DX: 1})
+	}
+	wsjson.Write(ctx, c, clientMsg{Type: "ping"})
+	for i := 0; ; i++ {
+		var m serverMsg
+		if err := wsjson.Read(ctx, c, &m); err != nil || i > 10 {
+			t.Fatalf("pong after flood: %v", err)
+		}
+		if m.Type == "pong" {
+			break
+		}
+	}
+	if after, _ := pads[0].state(); after-before > msgBurst+100 || after-before < 100 {
+		t.Fatalf("flood delivered %d of 1500 messages, want about %d", after-before, msgBurst)
+	}
+
+	c.Close(websocket.StatusNormalClosure, "")
+	for i := 0; ; i++ {
+		if _, released := pads[0].state(); released {
+			break
+		}
+		if i > 100 {
+			t.Fatal("pad was not released on disconnect")
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 
@@ -177,6 +303,42 @@ func TestAdmin(t *testing.T) {
 		t.Errorf("status via foreign Host: %d, want 421 (DNS rebinding guard)", code)
 	}
 
+	// The usage reading (the dashboard's CPU and RAM charts) is admin-only too.
+	s.system = func() stats.Snapshot {
+		return stats.Snapshot{CPU: stats.CPU{Usage: 12.5}, RAM: stats.RAM{UsedMB: 9000, TotalMB: 16000}}
+	}
+	for _, tc := range []struct {
+		token string
+		want  int
+	}{{s.adminToken, http.StatusOK}, {"", http.StatusForbidden}} {
+		req, _ := http.NewRequest("GET", ts.URL+"/admin/api/usage", nil)
+		if tc.token != "" {
+			req.Header.Set("X-Admin-Token", tc.token)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var u struct {
+			CPU        float64 `json:"cpu"`
+			RAMUsedMB  uint64  `json:"ram_used_mb"`
+			RAMTotalMB uint64  `json:"ram_total_mb"`
+			Process    struct {
+				PrivateMB float64 `json:"private_mb"`
+			} `json:"process"`
+		}
+		if tc.want == http.StatusOK {
+			if err := readJSON(resp, &u); err != nil || u.CPU != 12.5 || u.RAMUsedMB != 9000 || u.RAMTotalMB != 16000 {
+				t.Errorf("usage: %v %+v", err, u)
+			}
+		} else {
+			resp.Body.Close()
+		}
+		if resp.StatusCode != tc.want {
+			t.Errorf("usage with token %q: %d, want %d", tc.token, resp.StatusCode, tc.want)
+		}
+	}
+
 	// The status carries the current code and a QR code for the first address.
 	s.Addresses = []string{"http://192.168.1.20:8765"}
 	req, _ := http.NewRequest("GET", ts.URL+"/admin/api/status", nil)
@@ -189,7 +351,7 @@ func TestAdmin(t *testing.T) {
 	if err := readJSON(resp, &st); err != nil {
 		t.Fatal(err)
 	}
-	if st.Code != store.Current().Digits || !strings.HasPrefix(st.PairURL, "http://192.168.1.20:8765/#pair=") ||
+	if st.Code != store.Current().Digits || !strings.HasPrefix(st.PairURL, "http://192.168.1.20:8765/?v=") || !strings.Contains(st.PairURL, "#pair=") ||
 		!strings.HasPrefix(st.QR, "<svg") || st.CodeLeft <= 0 || st.CodeLeft > 30 {
 		t.Fatalf("pairing info: code=%q url=%q qr=%.20q left=%v", st.Code, st.PairURL, st.QR, st.CodeLeft)
 	}
@@ -198,10 +360,26 @@ func TestAdmin(t *testing.T) {
 func TestStaticRevalidates(t *testing.T) {
 	cfg, _ := config.Parse([]byte(config.Default))
 	store, _ := auth.Open(filepath.Join(t.TempDir(), "devices.json"))
-	ts := httptest.NewServer(New(cfg, store, fstest.MapFS{"index.html": {Data: []byte("<p>v1</p>")}}, nil).Handler())
+	files := fstest.MapFS{
+		"index.html": {Data: []byte(`<script src="app.js"></script>`)},
+		"app.js":     {Data: []byte("var v = 1;")},
+	}
+	ts := httptest.NewServer(New(cfg, store, files, nil).Handler())
 	defer ts.Close()
 
+	// The page is never cached and points at the script by content hash.
 	resp, err := http.Get(ts.URL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.Header.Get("Cache-Control") != "no-store" || !strings.Contains(string(page), `src="app.js?v=`) {
+		t.Fatalf("index: Cache-Control=%q page=%s", resp.Header.Get("Cache-Control"), page)
+	}
+
+	// The script itself is revalidated with its ETag.
+	resp, err = http.Get(ts.URL + "/app.js?v=x")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -210,7 +388,7 @@ func TestStaticRevalidates(t *testing.T) {
 	if tag == "" || resp.Header.Get("Cache-Control") != "no-cache" {
 		t.Fatalf("missing cache headers: ETag=%q Cache-Control=%q", tag, resp.Header.Get("Cache-Control"))
 	}
-	req, _ := http.NewRequest("GET", ts.URL+"/", nil)
+	req, _ := http.NewRequest("GET", ts.URL+"/app.js", nil)
 	req.Header.Set("If-None-Match", tag)
 	resp, err = http.DefaultClient.Do(req)
 	if err != nil {
@@ -219,6 +397,50 @@ func TestStaticRevalidates(t *testing.T) {
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusNotModified {
 		t.Fatalf("revalidation: status %d, want 304", resp.StatusCode)
+	}
+}
+
+// A phone whose localStorage was cleared still connects with the cookie set
+// at pairing, and app-level pings are answered.
+func TestCookieAuthAndPing(t *testing.T) {
+	cfg, _ := config.Parse([]byte(config.Default))
+	store, _ := auth.Open(filepath.Join(t.TempDir(), "devices.json"))
+	ts := httptest.NewServer(New(cfg, store, fstest.MapFS{}, nil).Handler())
+	defer ts.Close()
+
+	resp, err := http.Post(ts.URL+"/api/pair", "application/json", strings.NewReader(`{"code":"`+store.Current().Digits+`","name":"iPhone"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	var cookie *http.Cookie
+	for _, c := range resp.Cookies() {
+		if c.Name == tokenCookie {
+			cookie = c
+		}
+	}
+	if cookie == nil || !cookie.HttpOnly || cookie.SameSite != http.SameSiteStrictMode || cookie.MaxAge < 3600 {
+		t.Fatalf("token cookie missing or weak: %+v", cookie)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	h := http.Header{}
+	h.Set("Cookie", tokenCookie+"="+cookie.Value)
+	c, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(ts.URL, "http")+"/ws", &websocket.DialOptions{HTTPHeader: h})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.CloseNow()
+	wsjson.Write(ctx, c, clientMsg{Type: "auth"}) // no token: the cookie is used
+	var m serverMsg
+	if err := wsjson.Read(ctx, c, &m); err != nil || m.Type != "layout" {
+		t.Fatalf("cookie auth: %v %+v", err, m)
+	}
+	wsjson.Write(ctx, c, clientMsg{Type: "ping"})
+	m = serverMsg{}
+	if err := wsjson.Read(ctx, c, &m); err != nil || m.Type != "pong" {
+		t.Fatalf("ping: %v %+v", err, m)
 	}
 }
 
@@ -310,5 +532,89 @@ func TestBadTokenRejected(t *testing.T) {
 	var msg serverMsg
 	if err := wsjson.Read(ctx, c, &msg); err != nil || msg.Type != "unauthorized" {
 		t.Fatalf("got %v %+v, want unauthorized", err, msg)
+	}
+}
+
+type fakePad struct {
+	mu       sync.Mutex
+	events   []pointer.Event
+	released bool
+}
+
+func (p *fakePad) Do(e pointer.Event) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.events = append(p.events, e)
+}
+
+func (p *fakePad) Release() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.released = true
+}
+
+func (p *fakePad) Holding() bool { return false }
+
+func (p *fakePad) state() (int, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return len(p.events), p.released
+}
+
+func TestGameNotStartedTwice(t *testing.T) {
+	cfg, err := config.Parse([]byte(`{"port":8765,
+		"games":[
+			{"id":"testgame","name":"Test Game","target":"C:/Games/Game.lnk","icon_from":"C:/Games/TestGame.exe"},
+			{"id":"cs2","name":"CS2","steam_appid":730},
+			{"id":"only","name":"Only","target":"C:/Games/Only.lnk"}],
+		"groups":[{"title":"Q","style":"quick","buttons":[
+			{"id":"q_testgame","label":"FC","icon":"gamepad","action":{"type":"game","target":"testgame"}},
+			{"id":"q_cs2","label":"CS2","icon":"gamepad","action":{"type":"game","target":"cs2"}}]}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := auth.Open(filepath.Join(t.TempDir(), "devices.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := New(cfg, store, fstest.MapFS{"index.html": {Data: []byte("ok")}}, nil)
+	launched := 0
+	s.run = func(actions.Action) error { launched++; return nil }
+
+	open := map[string]bool{}
+	s.running = func() map[string]bool { return open }
+	press := func(id string) error {
+		// A fresh "last press" table: only the running check is under test.
+		return s.press(id, &sync.Map{})
+	}
+
+	// Nothing is running: the game starts, from the game id or its button.
+	if err := press("q_testgame"); err != nil || launched != 1 {
+		t.Fatalf("first press: err %v, launched %d", err, launched)
+	}
+	// The game's program (the icon_from .exe, not the shortcut) is open now.
+	open["testgame"] = true
+	for _, id := range []string{"q_testgame", "testgame"} {
+		if err := press(id); err != errAlreadyRunning {
+			t.Errorf("press %s while running: err %v, want already running", id, err)
+		}
+	}
+	if launched != 1 {
+		t.Errorf("a running game was started again (%d launches)", launched)
+	}
+	// Another program with another name does not block it.
+	delete(open, "testgame")
+	open["fc26"] = true
+	if err := press("q_testgame"); err != nil || launched != 2 {
+		t.Errorf("press with another program open: err %v, launched %d", err, launched)
+	}
+	// Steam games are left to Steam, and a game whose program is unknown
+	// (a .lnk with no icon_from) can always be started.
+	open["cs2"], open["only"] = true, true
+	if err := press("q_cs2"); err != nil || launched != 3 {
+		t.Errorf("steam game: err %v, launched %d", err, launched)
+	}
+	if err := press("only"); err != nil || launched != 4 {
+		t.Errorf("game with an unknown program: err %v, launched %d", err, launched)
 	}
 }

@@ -19,6 +19,7 @@ Media controls with cover art, a drag-to-set volume slider, one-tap game launche
 - 📱 **No app to install.** Open it in the phone's browser and add it to the home screen.
 - 🪶 **Featherweight.** One small `.exe`, about 8 MB of RAM, 0% CPU when idle.
 - 🎮 **Made for gaming.** Launch a game and the phone turns into a live hardware monitor.
+- 🎚️ **More than buttons.** A volume mixer for each program, one-tap mic mute and a trackpad for your PC.
 - 🔒 **Private.** Stays on your Wi-Fi. No cloud, no account. Pair by scanning a QR code.
 - 🖥️ **Easy to manage.** Add games and phones from a desktop dashboard.
 - 🕰️ **Runs on old devices.** Built and tested on an iPhone 6s.
