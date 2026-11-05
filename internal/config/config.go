@@ -5,6 +5,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,8 +17,9 @@ import (
 )
 
 // configVersion numbers the shape of config.json. Version 2 added a shut down
-// button to the Quick group.
-const configVersion = 2
+// button to the Quick group. Version 3 turned the game tiles of the home
+// screen into general home screen tiles (see Shortcut).
+const configVersion = 3
 
 // Config is the content of config.json.
 type Config struct {
@@ -25,6 +27,8 @@ type Config struct {
 	Port    int     `json:"port"`
 	Groups  []Group `json:"groups"`
 	Games   []Game  `json:"games"`
+	// Shortcuts are the three shortcut tiles of the home screen (see Shortcut).
+	Shortcuts []Shortcut `json:"shortcuts,omitempty"`
 
 	index  map[string]actions.Action
 	gameOf map[string]int // game id or game button id -> position in Games
@@ -132,6 +136,9 @@ func (c *Config) migrate() {
 	if c.Version < 2 {
 		c.addShutdownButton()
 	}
+	if c.Version < 3 {
+		c.movePinnedGames()
+	}
 	c.Version = configVersion
 }
 
@@ -169,6 +176,8 @@ func (c *Config) addShutdownButton() {
 
 // Parse decodes and validates a config.
 func Parse(data []byte) (*Config, error) {
+	// Notepad can save a file with a byte order mark in front; JSON does not allow one.
+	data = bytes.TrimPrefix(data, []byte{0xEF, 0xBB, 0xBF})
 	var c Config
 	if err := json.Unmarshal(data, &c); err != nil {
 		return nil, fmt.Errorf("config.json is not valid JSON: %w", err)
@@ -228,6 +237,10 @@ func (c *Config) validate() error {
 		games[g.ID] = g.Action()
 		gamePos[g.ID] = gi
 		c.gameOf[g.ID] = gi
+	}
+
+	if err := c.validateShortcuts(add, gamePos); err != nil {
+		return err
 	}
 
 	for gi, g := range c.Groups {
@@ -299,8 +312,9 @@ func (c *Config) Save(path string) (*Config, error) {
 	return checked, nil
 }
 
-// HomeGroup is the group that shows pinned game tiles: the first quick
-// group, or else the first list group. -1 if there is none.
+// HomeGroup is the group that held the home screen's game tiles before they
+// became general tiles (see movePinnedGames): the first quick group, or else
+// the first list group. -1 if there is none.
 func (c *Config) HomeGroup() int {
 	for _, style := range []string{"quick", "list"} {
 		for i, g := range c.Groups {
@@ -312,53 +326,29 @@ func (c *Config) HomeGroup() int {
 	return -1
 }
 
-// SetGames replaces the game list and the game buttons: buttons for games
-// that no longer exist are dropped, and the home group gets one button per
-// pinned game, in game order, before its other buttons.
-func (c *Config) SetGames(games []Game, pinned map[string]bool) {
+// SetGames replaces the game list. Home screen tiles and buttons that pointed
+// at a game that no longer exists are emptied or dropped, so the config stays valid.
+func (c *Config) SetGames(games []Game) {
 	c.Games = games
 	exists := map[string]bool{}
 	for _, g := range games {
 		exists[g.ID] = true
 	}
-	home := c.HomeGroup()
+	for i, sc := range c.Shortcuts {
+		if sc.Game != "" && !exists[sc.Game] {
+			c.Shortcuts[i] = Shortcut{} // its game is gone
+		}
+	}
 	for gi := range c.Groups {
 		var keep []Button
 		for _, b := range c.Groups[gi].Buttons {
-			if b.Action.Type == "game" && (gi == home || !exists[b.Action.Target]) {
+			if b.Action.Type == "game" && !exists[b.Action.Target] {
 				continue
 			}
 			keep = append(keep, b)
 		}
-		if gi == home {
-			var tiles []Button
-			for _, g := range games {
-				if pinned[g.ID] {
-					id := "q_" + g.ID
-					if len(id) > 32 {
-						id = id[:32]
-					}
-					tiles = append(tiles, Button{ID: id, Label: g.Name, Icon: "gamepad",
-						Action: actions.Action{Type: "game", Target: g.ID}})
-				}
-			}
-			keep = append(tiles, keep...)
-		}
 		c.Groups[gi].Buttons = keep
 	}
-}
-
-// Pinned reports which games have a button in the home group.
-func (c *Config) Pinned() map[string]bool {
-	out := map[string]bool{}
-	if h := c.HomeGroup(); h >= 0 {
-		for _, b := range c.Groups[h].Buttons {
-			if b.Action.Type == "game" {
-				out[b.Action.Target] = true
-			}
-		}
-	}
-	return out
 }
 
 // Find returns the action for a button or game ID.
@@ -398,7 +388,7 @@ func (c *Config) Public() []PublicGroup {
 
 // Default is written to config.json on first run.
 const Default = `{
-  "version": 2,
+  "version": 3,
   "port": 8765,
   "groups": [
     {

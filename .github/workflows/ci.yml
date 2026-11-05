@@ -4,18 +4,59 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
-  test:
+  windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: stable
+      - name: gofmt
+        shell: bash
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then echo "Not gofmt'ed:"; echo "$unformatted"; exit 1; fi
       - run: go vet ./...
       - run: go test ./...
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
       - run: go build -trimpath -ldflags "-s -w -H windowsgui" -o dist/desklink.exe ./cmd/desklink
       - uses: actions/upload-artifact@v4
         with:
           name: desklink-windows
           path: dist/desklink.exe
+
+  android:
+    runs-on: ubuntu-latest
+    env:
+      KEYSTORE_BASE64: ${{ secrets.DESKLINK_KEYSTORE_BASE64 }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.9
+      # Sign with the release key when the repository has it (see android/README.md).
+      - name: Release key
+        if: env.KEYSTORE_BASE64 != ''
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/desklink.p12"
+          echo "DESKLINK_KEYSTORE=$RUNNER_TEMP/desklink.p12" >> "$GITHUB_ENV"
+      - name: Build
+        env:
+          DESKLINK_KEYSTORE_PASSWORD: ${{ secrets.DESKLINK_KEYSTORE_PASSWORD }}
+          DESKLINK_KEY_ALIAS: ${{ secrets.DESKLINK_KEY_ALIAS }}
+        run: gradle -p android assembleRelease --no-daemon
+      - run: cp android/app/build/outputs/apk/release/app-release.apk DeskLink.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desklink-android
+          path: DeskLink.apk

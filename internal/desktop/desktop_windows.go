@@ -61,6 +61,7 @@ var (
 	getClassName    = user32.NewProc("GetClassNameW")
 	isWindowVisible = user32.NewProc("IsWindowVisible")
 	isIconic        = user32.NewProc("IsIconic")
+	isZoomed        = user32.NewProc("IsZoomed")
 	showWindow      = user32.NewProc("ShowWindow")
 	setForeground   = user32.NewProc("SetForegroundWindow")
 )
@@ -69,6 +70,7 @@ const (
 	// The dashboard page's <title>, which an Edge app window shows as its own.
 	dashboardTitle = "DeskLink"
 	edgeWindowType = "Chrome_WidgetWin_1" // Chromium's top-level window class
+	swMaximize     = 3
 	swRestore      = 9
 	// A window takes a moment to appear; a second request in that time must not
 	// open another one.
@@ -112,6 +114,29 @@ func focusDashboard() bool {
 	}
 	setForeground.Call(foundWnd)
 	return true
+}
+
+// MaximizeDashboard makes the dashboard window fill the screen, as the middle
+// button of its title bar does, or puts it back to its size. It reports whether
+// it changed anything, so a caller can restore only what it enlarged itself.
+func MaximizeDashboard(on bool) bool {
+	openMu.Lock()
+	defer openMu.Unlock()
+	foundWnd = 0
+	enumWindows.Call(enumDeskLk, 0)
+	if foundWnd == 0 {
+		return false
+	}
+	zoomed, _, _ := isZoomed.Call(foundWnd)
+	switch {
+	case on && zoomed == 0:
+		showWindow.Call(foundWnd, swMaximize)
+		return true
+	case !on && zoomed != 0:
+		showWindow.Call(foundWnd, swRestore)
+		return true
+	}
+	return false
 }
 
 // OpenApp shows url as a standalone app window (no tabs or address bar) using

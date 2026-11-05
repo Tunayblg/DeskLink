@@ -26,6 +26,7 @@ import (
 	"github.com/Tunayblg/DeskLink/internal/actions"
 	"github.com/Tunayblg/DeskLink/internal/art"
 	"github.com/Tunayblg/DeskLink/internal/auth"
+	"github.com/Tunayblg/DeskLink/internal/brightness"
 	"github.com/Tunayblg/DeskLink/internal/config"
 	"github.com/Tunayblg/DeskLink/internal/media"
 	"github.com/Tunayblg/DeskLink/internal/pointer"
@@ -63,11 +64,12 @@ const (
 type Server struct {
 	// The config can be edited from the dashboard while phones are connected;
 	// cfgMu guards cfg and games, which are replaced together.
-	cfgMu sync.RWMutex
-	cfg   *config.Config
-	games []publicGame
-	auth  *auth.Store
-	web   fs.FS
+	cfgMu     sync.RWMutex
+	cfg       *config.Config
+	games     []publicGame
+	shortcuts []publicShortcut
+	auth      *auth.Store
+	web       fs.FS
 	// assetVersion changes whenever the panel's files do (see AssetVersion).
 	assetVersion string
 	// Rate limit for /api/report.
@@ -89,6 +91,9 @@ type Server struct {
 	setMixerVolume func(app string, level int)
 	toggleMute     func(app string) // "" mutes the whole PC
 	setMic         func(muted bool)
+	// Screen brightness (see package brightness).
+	getBrightness func() (int, bool)
+	setBrightness func(level int)
 	// newPad makes one phone's trackpad (see package pointer).
 	newPad   func() padder
 	gameExes []gameRef
@@ -106,11 +111,14 @@ type Server struct {
 	// file picker on the PC. Both are set by main; nil/empty disables them.
 	ConfigPath    string
 	ChooseProgram func() (string, bool)
-	adminToken    string
-	started       time.Time
-	meter         procstat.Meter
-	sessMu        sync.Mutex
-	sessions      map[*session]struct{}
+	// MaximizeWindow makes the dashboard window fill the screen (true) or puts
+	// it back (false) and reports whether it changed. Set by main.
+	MaximizeWindow func(on bool) bool
+	adminToken     string
+	started        time.Time
+	meter          procstat.Meter
+	sessMu         sync.Mutex
+	sessions       map[*session]struct{}
 }
 
 type publicGame struct {
@@ -124,9 +132,10 @@ type publicGame struct {
 func New(cfg *config.Config, store *auth.Store, web fs.FS, pictures map[string]art.Art) *Server {
 	var c stats.Collector
 	w := &media.Watcher{}
-	return &Server{cfg: cfg, auth: store, web: web, assetVersion: AssetVersion(web), games: publicGames(cfg, pictures), run: actions.Run, sample: c.Sample, system: c.System,
+	bright := brightness.NewSetter()
+	return &Server{cfg: cfg, auth: store, web: web, assetVersion: AssetVersion(web), games: publicGames(cfg, pictures), shortcuts: buildShortcuts(cfg), run: actions.Run, sample: c.Sample, system: c.System,
 		media: w, nowPlaying: w.Sample, setVolume: setVolume(w), control: w.Control,
-		readMixer: w.Mixer, setMixerVolume: w.SetMixerVolume, toggleMute: w.ToggleMute, setMic: w.SetMic, newPad: func() padder { return pointer.NewPad() }, gameExes: gameExes(cfg.Games), running: running.Names, icons: map[string]string{},
+		readMixer: w.Mixer, setMixerVolume: w.SetMixerVolume, toggleMute: w.ToggleMute, setMic: w.SetMic, getBrightness: brightness.Get, setBrightness: bright.Set, newPad: func() padder { return pointer.NewPad() }, gameExes: gameExes(cfg.Games), running: running.Names, icons: map[string]string{},
 		adminToken: newAdminToken(), started: time.Now(), sessions: map[*session]struct{}{}}
 }
 
@@ -146,14 +155,16 @@ func (s *Server) current() (*config.Config, []publicGame) {
 }
 
 func (s *Server) layout() serverMsg {
-	cfg, games := s.current()
-	return serverMsg{Type: "layout", Groups: cfg.Public(), Games: games}
+	s.cfgMu.RLock()
+	cfg, games, shortcuts := s.cfg, s.games, s.shortcuts
+	s.cfgMu.RUnlock()
+	return serverMsg{Type: "layout", Groups: cfg.Public(), Games: games, Shortcuts: shortcuts}
 }
 
 // apply switches to a new config and sends the new layout to every phone.
 func (s *Server) apply(cfg *config.Config, pictures map[string]art.Art) {
 	s.cfgMu.Lock()
-	s.cfg, s.games, s.gameExes = cfg, publicGames(cfg, pictures), gameExes(cfg.Games)
+	s.cfg, s.games, s.gameExes, s.shortcuts = cfg, publicGames(cfg, pictures), gameExes(cfg.Games), buildShortcuts(cfg)
 	s.cfgMu.Unlock()
 	msg := s.layout()
 	s.sessMu.Lock()
@@ -182,8 +193,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /admin/api/rotate", s.adminAPI(s.handleAdminRotate))
 	mux.HandleFunc("GET /admin/api/games", s.adminAPI(s.handleGamesGet))
 	mux.HandleFunc("POST /admin/api/games", s.adminAPI(s.handleGamesSave))
+	mux.HandleFunc("GET /admin/api/shortcuts", s.adminAPI(s.handleShortcutsGet))
+	mux.HandleFunc("POST /admin/api/shortcuts", s.adminAPI(s.handleShortcutsSave))
 	mux.HandleFunc("GET /admin/api/steam", s.adminAPI(s.handleSteamGames))
 	mux.HandleFunc("POST /admin/api/browse", s.adminAPI(s.handleBrowse))
+	mux.HandleFunc("POST /admin/api/window", s.adminAPI(s.handleWindow))
 	var h http.Handler = securityHeaders(mux)
 	if s.LogRequests {
 		h = logRequests(h)
@@ -285,18 +299,20 @@ type clientMsg struct {
 }
 
 type serverMsg struct {
-	Type   string               `json:"type"`
-	Groups []config.PublicGroup `json:"groups,omitempty"`
-	Games  []publicGame         `json:"games,omitempty"`
-	ID     string               `json:"id,omitempty"`
-	OK     bool                 `json:"ok,omitempty"`
-	Error  string               `json:"error,omitempty"`
-	Stats  *stats.Snapshot      `json:"stats,omitempty"`
-	Media  *media.State         `json:"media,omitempty"`
-	Art    map[string]string    `json:"art,omitempty"` // art ID -> data: URI, each cover sent once
-	Mixer  *mixerView           `json:"mixer,omitempty"`
-	Mic    *media.Mic           `json:"mic,omitempty"`   // "micack": the microphone now (absent: none)
-	Icons  map[string]string    `json:"icons,omitempty"` // mixer app ID -> data: URI, each sent once
+	Type       string               `json:"type"`
+	Groups     []config.PublicGroup `json:"groups,omitempty"`
+	Games      []publicGame         `json:"games,omitempty"`
+	ID         string               `json:"id,omitempty"`
+	OK         bool                 `json:"ok,omitempty"`
+	Error      string               `json:"error,omitempty"`
+	Stats      *stats.Snapshot      `json:"stats,omitempty"`
+	Media      *media.State         `json:"media,omitempty"`
+	Art        map[string]string    `json:"art,omitempty"` // art ID -> data: URI, each cover sent once
+	Mixer      *mixerView           `json:"mixer,omitempty"`
+	Mic        *media.Mic           `json:"mic,omitempty"`        // "micack": the microphone now (absent: none)
+	Icons      map[string]string    `json:"icons,omitempty"`      // mixer app ID -> data: URI, each sent once
+	Shortcuts  []publicShortcut     `json:"shortcuts,omitempty"`  // "layout": the three home screen shortcut tiles
+	Brightness *int                 `json:"brightness,omitempty"` // "brightness": the screen now, in percent (absent: cannot be controlled)
 }
 
 func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
@@ -359,6 +375,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	budget, budgetAt := float64(msgBurst), time.Now()
 	// Live streams the phone has switched on, keyed by message type.
 	streams := map[string]func(context.Context, *websocket.Conn){"stats": s.streamStats, "media": s.streamMedia, "mixer": s.streamMixer}
+	var brightAsking atomic.Bool // a brightness question from this phone is being answered
 	stop := map[string]context.CancelFunc{}
 	defer func() {
 		for _, f := range stop {
@@ -438,6 +455,31 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			if s.knownApp(msg.App) {
 				s.toggleMute(msg.App)
 			}
+			continue
+		}
+		if msg.Type == "watch" {
+			s.watch(msg.Action)
+			continue
+		}
+		if msg.Type == "brightness" {
+			// Without a level the phone is asking; with one, it is setting.
+			if msg.Level != nil {
+				if *msg.Level >= 0 && *msg.Level <= 100 {
+					s.setBrightness(*msg.Level)
+				}
+				continue
+			}
+			// Reading a monitor takes a moment, so do not hold up the phone's other
+			// messages. One question at a time per phone: more would only queue up.
+			if !brightAsking.CompareAndSwap(false, true) {
+				continue
+			}
+			go func() {
+				defer brightAsking.Store(false)
+				if err := s.answerBrightness(ctx, c); err != nil {
+					log.Printf("brightness reply to %s: %v", name, err)
+				}
+			}()
 			continue
 		}
 		if msg.Type == "mediactl" {

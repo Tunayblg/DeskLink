@@ -97,6 +97,9 @@ body {
   color: var(--muted);
   transition: color .3s, transform .15s var(--ease);
 }
+.tab { touch-action: manipulation; }
+/* A bigger touch target than the 42 px icon: thumbs miss small ones. */
+.tab::after { position: absolute; top: -4px; right: -8px; bottom: -4px; left: -8px; content: ""; }
 .tab:active { transform: scale(.88); }
 .tab.active { color: #fff; }
 .tab svg {
@@ -627,13 +630,6 @@ body.pairing .rail .tab, body.pairing .tab-pill { visibility: hidden; }
 .ibtn .chip { width: 38px; height: 38px; border-radius: 12px; }
 .ibtn .chip svg { width: 19px; height: 19px; }
 
-/* Without game tiles (or on a tablet, under them) the quick card gets a small
-   mixer, and the CPU/GPU rings stay compact instead of stretching over the
-   whole card. */
-.home-mix { flex: 1.3; min-height: 0; display: flex; gap: 6px; }
-.quick .home-mix ~ .mini { flex: 0 0 auto; height: 86px; }
-.quick .home-mix ~ .mini .mini-item { gap: 3px; padding: 6px; }
-.quick .home-mix ~ .mini .donut { width: 50px; height: 50px; }
 
 .mini { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
 .mini-item {
@@ -1362,9 +1358,6 @@ body.rail-peek .face-dots { opacity: 1; pointer-events: auto; }
   .donut { width: calc(var(--vh) * 17); height: calc(var(--vh) * 17); max-width: 116px; max-height: 116px; }
   .donut b { font-size: 17px; }
   .mini-label { font-size: 11px; }
-  .quick .home-mix ~ .mini { height: 110px; }
-  .quick .home-mix ~ .mini .donut { width: 70px; height: 70px; }
-  .quick .home-mix ~ .mini .donut b { font-size: 14px; }
 
   /* Games: poster-shaped cards instead of thin strips. */
   .game { flex-basis: calc(var(--vh) * 40); max-width: calc(var(--vh) * 62); }
@@ -1459,4 +1452,58 @@ body.booting * { animation: none !important; transition: none !important; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+
+/* ---------- Watch mode: volume, transport, brightness ---------- */
+
+.watch-view { display: flex; flex-direction: column; gap: 8px; }
+.watch-body { flex: 1; min-height: 0; display: flex; gap: 10px; }
+.watch-side { flex: 0 0 96px; display: flex; }
+.watch-side .mix-row { flex: 1; }
+.watch-side .mix { max-width: none; }
+.watch-deck { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; }
+.watch-deck .transport { flex: 0 0 auto; }
+.watch-power {
+  margin-left: auto;
+  width: 34px; height: 34px; margin-top: -8px; padding: 0;
+  border: 0; border-radius: 50%;
+  background: rgba(244, 63, 94, .14);
+  box-shadow: inset 0 0 0 1px rgba(244, 63, 94, .3);
+  color: #fda4af;
+  transition: transform .15s var(--ease), background .2s;
+}
+.watch-power svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.watch-power:active { transform: scale(.88); background: rgba(244, 63, 94, .3); }
+.mix.bright { background: linear-gradient(180deg, rgba(251, 191, 36, .16), rgba(251, 191, 36, .03)); }
+.mix.bright .vslider i { background: linear-gradient(180deg, #fde68a, var(--amber)); }
+
+/* Six tabs need to fit a short landscape phone. */
+@media (max-height: 400px) {
+  .rail { gap: 6px; padding: 8px 0; }
+  .logo { margin-bottom: 6px; }
+  .tab, .tab-pill { height: 38px; }
+  .tab-pill { top: 50px; }
+}
+
+/* ---------- Home: three shortcut tiles under the games ---------- */
+
+.quick .shortcut-row .gtile { aspect-ratio: 5 / 4; max-height: 104px; }
+.stile .initial { top: 40%; font-size: 24px; color: #fff; }
+.quick .gtile.stile .icon { top: 41%; width: auto; height: 52%; max-width: none; aspect-ratio: 1 / 1; object-fit: contain; border-radius: 20%; }
+.quick .gtile.stile svg.svc-icon { display: block; width: auto; border-radius: 0; }
+.stile-name {
+  position: absolute; left: 0; right: 0; bottom: 5px;
+  padding: 0 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  text-align: center;
+  font-size: 9px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase;
+  color: rgba(255, 255, 255, .72);
+}
+.gtile.empty { background: none; border: 1.5px dashed rgba(255, 255, 255, .2); color: rgba(255, 255, 255, .4); }
+.gtile.empty .plus { position: absolute; top: 50%; left: 50%; width: 24px; height: 24px; margin: -12px 0 0 -12px; }
+.gtile.empty.pressed { background: rgba(255, 255, 255, .05); }
+@media (min-height: 450px) {
+  .stile .initial { font-size: 30px; }
+  .quick .gtile.stile .icon { height: 54%; }
+  .stile-name { font-size: 10px; bottom: 8px; }
 }

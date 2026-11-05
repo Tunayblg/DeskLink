@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Tunayblg/DeskLink/internal/actions"
 )
 
 func TestDefaultIsValid(t *testing.T) {
@@ -61,33 +63,35 @@ func TestSetGamesAndSave(t *testing.T) {
 	edit.SetGames([]Game{
 		{ID: "cs2", Name: "CS2", SteamAppID: 730},
 		{ID: "mine", Name: "Mine", Target: `C:\Games\mine.exe`},
-	}, map[string]bool{"mine": true})
+	})
+	edit.Shortcuts = []Shortcut{{Game: "mine"}}
+	edit.Groups[1].Buttons = append(edit.Groups[1].Buttons,
+		Button{ID: "mine_btn", Label: "Mine", Icon: "gamepad", Action: actions.Action{Type: "game", Target: "mine"}})
 
 	path := filepath.Join(t.TempDir(), "config.json")
 	saved, err := edit.Save(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !saved.Pinned()["mine"] || saved.Pinned()["cs2"] {
-		t.Fatalf("pinned = %v", saved.Pinned())
-	}
-	home := saved.Groups[saved.HomeGroup()]
-	if home.Buttons[0].ID != "q_mine" || home.Buttons[0].Action.Target != "mine" {
-		t.Fatalf("home buttons = %+v", home.Buttons)
+	if a, ok := saved.Find("shortcut-1"); !ok || a.Target != `C:\Games\mine.exe` {
+		t.Fatalf("tile for the game: %+v %v", a, ok)
 	}
 	if len(c.Games) != 0 {
 		t.Fatal("Clone shared state with the original")
 	}
 
-	// Removing a game also removes its button; the old file is kept as .bak.
+	// Removing a game empties its tile and drops its button; the old file is kept as .bak.
 	edit2 := saved.Clone()
-	edit2.SetGames([]Game{{ID: "cs2", Name: "CS2", SteamAppID: 730}}, map[string]bool{"mine": true})
+	edit2.SetGames([]Game{{ID: "cs2", Name: "CS2", SteamAppID: 730}})
 	saved2, err := edit2.Save(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(saved2.Pinned()) != 0 {
-		t.Fatalf("button for a removed game survived: %v", saved2.Pinned())
+	if saved2.Slots()[0].Filled() {
+		t.Fatalf("tile for a removed game survived: %+v", saved2.Slots()[0])
+	}
+	if _, ok := saved2.Find("mine_btn"); ok {
+		t.Fatal("button for a removed game survived")
 	}
 	if _, err := os.Stat(path + ".bak"); err != nil {
 		t.Fatal("no backup written")
@@ -95,7 +99,7 @@ func TestSetGamesAndSave(t *testing.T) {
 
 	// Invalid configs are refused and the file is left alone.
 	bad := saved2.Clone()
-	bad.SetGames([]Game{{ID: "x", Name: "X"}}, nil) // neither target nor steam_appid
+	bad.SetGames([]Game{{ID: "x", Name: "X"}}) // neither target nor steam_appid
 	if _, err := bad.Save(path); err == nil {
 		t.Fatal("invalid config saved")
 	}
@@ -170,6 +174,7 @@ func TestShutdownMigration(t *testing.T) {
 	if strings.Contains(old, "shutdown") {
 		t.Fatalf("test setup: still has a shutdown button:\n%s", old)
 	}
+	old = strings.Replace(old, `"version": 3`, `"version": 1`, 1) // a config from before the shut down button
 	path := filepath.Join(t.TempDir(), "config.json")
 	if err := os.WriteFile(path, []byte(old), 0o600); err != nil {
 		t.Fatal(err)
@@ -235,5 +240,11 @@ func TestGameOf(t *testing.T) {
 		if _, ok := c.GameOf(id); ok {
 			t.Errorf("GameOf(%q) found a game", id)
 		}
+	}
+}
+
+func TestParseAcceptsByteOrderMark(t *testing.T) {
+	if _, err := Parse(append([]byte("\xef\xbb\xbf"), Default...)); err != nil {
+		t.Fatalf("a config saved by Notepad with a BOM must load: %v", err)
 	}
 }

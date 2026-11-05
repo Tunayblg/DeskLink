@@ -64,14 +64,14 @@ func TestPairThenPress(t *testing.T) {
 	s.readMixer = func() media.Mixer {
 		return media.Mixer{Volume: 70, Apps: []media.MixerApp{
 			{ID: "testgame", Name: "TestGame", Volume: 90, Active: true},
-			{ID: "valorant-win64-shipping", Name: "VALORANT", Path: `C:\Riot Games\VALORANT\live\ShooterGame\Binaries\Win64\VALORANT-Win64-Shipping.exe`, Volume: 80},
+			{ID: "shooter-win64-shipping", Name: "SHOOTER", Path: `C:\Launcher Games\Shooter\live\ShooterGame\Binaries\Win64\Shooter-Win64-Shipping.exe`, Volume: 80},
 			{ID: "spotify", Name: "Spotify", Volume: 40},
 			{ID: "steam", Name: "Steam", Volume: 100, Active: true},
 			{ID: "discord", Name: "Discord", Volume: 60, Active: true},
 			{ID: "chrome", Name: "Google Chrome", Volume: 100},
 		}}
 	}
-	s.gameExes = []gameRef{{exe: "testgame", name: "Test Game"}, {exe: "valorant", dir: `c:\riot games\valorant\live\`, name: "Valorant"}}
+	s.gameExes = []gameRef{{exe: "testgame", name: "Test Game"}, {exe: "shooter", dir: `c:\launcher games\shooter\live\`, name: "Shooter"}}
 	s.setMixerVolume = func(app string, level int) { controls = append(controls, fmt.Sprintf("mixer %s %d", app, level)) }
 	s.toggleMute = func(app string) { controls = append(controls, "mute "+app) }
 	s.setMic = func(muted bool) { controls = append(controls, fmt.Sprintf("mic %v", muted)) }
@@ -224,7 +224,7 @@ func TestPairThenPress(t *testing.T) {
 			for _, a := range m.Mixer.Apps {
 				got = append(got, fmt.Sprintf("%s/%v", a.Name, a.Game))
 			}
-			want := "[Test Game/true Valorant/true Spotify/false Discord/false]"
+			want := "[Test Game/true Shooter/true Spotify/false Discord/false]"
 			if m.Mixer.Volume != 70 || fmt.Sprint(got) != want {
 				t.Fatalf("mixer: %v, want %s", got, want)
 			}
@@ -488,15 +488,15 @@ func TestEditGames(t *testing.T) {
 
 	// A path pasted with quotes, as Explorer's "Copy as path" gives it.
 	quoted, _ := json.Marshal(`"` + exe + `"`)
-	code, got, raw := post(`{"games":[{"name":"My Game","target":` + string(quoted) + `,"pinned":true},{"name":"Steam One","steam_appid":730}]}`)
-	if code != http.StatusOK || len(got.Games) != 2 || got.Games[0].ID != "my-game" || !got.Games[0].Pinned || got.Games[0].Target != exe {
+	code, got, raw := post(`{"games":[{"name":"My Game","target":` + string(quoted) + `},{"name":"Steam One","steam_appid":730}]}`)
+	if code != http.StatusOK || len(got.Games) != 2 || got.Games[0].ID != "my-game" || got.Games[0].Target != exe {
 		t.Fatalf("save: %d %s", code, raw)
 	}
 	saved, err := config.Load(cfgPath)
-	if err != nil || len(saved.Games) != 2 || !saved.Pinned()["my-game"] {
+	if err != nil || len(saved.Games) != 2 {
 		t.Fatalf("config.json not updated: %v", err)
 	}
-	if a, ok := s.cfg.Find("q_my-game"); !ok || a.Target != exe {
+	if a, ok := s.cfg.Find("my-game"); !ok || a.Target != exe {
 		t.Fatalf("running config not swapped: %+v %v", a, ok)
 	}
 
@@ -604,7 +604,7 @@ func TestGameNotStartedTwice(t *testing.T) {
 	}
 	// Another program with another name does not block it.
 	delete(open, "testgame")
-	open["fc26"] = true
+	open["otherprogram"] = true
 	if err := press("q_testgame"); err != nil || launched != 2 {
 		t.Errorf("press with another program open: err %v, launched %d", err, launched)
 	}

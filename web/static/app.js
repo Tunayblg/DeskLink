@@ -4,7 +4,7 @@
 
   var TOKEN_KEY = "desklink.token";
   var VIEW_KEY = "desklink.view";
-  var VIEWS = ["home", "games", "stats", "pad", "clock"];
+  var VIEWS = ["home", "games", "stats", "watch", "pad", "clock"];
   var RETRY_MAX = 10000;
   var STATS_AFTER_LAUNCH = 1600; // ms before switching to stats after a game starts
   var SHIFT_EVERY = 3 * 60 * 1000;
@@ -28,6 +28,8 @@
       launching: "Launching…", toGameMode: "Switching to game mode",
       noAnswer: "No answer from the PC", launchFailed: "Could not start the game",
       alreadyRunning: "Already running", doubleTap: "Double-tap to start",
+      shortcutEmpty: "Add a shortcut from DeskLink on your PC", shortcutAdd: "Add shortcut",
+      watchMode: "WATCH MODE", brightness: "BRIGHTNESS", shutdownQ: "Shut down the PC?",
       gameMode: "GAME MODE", gpuFan: "GPU FAN", gpuFanIdle: "GPU FAN · IDLE",
       coreClock: "CORE CLOCK", noGpu: "No NVIDIA GPU found. GPU stats are only available for NVIDIA cards for now.",
       mic: "MIC", noMic: "NO MIC", padHint: "Slide to move · tap to click · two fingers: right click · three: middle click", sound: "SOUND", soundHint: "Swipe back for stats", master: "PC", game: "GAME", noApps: "Programs that play sound show up here."
@@ -46,6 +48,8 @@
       launching: "Başlatılıyor…", toGameMode: "Oyun moduna geçiliyor",
       noAnswer: "Bilgisayardan yanıt gelmedi", launchFailed: "Oyun başlatılamadı",
       alreadyRunning: "Zaten çalışıyor", doubleTap: "Açmak için çift dokun",
+      shortcutEmpty: "Bilgisayardaki DeskLink'ten kısayol ekle", shortcutAdd: "Kısayol ekle",
+      watchMode: "DİZİ MODU", brightness: "PARLAKLIK", shutdownQ: "Bilgisayar kapatılsın mı?",
       gameMode: "OYUN MODU", gpuFan: "GPU FANI", gpuFanIdle: "GPU FANI · DURDU",
       coreClock: "ÇEKİRDEK HIZI", noGpu: "NVIDIA ekran kartı bulunamadı. GPU verileri şimdilik sadece NVIDIA kartlarda var.",
       mic: "MİKROFON", noMic: "MİKROFON YOK", padHint: "Kaydırarak hareket ettir · dokun: tıkla · iki parmak: sağ tık · üç parmak: orta tık", sound: "SES", soundHint: "İstatistikler için geri kaydır", master: "ANA SES", game: "OYUN", noApps: "Ses çalan programlar burada görünür."
@@ -70,6 +74,7 @@
   var streaming = {};
   var gameIDs = {};   // ids of buttons and tiles that launch a game
   var gamesById = {}; // game id -> game from the layout (name, art)
+  var shortcuts = [];  // the three home screen shortcut tiles from the layout
 
   function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function save(k, v) { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch (e) {} }
@@ -104,6 +109,14 @@
   var tabs = Array.prototype.slice.call(document.querySelectorAll(".tab"));
   tabs.forEach(function (t) {
     t.addEventListener("click", function () { showView(t.dataset.view); });
+    // Belt and braces for iOS: if a tap's click never arrives, the end of the
+    // touch still switches the screen. Doing both is harmless.
+    var sx = 0, sy = 0, tap = false;
+    t.addEventListener("touchstart", function (e) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; tap = e.touches.length === 1; }, { passive: true });
+    t.addEventListener("touchmove", function (e) {
+      if (Math.abs(e.touches[0].clientX - sx) > 12 || Math.abs(e.touches[0].clientY - sy) > 12) tap = false;
+    }, { passive: true });
+    t.addEventListener("touchend", function () { if (tap) showView(t.dataset.view); tap = false; }, { passive: true });
   });
 
   var padReset = null; // lets go of trackpad buttons (set by the trackpad code)
@@ -119,6 +132,7 @@
       }
       next.classList.add("active");
       if (name === "stats") statsHoldUntil = Date.now() + 480;
+      if (name === "watch") askBrightness();
     }
     if (name !== "pad" && padReset) padReset();
     document.body.classList.toggle("pairing", name === "pair");
@@ -137,7 +151,7 @@
       tabs.forEach(function (t, i) {
         var on = t.dataset.view === name;
         t.classList.toggle("active", on);
-        if (on) $("tab-pill").style.transform = "translateY(" + i * 52 + "px)";
+        if (on) $("tab-pill").style.transform = "translateY(" + (t.offsetTop - tabs[0].offsetTop) + "px)";
       });
     }
     syncStreams();
@@ -233,11 +247,17 @@
         layout = msg;
         gameIDs = {};
         gamesById = {};
+        shortcuts = msg.shortcuts || [];
         (msg.games || []).forEach(function (g) { gamesById[g.id] = g; });
         renderHome(msg.groups || []);
         renderGames(msg.games || []);
         setStatus("online", "Connected");
+        // The games screen is only worth a tab once a game has been added on the PC.
+        var hasGames = (msg.games || []).length > 0;
+        tabs.forEach(function (tb) { if (tb.dataset.view === "games") tb.hidden = !hasGames; });
+        if (!hasGames && view === "games") view = "home";
         showView(view, false);
+        if (view === "watch") askBrightness();
         syncSession();
         break;
       case "result":
@@ -256,6 +276,9 @@
         break;
       case "mixer":
         if (msg.mixer) renderMixer(msg.mixer, msg.icons);
+        break;
+      case "brightness":
+        onBrightness(msg);
         break;
       case "micack":
         // Answers arrive in order, so once the last one is in, this is the truth.
@@ -277,7 +300,7 @@
     var want = {
       stats: !!(live && ((view === "stats" && statsPage === 0) || (view === "home" && miniEls))),
       media: !!(live && view === "home" && np),
-      mixer: !!(live && (view === "stats" || (view === "home" && homeMix)))
+      mixer: !!(live && (view === "stats" || view === "watch"))
     };
     Object.keys(want).forEach(function (k) {
       if (want[k] !== !!streaming[k] && send({ type: k, on: want[k] })) streaming[k] = want[k];
@@ -288,8 +311,27 @@
 
   // iOS pans (rubber-bands) the whole page on a drag even though nothing
   // scrolls. Only the games list scrolls; everything else stays fixed.
+  //
+  // But a finger never lies perfectly still: a tap moves a pixel or two, and
+  // on iOS cancelling that tiny move cancels the click as well. Phones with a
+  // big, sensitive touch area (iPhone 15/16 Pro) then needed two or three taps.
+  // So only a move past TAP_SLOP is treated as a drag; a smaller one is left
+  // alone and still becomes a click.
+  var TAP_SLOP = 12;
+  var touchX = 0, touchY = 0, touchDragging = false;
+  document.addEventListener("touchstart", function (e) {
+    touchX = e.touches[0].clientX;
+    touchY = e.touches[0].clientY;
+    touchDragging = e.touches.length > 1;
+  }, { passive: true });
   document.addEventListener("touchmove", function (e) {
-    if (!(e.target.closest && e.target.closest(".game-list"))) e.preventDefault();
+    if (e.target.closest && e.target.closest(".game-list")) return;
+    if (!touchDragging) {
+      var t = e.touches[0];
+      if (Math.abs(t.clientX - touchX) < TAP_SLOP && Math.abs(t.clientY - touchY) < TAP_SLOP) return;
+      touchDragging = true;
+    }
+    e.preventDefault();
   }, { passive: false });
 
   document.addEventListener("visibilitychange", function () {
@@ -303,7 +345,15 @@
   // On the clock screen a tap shows the back button and the face picker for a
   // few seconds. Back returns to the screen the clock was opened from.
   var peekTimer = null, beforeClock = "home";
-  if ($("view-clock")) $("view-clock").addEventListener("click", function () {
+  // The back arrow is small, so the whole top left corner counts as pressing it:
+  // anyone who taps there wants to go back.
+  var BACK_ZONE_W = 110, BACK_ZONE_H = 90;
+  if ($("view-clock")) $("view-clock").addEventListener("click", function (e) {
+    var r = $("view-clock").getBoundingClientRect();
+    if (e.clientX - r.left < BACK_ZONE_W && e.clientY - r.top < BACK_ZONE_H) {
+      showView(beforeClock);
+      return;
+    }
     document.body.classList.add("rail-peek");
     clearTimeout(peekTimer);
     peekTimer = setTimeout(function () { document.body.classList.remove("rail-peek"); }, 4000);
@@ -500,19 +550,8 @@
         games.forEach(function (b) { row.appendChild(gameTile(b, gamesById[b.game])); });
         body.appendChild(row);
       }
-      // No games to show: that space becomes a small volume mixer (the PC and
-      // the programs playing sound), the same one as in game mode. A tablet
-      // has room for it under the game tiles as well.
-      if (!games.length || tallScreen()) {
-        var mix = document.createElement("div");
-        mix.className = "home-mix";
-        mix.id = "home-mix";
-        body.appendChild(mix);
-        homeMixPanel.cols = {};
-        homeMixPanel.order = "";
-        homeMix = true;
-        if (lastMixerApps) renderMixPanel(homeMixPanel, lastMixerApps.slice(0, homeMixPanel.limit));
-      }
+      // The home screen tiles: six, in two rows of three. Each is a game, a website or a program.
+      for (var r = 0; r < shortcuts.length; r += 3) body.appendChild(shortcutRow(shortcuts.slice(r, r + 3)));
       if (others.length) {
         var icons = document.createElement("div");
         icons.className = "icon-row";
@@ -583,11 +622,55 @@
 
   var clockEl = null;
   var miniEls = null; // CPU/GPU mini charts on the home screen, if any
-  var homeMix = false; // the home screen shows the mini mixer
 
-  // A tablet-like screen (style.css has the same min-height breakpoint).
-  function tallScreen() {
-    return !!(window.matchMedia && window.matchMedia("(min-height: 450px)").matches);
+  // One row of home screen tiles. A filled tile opens its game, website or
+  // program on the PC; an empty one shows a "+" and says where to add it.
+  function shortcutRow(tiles) {
+    var row = document.createElement("div");
+    row.className = "game-row shortcut-row";
+    tiles.forEach(function (sc) {
+      var game = sc.kind === "game" ? asIcon(gamesById[sc.game] || { id: "", name: "" }) : null;
+      var filled = !!sc.name && (!game || !!gamesById[sc.game]);
+      var image = game ? game.image : sc.image;
+      var tint = game ? game.tint : sc.tint;
+      var img = null;
+      var handler;
+      var el = control("button", "gtile stile" + (filled ? "" : " empty"), sc.id, tint || null, function () { handler(); });
+      if (!filled) {
+        handler = function () { toast(t("shortcutEmpty")); };
+        el.innerHTML = svg('<path d="M12 5v14M5 12h14"/>', "plus");
+      } else if (game) {
+        // A game opens with the launch animation, and needs a double tap so it is not started by accident.
+        gameIDs[sc.id] = true;
+        handler = doubleTap(sc.id, function () { startLaunch(sc.id, game, img || el); });
+      } else {
+        handler = function () {
+          if (!ws || ws.readyState !== WebSocket.OPEN) { toast(t("notConnected")); return; }
+          send({ type: "press", id: sc.id });
+          flash(sc.id, "pressed", 160);
+        };
+      }
+      if (filled) {
+        var brand = !game && sc.brand && window.DeskBrands && window.DeskBrands[sc.brand];
+        if (brand) {
+          // A well-known service (Netflix, YouTube …) is drawn with its own icon.
+          el.insertAdjacentHTML("beforeend", brand);
+          el.lastChild.setAttribute("class", "icon svc-icon");
+        } else if (image) {
+          img = document.createElement("img");
+          img.className = "icon";
+          img.src = image;
+          img.alt = "";
+          el.appendChild(img);
+        } else {
+          el.appendChild(textNode("initial", sc.name.charAt(0).toUpperCase()));
+        }
+        el.appendChild(textNode("stile-name", sc.name));
+      }
+      el.setAttribute("aria-label", filled ? sc.name : t("shortcutAdd"));
+      row.appendChild(el);
+    });
+    return row;
   }
 
   function renderHome(groups) {
@@ -596,7 +679,6 @@
     np = null;
     clockEl = null;
     miniEls = null;
-    homeMix = false;
     home.style.gridTemplateColumns = groups.map(function (g) {
       return g.style === "media" ? "1.55fr" : "1fr";
     }).join(" ") || "1fr";
@@ -933,11 +1015,10 @@
   var micPendingAt = 0;
   // The mixer is drawn twice: in full on its own page, and small (the PC plus
   // the first few programs, those playing sound first) on the stats page.
-  var homeMixPanel = { row: "home-mix", limit: 4, mini: true, cols: {}, order: "" };
   var mixPanels = [
     { row: "mix-row", limit: 8, mini: false, cols: {}, order: "" },
     { row: "mini-mix", limit: 4, mini: true, cols: {}, order: "" },
-    homeMixPanel
+    { row: "watch-vol", limit: 1, mini: false, single: true, cols: {}, order: null }
   ];
   var lastMixerApps = null; // the PC and its programs from the last mixer message
 
@@ -978,6 +1059,60 @@
     });
   })();
 
+  // ---- Watch mode: the PC's volume, play/pause, jump back and forward,
+  // screen brightness and a shut down button ----------------------------------
+
+  var brightCol = null;   // the brightness slider, once the PC says the screen can be controlled
+  var brightLock = 0;     // ignore the PC's level until then (after a local change)
+
+  function askBrightness() { send({ type: "brightness" }); }
+
+  function onBrightness(msg) {
+    var wrap = $("watch-bright");
+    if (typeof msg.brightness !== "number") { wrap.hidden = true; return; } // this screen cannot be controlled
+    if (!brightCol) {
+      var root = document.createElement("div");
+      root.className = "mix bright";
+      root.innerHTML =
+        '<div class="mix-icon">' + svg('<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/>') + "</div>" +
+        '<span class="mix-name"></span>' +
+        '<div class="vslider" role="slider" aria-valuemin="0" aria-valuemax="100"><i></i><span class="pct"></span></div>';
+      root.querySelector(".mix-name").textContent = t("brightness");
+      brightCol = { fill: root.querySelector(".vslider i"), pct: root.querySelector(".pct"), slider: root.querySelector(".vslider") };
+      brightCol.slider.setAttribute("aria-label", t("brightness"));
+      bindVSlider(brightCol.slider, function (v) {
+        brightLock = Date.now() + 2500;
+        showBrightness(v);
+        return { type: "brightness", level: v };
+      });
+      $("watch-bright-row").appendChild(root);
+    }
+    wrap.hidden = false;
+    if (!(brightLock > Date.now())) showBrightness(msg.brightness);
+  }
+
+  function showBrightness(v) {
+    brightCol.fill.style.transform = "translateY(" + (100 - v) + "%)";
+    brightCol.pct.textContent = v;
+    brightCol.slider.classList.toggle("low", v < 12);
+    brightCol.slider.setAttribute("aria-valuenow", v);
+  }
+
+  (function bindWatch() {
+    Array.prototype.forEach.call(document.querySelectorAll("[data-watch]"), function (b) {
+      b.addEventListener("click", function () {
+        if (!ws || ws.readyState !== WebSocket.OPEN) { toast(t("notConnected")); return; }
+        send({ type: "watch", action: b.dataset.watch });
+        b.classList.add("pressed");
+        setTimeout(function () { b.classList.remove("pressed"); }, 160);
+      });
+    });
+    $("watch-power").addEventListener("click", function () {
+      if (!ws || ws.readyState !== WebSocket.OPEN) { toast(t("notConnected")); return; }
+      if (window.confirm(t("shutdownQ"))) send({ type: "press", id: "shutdown" });
+    });
+  })();
+
   function renderMic(muted) {
     micMuted = muted;
     var b = $("mic-btn");
@@ -1005,7 +1140,7 @@
       p.cols = {};
       row.innerHTML = "";
       apps.forEach(function (a) { row.appendChild(mixColumn(a, p)); });
-      if (apps.length === 1 && !p.mini) row.insertAdjacentHTML("beforeend", '<p class="mix-empty">' + t("noApps") + "</p>");
+      if (apps.length === 1 && !p.mini && !p.single) row.insertAdjacentHTML("beforeend", '<p class="mix-empty">' + t("noApps") + "</p>");
     }
     apps.forEach(function (a) {
       var col = p.cols[a.id];

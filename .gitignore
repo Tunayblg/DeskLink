@@ -6,3 +6,10 @@ config.*.json
 devices.json
 devices.json.tmp
 *.log
+
+# Android build output
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.apk

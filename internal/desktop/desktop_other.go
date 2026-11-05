@@ -16,6 +16,8 @@ func OpenApp(url string) { fmt.Println("Dashboard:", url) }
 
 func ChooseProgram(string) (string, bool) { return "", false }
 
+func MaximizeDashboard(bool) bool { return false }
+
 func Autostart() bool { return false }
 
 func SetAutostart(bool, string) error {

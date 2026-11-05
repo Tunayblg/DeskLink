@@ -32,7 +32,7 @@ import (
 	"github.com/Tunayblg/DeskLink/web"
 )
 
-var version = "1.0.0"
+var version = "1.1.0"
 
 const maxLog = 1 << 20
 
@@ -83,6 +83,7 @@ func main() {
 	app.ConfigPath = filepath.Join(dataDir, "config.json")
 	app.LogRequests = *debug
 	app.ChooseProgram = func() (string, bool) { return desktop.ChooseProgram("Choose a program") }
+	app.MaximizeWindow = desktop.MaximizeDashboard
 	for _, ip := range lanIPs() {
 		app.Addresses = append(app.Addresses, fmt.Sprintf("http://%s:%d", ip, cfg.Port))
 	}

@@ -40,7 +40,7 @@ type mixerView struct {
 
 // gameRef is how the mixer recognizes a configured game: by its executable
 // (mixer ID) or, since a launcher stub often starts the real game
-// (VALORANT.exe -> VALORANT-Win64-Shipping.exe), by any program in its folder.
+// (Game.exe -> Game-Win64-Shipping.exe), by any program in its folder.
 type gameRef struct {
 	id   string // the game's id in config.json
 	exe  string // lowercase, without ".exe"

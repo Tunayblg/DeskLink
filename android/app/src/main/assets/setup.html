@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DeskLink</title>
+<style>
+  :root { --bg: #0e0f12; --panel: #161922; --edge: rgba(255,255,255,.08); --text: #eef1f7; --muted: #8b93a8; --cyan: #38bdf8; --red: #fda4af; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font: 16px/1.45 system-ui, sans-serif; }
+  body { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
+  .box { width: 100%; max-width: 380px; }
+  .logo { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
+  .logo b { font-size: 24px; font-weight: 700; letter-spacing: -.01em; }
+  .logo span { color: var(--muted); font-size: 13px; display: block; font-weight: 400; }
+  .mark { width: 44px; height: 44px; border-radius: 11px; background: linear-gradient(135deg, #38bdf8, #6366f1); display: flex; align-items: center; justify-content: center; }
+  .mark svg { width: 24px; height: 24px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .card { padding: 18px; border: 1px solid var(--edge); border-radius: 16px; background: var(--panel); }
+  label { display: block; margin-bottom: 8px; color: var(--muted); font-size: 13px; }
+  input { width: 100%; padding: 13px 14px; border: 1px solid var(--edge); border-radius: 12px; background: #0e1119; color: var(--text); font: inherit; }
+  input:focus { outline: none; border-color: rgba(56,189,248,.7); }
+  button { display: block; width: 100%; margin-top: 10px; padding: 13px; border: 1px solid var(--edge); border-radius: 12px; background: rgba(255,255,255,.06); color: var(--text); font: inherit; font-weight: 600; }
+  button:active { opacity: .75; }
+  button.primary { border-color: transparent; background: linear-gradient(135deg, #38bdf8, #6366f1); }
+  button.quiet { border: 0; background: none; color: var(--muted); font-weight: 500; }
+  .or { margin: 14px 0 2px; text-align: center; color: var(--muted); font-size: 12px; }
+  .err { min-height: 20px; margin-top: 10px; color: var(--red); font-size: 13px; }
+  .hint { margin-top: 14px; color: var(--muted); font-size: 12.5px; text-align: center; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="logo">
+    <div class="mark"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2.5"/><path d="M8 20h8M12 16v4"/></svg></div>
+    <div><b>DeskLink</b><span id="sub"></span></div>
+  </div>
+  <div class="card">
+    <button class="primary" id="scan" style="margin-top:0"></button>
+    <div class="or" id="or"></div>
+    <label for="addr" id="addr-l"></label>
+    <input id="addr" inputmode="url" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="192.168.1.20:8765">
+    <button id="connect"></button>
+    <div class="err" id="err"></div>
+  </div>
+  <button class="quiet" id="resume" hidden></button>
+  <button class="quiet" id="exit"></button>
+  <div class="hint" id="hint"></div>
+</div>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var TR = /^tr\b/i.test(navigator.language || "");
+  var S = TR ? {
+    sub: "Bilgisayarına bağlan", scan: "QR kodu tara", or: "ya da adresi yaz", addr: "Bilgisayarın adresi",
+    connect: "Bağlan", resume: "DeskLink'e dön", exit: "Çık",
+    hint: "Adresi PC'deki DeskLink panelinde bulursun: Cihaz ekle → Elle bağlan.",
+    unreachable: "Bilgisayara ulaşılamıyor. DeskLink açık mı, ikisi de aynı Wi-Fi'da mı?",
+    badAddress: "Adres geçersiz. Örnek: 192.168.1.20:8765",
+    notLocal: "DeskLink yalnızca kendi ağındaki bir bilgisayara bağlanır. Örnek: 192.168.1.20:8765", badQr: "Bu QR kod DeskLink'e ait değil.",
+    scanFailed: "Tarayıcı açılamadı. Adresi elle yazabilirsin."
+  } : {
+    sub: "Connect to your PC", scan: "Scan QR code", or: "or type the address", addr: "Your PC's address",
+    connect: "Connect", resume: "Back to DeskLink", exit: "Exit",
+    hint: "Find the address in DeskLink on your PC: Add device → Connect manually.",
+    unreachable: "Cannot reach the PC. Is DeskLink running and are both on the same Wi-Fi?",
+    badAddress: "That address is not valid. Example: 192.168.1.20:8765",
+    notLocal: "DeskLink only connects to a PC on your own network. Example: 192.168.1.20:8765", badQr: "That QR code is not from DeskLink.",
+    scanFailed: "The scanner could not start. You can type the address instead."
+  };
+  document.documentElement.lang = TR ? "tr" : "en";
+  $("sub").textContent = S.sub;
+  $("scan").textContent = S.scan;
+  $("or").textContent = S.or;
+  $("addr-l").textContent = S.addr;
+  $("connect").textContent = S.connect;
+  $("resume").textContent = S.resume;
+  $("exit").textContent = S.exit;
+  $("hint").textContent = S.hint;
+
+  var app = window.DeskLinkApp;
+
+  window.refresh = function () {
+    $("err").textContent = "";
+    $("addr").value = app.savedAddress();
+    $("resume").hidden = !app.hasPanel();
+  };
+  window.showError = function (code) {
+    $("err").textContent = S[code] || S.unreachable;
+    $("addr").value = app.savedAddress() || $("addr").value;
+    $("resume").hidden = !app.hasPanel();
+  };
+
+  $("scan").onclick = function () { $("err").textContent = ""; app.scan(); };
+  $("connect").onclick = function () { app.connect($("addr").value); };
+  $("addr").addEventListener("keydown", function (ev) { if (ev.key === "Enter") app.connect($("addr").value); });
+  $("resume").onclick = function () { app.resume(); };
+  $("exit").onclick = function () { app.exit(); };
+
+  window.refresh();
+})();
+</script>
+</body>
+</html>

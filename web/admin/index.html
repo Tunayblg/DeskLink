@@ -69,7 +69,7 @@ main { flex: 1; min-width: 0; overflow-y: auto; padding: 28px 32px 40px; }
 .ytop { top: -6px; }
 .ybot { bottom: -6px; }
 .tag { position: absolute; padding: 1px 7px; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--edge); color: var(--c); font-size: 11px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.live { position: absolute; right: 0; width: 8px; height: 8px; margin: -4px -4px 0 0; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 4px rgba(255,255,255,.06); }
+.plot .live { position: absolute; right: 0; width: 8px; height: 8px; margin: -4px -4px 0 0; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 4px rgba(255,255,255,.06); }
 .axis { display: flex; justify-content: space-between; margin-left: 40px; font-size: 10px; color: var(--muted); }
 .stats3 { display: flex; gap: 20px; margin-top: 10px; font-size: 12px; color: var(--muted); }
 .stats3 em { font-style: normal; }
@@ -101,11 +101,6 @@ button.row:hover { border-color: var(--edge); }
 .facts dt, .facts span:first-child { color: var(--muted); }
 
 /* Games */
-.switch { position: relative; width: 36px; height: 20px; flex: 0 0 36px; border: 0; border-radius: 10px; background: #2b3040; transition: background .2s; }
-.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: transform .2s; }
-.switch.on { background: var(--cyan); }
-.switch.on::after { transform: translateX(16px); }
-.switch-label { font-size: 12px; color: var(--muted); margin-right: 4px; }
 .row .actions { display: flex; align-items: center; gap: 8px; }
 .icon-btn { width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 8px; background: none; color: var(--muted); }
 .icon-btn:hover { background: rgba(255,255,255,.07); color: var(--text); }
@@ -138,14 +133,26 @@ button.row:hover { border-color: var(--edge); }
 .seg { display: flex; padding: 3px; margin-bottom: 16px; border-radius: 10px; background: #0e1119; border: 1px solid var(--edge); }
 .seg button { flex: 1; padding: 6px; border: 0; border-radius: 7px; background: none; color: var(--muted); }
 .seg button.on { background: rgba(255,255,255,.08); color: var(--text); }
-.check { display: flex; align-items: center; gap: 10px; font-size: 13px; }
 .form-error { min-height: 18px; margin-top: 6px; color: #fda4af; font-size: 13px; }
 details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-bottom: 10px; }
 
+.head.second { margin: 28px 0 14px; }
+.head.second h2 { margin: 0; font-size: 17px; font-weight: 600; }
+.head.second p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+.row .ico { font-size: 15px; }
+.row .ico.has-brand { background: none; }
+.row .ico svg.svc-icon { width: 100%; height: 100%; fill: initial; stroke: none; }
+button.row { cursor: pointer; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.chipbtn { display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border: 1px solid var(--edge); border-radius: 999px; background: rgba(255,255,255,.04); font-size: 13px; }
+.chipbtn:hover { background: rgba(255,255,255,.09); }
+.chipbtn i { width: 9px; height: 9px; border-radius: 50%; }
+.modal footer .grow { flex: 1; }
 .toast { position: fixed; bottom: 20px; left: 50%; z-index: 20; padding: 9px 16px; border-radius: 10px; background: #23283a; border: 1px solid var(--edge); font-size: 13px; transform: translate(-50%, 20px); opacity: 0; transition: opacity .25s, transform .3s; pointer-events: none; }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 .offline { margin-bottom: 14px; padding: 10px 14px; border-radius: 10px; background: rgba(244,63,94,.1); color: #fda4af; }
 @media (max-width: 900px) { .metrics { grid-template-columns: repeat(2, 1fr); } .charts { grid-template-columns: 1fr; } .split { grid-template-columns: 1fr; } }
+/*{{GUIDE_CSS}}*/
 </style>
 </head>
 <body>
@@ -155,6 +162,7 @@ details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-
     <button data-view="overview" class="on"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span data-t="overview"></span></button>
     <button data-view="devices"><svg viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg><span data-t="devices"></span><span class="count" id="nav-online" hidden></span></button>
     <button data-view="games"><svg viewBox="0 0 24 24"><path d="M6 11h4M8 9v4"/><path d="M15 12h.01M18 10h.01"/><path d="M17.3 5H6.7a4 4 0 0 0-4 3.6l-.9 8.1A2.5 2.5 0 0 0 4.3 19.5c.9 0 1.7-.5 2.1-1.3L8 15h8l1.6 3.2c.4.8 1.2 1.3 2.1 1.3a2.5 2.5 0 0 0 2.5-2.8l-.9-8.1A4 4 0 0 0 17.3 5z"/></svg><span data-t="games"></span></button>
+    <button data-view="guide"><svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/><path d="M9 8h6"/></svg><span data-t="guide"></span></button>
   </nav>
   <div class="grow"></div>
   <div class="run"><span class="dot" id="dot"></span><span id="uptime"></span></div>
@@ -232,6 +240,13 @@ details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-
       <div class="list" id="game-list"></div>
       <div class="empty" id="game-empty" hidden><span data-t="noGames"></span></div>
     </div>
+    <div class="head second"><div><h2 data-t="shortcuts"></h2><p data-t="shortcutsSub"></p></div></div>
+    <div class="card"><div class="list" id="sc-list"></div></div>
+  </section>
+
+  <section id="v-guide" hidden>
+    <div class="head"><div><h1 data-t="guide"></h1><p data-t="guideSub"></p></div></div>
+    <div id="guide-root"></div>
   </section>
 </main>
 
@@ -270,14 +285,35 @@ details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-
     <div id="g-steam" hidden>
       <div class="field"><label for="g-steamlist" data-t="steamGame"></label><select id="g-steamlist"></select></div>
     </div>
-    <label class="check"><button class="switch" id="g-pinned" type="button" aria-label="pin"></button><span data-t="showOnHome"></span></label>
     <div class="form-error" id="g-error"></div>
     <footer><button class="btn" data-close="game-modal" data-t="cancel"></button><button class="btn primary" id="g-save" data-t="save"></button></footer>
   </div>
 </div>
 
+<!-- Edit a shortcut slot -->
+<div class="scrim" id="sc-modal" hidden>
+  <div class="modal">
+    <h2 id="sc-modal-title"></h2>
+    <p class="sub" data-t="scSub"></p>
+    <div class="seg" id="sc-kind"><button data-kind="game" data-t="scGame"></button><button data-kind="other" class="on" data-t="scOther"></button></div>
+    <div id="sc-game-part" hidden>
+      <div class="field"><label for="sc-game" data-t="scPickGame"></label><select id="sc-game"></select></div>
+    </div>
+    <div id="sc-other-part">
+      <div class="chips" id="sc-presets"></div>
+      <div class="field"><label for="sc-name" data-t="name"></label><input id="sc-name" maxlength="40" autocomplete="off"></div>
+      <div class="field"><label for="sc-target" data-t="scTarget"></label>
+        <div class="inline"><input id="sc-target" spellcheck="false" placeholder="netflix.com"><button class="btn" id="sc-browse" data-t="browse"></button></div></div>
+    </div>
+    <div class="form-error" id="sc-error"></div>
+    <footer><button class="btn danger" id="sc-clear" data-t="scClear"></button><span class="grow"></span><button class="btn" data-close="sc-modal" data-t="cancel"></button><button class="btn primary" id="sc-save" data-t="save"></button></footer>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
+<script nonce="{{NONCE}}">/*{{BRANDS_JS}}*/
+/*{{GUIDE_JS}}*/</script>
 <script nonce="{{NONCE}}">
 (function () {
   "use strict";
@@ -286,6 +322,9 @@ details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-
 
   var STR = {
     en: {
+      guide: "Guide", guideSub: "Step-by-step help for connecting your phone.",
+      shortcuts: "Home screen", shortcutsSub: "Six tiles on the phone's home screen. Each opens a game, a website or a program.", emptySlot: "Empty tile {}", emptySlotHint: "Tap to add a game, website or program", scGame: "Game", scOther: "Website or program", scPickGame: "Your game", scGameKind: "Game", noGamesYet: "Add a game on this page first.",
+      scTitle: "Tile {}", scSub: "Pick a game, a service, or paste any web address or program.", scTarget: "Web address or program", scClear: "Clear tile", needAddress: "Enter an address or choose a program.", scNeedName: "Give the shortcut a name.",
       overview: "Overview", devices: "Devices", games: "Games", addDevice: "Add device", addGame: "Add game",
       overviewSub: "DeskLink is running in the background.", memory: "DeskLink memory", connectedNow: "Connected now",
       twoMin: "5 min ago", nowL: "now", nowS: "Now", peakS: "Peak", avgS: "Average", wsS: "Working set", memChart: "DeskLink memory", cpuChart: "DeskLink CPU", ramShare: "{}% of this PC's RAM", startPeak: "peak since start {} MB",
@@ -298,16 +337,19 @@ details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-
       launcherNote: "Games from Riot (Valorant, LoL) and EA can be unreliable here: their own launchers or anti-cheat often block them from being started by another program. For the most stable result, add your games from Steam.",
       gameSub: "Pick a program or one of your Steam games.", name: "Name", program: "Program", steam: "Steam",
       programPath: "Program", browse: "Browse…", advanced: "Advanced", arguments: "Launch options (optional)",
-      iconFrom: "Take the icon from another .exe (optional)", steamGame: "Installed Steam game", showOnHome: "Show on the home screen",
+      iconFrom: "Take the icon from another .exe (optional)", steamGame: "Installed Steam game",
       cancel: "Cancel", save: "Save", editGame: "Edit game", newGame: "Add game", saved: "Saved. Phones are updated.",
       removed: "Removed.", connected: "Connected", notConnected: "Not connected", buttonsOnly: "Buttons",
       statusL: "Status", addressL: "Address", forL: "Connected for", showingL: "Showing", pairedL: "Paired on",
       remove: "Remove", removeQ: "Remove {}? It will have to be paired again.", deleteQ: "Remove {} from your games?",
-      onHome: "Home screen", newCodeIn: "New code in {} s", noSteam: "No Steam games found",
+      newCodeIn: "New code in {} s", noSteam: "No Steam games found",
       running: "Running for {}", stream_media: "Now playing", stream_stats: "Stats", streaming: "{} showing live data", idle: "Idle",
       needName: "Give the game a name.", needProgram: "Choose a program."
     },
     tr: {
+      guide: "Kılavuz", guideSub: "Telefonunu bağlamak için adım adım yardım.",
+      shortcuts: "Ana ekran", shortcutsSub: "Telefonun ana ekranındaki altı kutu. Her biri bir oyun, web sitesi ya da program açar.", emptySlot: "Boş kutu {}", emptySlotHint: "Oyun, web sitesi veya program eklemek için dokun", scGame: "Oyun", scOther: "Web sitesi veya program", scPickGame: "Oyunun", scGameKind: "Oyun", noGamesYet: "Önce bu sayfadan bir oyun ekle.",
+      scTitle: "Kutu {}", scSub: "Bir oyun, bir servis seç ya da herhangi bir web adresi veya program gir.", scTarget: "Web adresi veya program", scClear: "Kutuyu boşalt", needAddress: "Bir adres gir ya da program seç.", scNeedName: "Kısayola bir ad ver.",
       overview: "Genel bakış", devices: "Cihazlar", games: "Oyunlar", addDevice: "Cihaz ekle", addGame: "Oyun ekle",
       overviewSub: "DeskLink arka planda çalışıyor.", memory: "DeskLink belleği", connectedNow: "Şu an bağlı",
       twoMin: "5 dk önce", nowL: "şimdi", nowS: "Şimdi", peakS: "En yüksek", avgS: "Ortalama", wsS: "Çalışma kümesi", memChart: "DeskLink belleği", cpuChart: "DeskLink işlemci", ramShare: "bu bilgisayarın RAM'inin %{}'i", startPeak: "açılıştan beri en yüksek {} MB",
@@ -320,12 +362,12 @@ details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-
       launcherNote: "Riot (Valorant, LoL) ve EA oyunlarında sorun yaşanabilir: kendi başlatıcıları veya anti-cheat sistemleri başka bir programın oyunu açmasını çoğu zaman engeller. En stabil sonuç için oyunlarını Steam'den ekle.",
       gameSub: "Bir program ya da Steam oyunlarından birini seç.", name: "Ad", program: "Program", steam: "Steam",
       programPath: "Program", browse: "Gözat…", advanced: "Gelişmiş", arguments: "Başlatma seçenekleri (isteğe bağlı)",
-      iconFrom: "İkonu başka bir .exe'den al (isteğe bağlı)", steamGame: "Yüklü Steam oyunu", showOnHome: "Ana ekranda göster",
+      iconFrom: "İkonu başka bir .exe'den al (isteğe bağlı)", steamGame: "Yüklü Steam oyunu",
       cancel: "Vazgeç", save: "Kaydet", editGame: "Oyunu düzenle", newGame: "Oyun ekle", saved: "Kaydedildi. Telefonlar güncellendi.",
       removed: "Kaldırıldı.", connected: "Bağlı", notConnected: "Bağlı değil", buttonsOnly: "Butonlar",
       statusL: "Durum", addressL: "Adres", forL: "Bağlantı süresi", showingL: "Açık ekran", pairedL: "Eşleşme tarihi",
       remove: "Kaldır", removeQ: "{} kaldırılsın mı? Tekrar eşleşmesi gerekecek.", deleteQ: "{} oyunlardan kaldırılsın mı?",
-      onHome: "Ana ekran", newCodeIn: "{} sn sonra yeni kod", noSteam: "Steam oyunu bulunamadı",
+      newCodeIn: "{} sn sonra yeni kod", noSteam: "Steam oyunu bulunamadı",
       running: "{} süredir çalışıyor", stream_media: "Şimdi çalıyor", stream_stats: "İstatistik", streaming: "{} cihaz canlı veri gösteriyor", idle: "Boşta",
       needName: "Oyuna bir ad ver.", needProgram: "Bir program seç."
     }
@@ -377,14 +419,45 @@ details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-
   var current = "overview";
   var navButtons = document.querySelectorAll(".nav button");
   function go(view) {
+    if (view === "guide") { openGuide(); return; }
+    closeGuide();
     current = view;
     Array.prototype.forEach.call(navButtons, function (b) { b.classList.toggle("on", b.dataset.view === view); });
     ["overview", "devices", "games"].forEach(function (v) { $("v-" + v).hidden = v !== view; });
-    if (view === "games") loadGames();
+    if (view === "games") { loadGames(); loadShortcuts(); }
     if (view === "overview") pollUsage();
     if (last) render(last);
   }
+
+  // The guide opens in the middle of the window over a blurred dashboard. The
+  // window itself is enlarged while it is open, as with the middle button of its
+  // title bar (the PC does that, a web page cannot), and put back on closing.
+  var guideMaximized = false; // true when the guide is what enlarged the window
+  function openGuide() {
+    if (!$("v-guide").hidden) return;
+    $("v-guide").hidden = false;
+    Array.prototype.forEach.call(navButtons, function (b) { b.classList.toggle("on", b.dataset.view === "guide"); });
+    api("window", { maximize: true }).then(function (r) {
+      if (!r.changed) return;
+      // The guide may have been closed before the answer came.
+      if ($("v-guide").hidden) api("window", { maximize: false }).catch(function () {});
+      else guideMaximized = true;
+    }, function () {});
+    if (window.DeskGuide) window.DeskGuide.show();
+  }
+  function closeGuide() {
+    if ($("v-guide").hidden) return;
+    $("v-guide").hidden = true;
+    Array.prototype.forEach.call(navButtons, function (b) { b.classList.toggle("on", b.dataset.view === current); });
+    if (guideMaximized) {
+      guideMaximized = false;
+      api("window", { maximize: false }).catch(function () {});
+    }
+  }
+  // A click on the blurred dashboard around the guide closes it.
+  $("v-guide").addEventListener("click", function (ev) { if (ev.target === $("v-guide")) closeGuide(); });
   Array.prototype.forEach.call(navButtons, function (b) { b.onclick = function () { go(b.dataset.view); }; });
+  document.addEventListener("deskguide:exit", closeGuide);
 
   // ---- Status ------------------------------------------------------------
 
@@ -612,10 +685,10 @@ details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-
 
   // ---- Games -------------------------------------------------------------
 
-  var games = [], canPin = true;
+  var games = [];
 
   function loadGames() {
-    return api("games").then(function (r) { games = r.games; canPin = r.can_pin; renderGames(); });
+    return api("games").then(function (r) { games = r.games; renderGames(); });
   }
 
   function gameSub(g) {
@@ -632,13 +705,6 @@ details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-
       r.appendChild(ico);
       var tx = el("span", "txt"); tx.appendChild(text("b", "", g.name)); tx.appendChild(text("span", "", gameSub(g))); r.appendChild(tx);
       var acts = el("span", "actions");
-      if (canPin) {
-        acts.appendChild(text("span", "switch-label", t("onHome")));
-        var sw = el("button", "switch" + (g.pinned ? " on" : ""));
-        sw.title = t("showOnHome");
-        sw.onclick = function () { var copy = games.slice(); copy[i] = Object.assign({}, g, { pinned: !g.pinned }); saveGames(copy).catch(function (e) { toast(e.message); }); };
-        acts.appendChild(sw);
-      }
       var ed = el("button", "icon-btn", ICON_EDIT); ed.title = t("editGame"); ed.onclick = function () { openGame(i); };
       var del = el("button", "icon-btn danger", ICON_TRASH); del.title = t("remove");
       del.onclick = function () {
@@ -655,7 +721,8 @@ details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-
   function saveGames(list) {
     var body = { games: list.map(function (g) { var c = Object.assign({}, g); delete c.icon; return c; }) };
     return api("games", body).then(function (r) {
-      games = r.games; canPin = r.can_pin; renderGames(); toast(t("saved"));
+      games = r.games; renderGames(); toast(t("saved"));
+      loadShortcuts();
     });
   }
 
@@ -688,14 +755,12 @@ details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-
 
   function openGame(i) {
     editing = i;
-    var g = i >= 0 ? games[i] : { name: "", target: "", args: "", icon_from: "", pinned: canPin };
+    var g = i >= 0 ? games[i] : { name: "", target: "", args: "", icon_from: "" };
     $("game-modal-title").textContent = i >= 0 ? t("editGame") : t("newGame");
     $("g-name").value = g.name || "";
     $("g-target").value = g.target || "";
     $("g-args").value = g.args || "";
     $("g-iconfrom").value = g.icon_from || "";
-    $("g-pinned").classList.toggle("on", !!g.pinned);
-    $("g-pinned").parentNode.hidden = !canPin;
     $("g-error").textContent = "";
     setKind(g.steam_appid ? "steam" : "program");
     if (g.steam_appid) loadSteam(String(g.steam_appid));
@@ -703,7 +768,6 @@ details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-
     setTimeout(function () { $("g-name").focus(); }, 30);
   }
   $("add-game").onclick = function () { openGame(-1); };
-  $("g-pinned").onclick = function () { $("g-pinned").classList.toggle("on"); };
 
   // Opens the Windows file picker on this PC.
   $("g-browse").onclick = function () {
@@ -721,7 +785,6 @@ details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-
     if (!name) { $("g-error").textContent = t("needName"); return; }
     var g = editing >= 0 ? Object.assign({}, games[editing]) : {};
     g.name = name;
-    g.pinned = $("g-pinned").classList.contains("on");
     if (kind === "steam") {
       var id = parseInt($("g-steamlist").value, 10);
       if (!id) { $("g-error").textContent = t("noSteam"); return; }
@@ -734,6 +797,125 @@ details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-
     var list = games.slice();
     if (editing >= 0) list[editing] = g; else list.push(g);
     saveGames(list).then(function () { $("game-modal").hidden = true; }).catch(function (e) { $("g-error").textContent = e.message; });
+  };
+
+  // ---- Shortcuts: the three tiles under the games on the phone's home screen ----
+
+  var PRESETS = [
+    { name: "Netflix", url: "https://www.netflix.com", tint: "229,9,20" },
+    { name: "YouTube", url: "https://www.youtube.com", tint: "255,40,40" },
+    { name: "Twitch", url: "https://www.twitch.tv", tint: "145,70,255" },
+    { name: "Spotify", url: "https://open.spotify.com", tint: "30,215,96" },
+    { name: "Prime Video", url: "https://www.primevideo.com", tint: "0,168,225" },
+    { name: "Disney+", url: "https://www.disneyplus.com", tint: "40,90,230" }
+  ];
+  var slots = [{}, {}, {}, {}, {}, {}], scEdit = 0, scTint = "", scKind = "other";
+
+  function loadShortcuts() {
+    return api("shortcuts").then(function (r) { slots = r.slots; renderShortcuts(); });
+  }
+
+  function renderShortcuts() {
+    var list = $("sc-list"); list.innerHTML = "";
+    slots.forEach(function (s, i) {
+      var filled = !!(s.game || (s.target && s.name));
+      var r = el("button", "row"); r.type = "button";
+      var ico = el("span", "ico");
+      if (!filled) { ico.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>'; }
+      else if (s.brand && window.DeskBrands && window.DeskBrands[s.brand]) {
+        // A well-known service shows its own icon.
+        ico.innerHTML = window.DeskBrands[s.brand];
+        ico.firstChild.setAttribute("class", "svc-icon");
+        ico.classList.add("has-brand");
+      }
+      else if (s.icon) { var img = document.createElement("img"); img.src = s.icon; img.alt = ""; ico.appendChild(img); }
+      else {
+        ico.textContent = s.name.charAt(0).toUpperCase();
+        ico.style.fontWeight = "700";
+        if (s.tint) ico.style.background = "rgba(" + s.tint + ",.35)";
+      }
+      r.appendChild(ico);
+      var tx = el("span", "txt");
+      tx.appendChild(text("b", "", filled ? s.name : t("emptySlot", i + 1)));
+      tx.appendChild(text("span", "", !filled ? t("emptySlotHint") : s.game ? t("scGameKind") : s.target));
+      r.appendChild(tx);
+      var ed = el("span", "icon-btn", ICON_EDIT); r.appendChild(ed);
+      r.onclick = function () { openShortcut(i); };
+      list.appendChild(r);
+    });
+  }
+
+  function saveShortcuts(list) {
+    var body = { slots: list.map(function (s) { return s.game ? { game: s.game } : { name: s.name || "", target: s.target || "", tint: s.tint || "" }; }) };
+    return api("shortcuts", body).then(function (r) { slots = r.slots; renderShortcuts(); toast(t("saved")); });
+  }
+
+  function openShortcut(i) {
+    scEdit = i;
+    var s = slots[i] || {};
+    scTint = s.tint || "";
+    $("sc-modal-title").textContent = t("scTitle", i + 1);
+    $("sc-name").value = s.name || "";
+    $("sc-target").value = s.target || "";
+    $("sc-error").textContent = "";
+    $("sc-clear").hidden = !(s.game || (s.target && s.name));
+    var sel = $("sc-game"); sel.innerHTML = "";
+    games.forEach(function (g) { var o = document.createElement("option"); o.value = g.id; o.textContent = g.name; sel.appendChild(o); });
+    if (s.game) sel.value = s.game;
+    setScKind(s.game ? "game" : "other");
+    $("sc-modal").hidden = false;
+    setTimeout(function () { $("sc-name").focus(); }, 30);
+  }
+
+  function setScKind(k) {
+    scKind = k;
+    Array.prototype.forEach.call($("sc-kind").children, function (b) { b.classList.toggle("on", b.dataset.kind === k); });
+    $("sc-game-part").hidden = k !== "game"; $("sc-other-part").hidden = k !== "other";
+  }
+  Array.prototype.forEach.call($("sc-kind").children, function (b) {
+    b.onclick = function () {
+      if (b.dataset.kind === "game" && !games.length) { $("sc-error").textContent = t("noGamesYet"); return; }
+      $("sc-error").textContent = ""; setScKind(b.dataset.kind);
+    };
+  });
+
+  (function buildPresets() {
+    PRESETS.forEach(function (p) {
+      var b = el("button", "chipbtn"); b.type = "button";
+      var dot = el("i"); dot.style.background = "rgb(" + p.tint + ")";
+      b.appendChild(dot); b.appendChild(document.createTextNode(p.name));
+      b.onclick = function () { $("sc-name").value = p.name; $("sc-target").value = p.url; scTint = p.tint; };
+      $("sc-presets").appendChild(b);
+    });
+  })();
+
+  $("sc-browse").onclick = function () {
+    api("browse", {}).then(function (r) {
+      if (!r.path) return;
+      $("sc-target").value = r.path; scTint = "";
+      if (!$("sc-name").value.trim()) $("sc-name").value = r.path.split("\\").pop().replace(/\.(exe|lnk|bat|cmd)$/i, "");
+    });
+  };
+  // A program path or anything that is not a web address does not keep a preset's color.
+  $("sc-target").oninput = function () { if (!/^(https?:\/\/)?[^\x5c\/]+\./i.test($("sc-target").value)) scTint = ""; };
+
+  $("sc-save").onclick = function () {
+    if (scKind === "game") {
+      var gid = $("sc-game").value;
+      if (!gid) { $("sc-error").textContent = t("noGamesYet"); return; }
+      var gl = slots.slice(); gl[scEdit] = { game: gid };
+      saveShortcuts(gl).then(function () { $("sc-modal").hidden = true; }).catch(function (e) { $("sc-error").textContent = e.message; });
+      return;
+    }
+    var name = $("sc-name").value.trim(), target = $("sc-target").value.trim();
+    if (!name) { $("sc-error").textContent = t("scNeedName"); return; }
+    if (!target) { $("sc-error").textContent = t("needAddress"); return; }
+    var list = slots.slice(); list[scEdit] = { name: name, target: target, tint: scTint };
+    saveShortcuts(list).then(function () { $("sc-modal").hidden = true; }).catch(function (e) { $("sc-error").textContent = e.message; });
+  };
+  $("sc-clear").onclick = function () {
+    var list = slots.slice(); list[scEdit] = {};
+    saveShortcuts(list).then(function () { $("sc-modal").hidden = true; }).catch(function (e) { $("sc-error").textContent = e.message; });
   };
 
   // ---- Polling -----------------------------------------------------------
@@ -749,7 +931,7 @@ details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-
   document.addEventListener("visibilitychange", function () { if (!document.hidden) { refresh(); pollUsage(); } schedule(); });
   // Deep links: #devices, #games, #pair.
   var start = location.hash.slice(1);
-  if (start === "devices" || start === "games") go(start);
+  if (start === "devices" || start === "games" || start === "guide") go(start);
   if (start === "pair") openPair();
   refresh();
   pollUsage();

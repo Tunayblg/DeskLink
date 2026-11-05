@@ -75,6 +75,23 @@ On the phone a game starts with a **double tap**; a single tap only shows a hint
 
 DeskLink checks the whole config at startup and tells you exactly what is wrong if something does not add up.
 
+## Home screen tiles
+
+The home screen has six tiles, in two rows of three. Each one opens a game, a website or a program on the PC; an empty slot shows a **+**. The easiest way to fill them is the dashboard (**Games → Home screen**, with Netflix, YouTube and more ready to pick), but they live in `config.json` too:
+
+```json
+"shortcuts": [
+  { "game": "hades" },
+  { "name": "Netflix", "target": "https://www.netflix.com", "tint": "229,9,20" },
+  {},
+  { "name": "Notepad", "target": "C:\\Windows\\notepad.exe" }
+]
+```
+
+`game` is the `id` of one of your games (it opens with the launch animation). Otherwise `target` is a web address (`http://` or `https://`) or a program, file or URI, and `name` is required. `tint` is an optional tile color as `r,g,b`. Games and programs show their own icon. Well-known services (Netflix, YouTube, Twitch, Spotify, Prime Video, Disney+) are recognized from their address and get a small icon of their own, in their own color unless you set `tint`; any other website shows its first letter on the tint color. There are at most six entries; an empty `{}` leaves the slot empty.
+
+Older configs that pinned games to the home screen are converted automatically the first time this version starts: those games become the first tiles.
+
 ## Troubleshooting
 
 **The phone cannot open the page.** Make sure the phone is on the same Wi-Fi as the PC (not mobile data or a guest network), and type the full address including `http://` and the port. If Windows Firewall blocked DeskLink, allow it for private networks in *Windows Security → Firewall → Allow an app*.
