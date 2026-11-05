@@ -3,6 +3,7 @@ package media
 import (
 	"errors"
 	"fmt"
+	"log"
 	"math"
 	"os"
 	"path/filepath"
@@ -199,15 +200,30 @@ func (s source) loop() {
 	roInit.Call(1) // RO_INIT_MULTITHREADED
 	w := worker{trackKeys: map[string]string{}, procs: map[uint32]proc{}, names: map[string]string{}, unmuted: map[string]float32{}}
 	for req := range s.req {
-		if req.mixer {
-			req.reply <- reply{mixer: w.readMixer()}
-			continue
-		}
-		if req.cmd != nil {
-			w.do(*req.cmd)
+		w.handle(req)
+	}
+}
+
+// handle answers one request. The Windows audio and media services are COM
+// objects that can misbehave (no sound device, a service that is still
+// starting, a player that goes away mid-read). That must never take DeskLink
+// down with it: a failed request is logged, answered with nothing, and the COM
+// objects are looked up afresh next time.
+func (w *worker) handle(req request) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("media: a Windows audio or media call failed (%v); carrying on without it", r)
+			w.manager, w.enumerator = nil, nil
 			req.reply <- reply{}
-			continue
 		}
+	}()
+	switch {
+	case req.mixer:
+		req.reply <- reply{mixer: w.readMixer()}
+	case req.cmd != nil:
+		w.do(*req.cmd)
+		req.reply <- reply{}
+	default:
 		st, art := w.read(req.prevArt)
 		req.reply <- reply{state: st, art: art}
 	}
