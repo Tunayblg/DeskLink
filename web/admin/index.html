@@ -748,9 +748,20 @@ button.row { cursor: pointer; }
     if (steamGames) { fill(); return; }
     api("steam").then(function (r) { steamGames = r.games || []; fill(); });
   }
+  // A name the page filled in by itself (from the program or Steam game picked)
+  // is replaced when another one is picked; a name the user typed is kept.
+  // auto.last is the last name the page filled in.
+  function programName(path) { return (path || "").split("\\").pop().replace(/\.(exe|lnk|bat|cmd)$/i, ""); }
+  function autoName(input, auto, name) {
+    if (!name) return;
+    var cur = input.value.trim();
+    if (!cur || cur === auto.last) { input.value = name; auto.last = name; }
+  }
+  var gAuto = { last: "" }, scAuto = { last: "" };
+
   $("g-steamlist").onchange = function () {
     var opt = $("g-steamlist").selectedOptions[0];
-    if (opt && opt.value && !$("g-name").value.trim()) $("g-name").value = opt.textContent;
+    if (opt && opt.value) autoName($("g-name"), gAuto, opt.textContent);
   };
 
   function openGame(i) {
@@ -762,6 +773,8 @@ button.row { cursor: pointer; }
     $("g-args").value = g.args || "";
     $("g-iconfrom").value = g.icon_from || "";
     $("g-error").textContent = "";
+    // A name that is just the program's own file name was not typed by the user.
+    gAuto.last = g.steam_appid ? "" : programName(g.target);
     setKind(g.steam_appid ? "steam" : "program");
     if (g.steam_appid) loadSteam(String(g.steam_appid));
     $("game-modal").hidden = false;
@@ -774,9 +787,7 @@ button.row { cursor: pointer; }
     api("browse", {}).then(function (r) {
       if (!r.path) return;
       $("g-target").value = r.path;
-      if (!$("g-name").value.trim()) {
-        $("g-name").value = r.path.split("\\").pop().replace(/\.(exe|lnk|bat|cmd)$/i, "");
-      }
+      autoName($("g-name"), gAuto, programName(r.path));
     });
   };
 
@@ -858,6 +869,7 @@ button.row { cursor: pointer; }
     $("sc-name").value = s.name || "";
     $("sc-target").value = s.target || "";
     $("sc-error").textContent = "";
+    scAuto.last = programName(s.target);
     $("sc-clear").hidden = !(s.game || (s.target && s.name));
     var sel = $("sc-game"); sel.innerHTML = "";
     games.forEach(function (g) { var o = document.createElement("option"); o.value = g.id; o.textContent = g.name; sel.appendChild(o); });
@@ -884,7 +896,7 @@ button.row { cursor: pointer; }
       var b = el("button", "chipbtn"); b.type = "button";
       var dot = el("i"); dot.style.background = "rgb(" + p.tint + ")";
       b.appendChild(dot); b.appendChild(document.createTextNode(p.name));
-      b.onclick = function () { $("sc-name").value = p.name; $("sc-target").value = p.url; scTint = p.tint; };
+      b.onclick = function () { $("sc-name").value = p.name; scAuto.last = p.name; $("sc-target").value = p.url; scTint = p.tint; };
       $("sc-presets").appendChild(b);
     });
   })();
@@ -893,7 +905,7 @@ button.row { cursor: pointer; }
     api("browse", {}).then(function (r) {
       if (!r.path) return;
       $("sc-target").value = r.path; scTint = "";
-      if (!$("sc-name").value.trim()) $("sc-name").value = r.path.split("\\").pop().replace(/\.(exe|lnk|bat|cmd)$/i, "");
+      autoName($("sc-name"), scAuto, programName(r.path));
     });
   };
   // A program path or anything that is not a web address does not keep a preset's color.
