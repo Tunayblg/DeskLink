@@ -27,6 +27,7 @@ import (
 	"github.com/Tunayblg/DeskLink/internal/art"
 	"github.com/Tunayblg/DeskLink/internal/auth"
 	"github.com/Tunayblg/DeskLink/internal/brightness"
+	"github.com/Tunayblg/DeskLink/internal/claude"
 	"github.com/Tunayblg/DeskLink/internal/config"
 	"github.com/Tunayblg/DeskLink/internal/media"
 	"github.com/Tunayblg/DeskLink/internal/pointer"
@@ -81,6 +82,7 @@ type Server struct {
 	run         func(actions.Action) error
 	sample      func() stats.Snapshot
 	system      func() stats.Snapshot // CPU and RAM only, for the dashboard
+	claudeUse   func() claude.Usage   // Claude Code token use, read from its logs
 
 	media      *media.Watcher
 	nowPlaying func() media.State
@@ -133,7 +135,7 @@ func New(cfg *config.Config, store *auth.Store, web fs.FS, pictures map[string]a
 	var c stats.Collector
 	w := &media.Watcher{}
 	bright := brightness.NewSetter()
-	return &Server{cfg: cfg, auth: store, web: web, assetVersion: AssetVersion(web), games: publicGames(cfg, pictures), shortcuts: buildShortcuts(cfg), run: actions.Run, sample: c.Sample, system: c.System,
+	return &Server{cfg: cfg, auth: store, web: web, assetVersion: AssetVersion(web), games: publicGames(cfg, pictures), shortcuts: buildShortcuts(cfg), run: actions.Run, sample: c.Sample, system: c.System, claudeUse: (&claude.Reader{}).Sample,
 		media: w, nowPlaying: w.Sample, setVolume: setVolume(w), control: w.Control,
 		readMixer: w.Mixer, setMixerVolume: w.SetMixerVolume, toggleMute: w.ToggleMute, setMic: w.SetMic, getBrightness: brightness.Get, setBrightness: bright.Set, newPad: func() padder { return pointer.NewPad() }, gameExes: gameExes(cfg.Games), running: running.Names, icons: map[string]string{},
 		adminToken: newAdminToken(), started: time.Now(), sessions: map[*session]struct{}{}}
@@ -307,6 +309,7 @@ type serverMsg struct {
 	Error      string               `json:"error,omitempty"`
 	Stats      *stats.Snapshot      `json:"stats,omitempty"`
 	Media      *media.State         `json:"media,omitempty"`
+	Claude     *claude.Usage        `json:"claude,omitempty"`
 	Art        map[string]string    `json:"art,omitempty"` // art ID -> data: URI, each cover sent once
 	Mixer      *mixerView           `json:"mixer,omitempty"`
 	Mic        *media.Mic           `json:"mic,omitempty"`        // "micack": the microphone now (absent: none)
@@ -374,7 +377,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	}()
 	budget, budgetAt := float64(msgBurst), time.Now()
 	// Live streams the phone has switched on, keyed by message type.
-	streams := map[string]func(context.Context, *websocket.Conn){"stats": s.streamStats, "media": s.streamMedia, "mixer": s.streamMixer}
+	streams := map[string]func(context.Context, *websocket.Conn){"stats": s.streamStats, "claude": s.streamClaude, "media": s.streamMedia, "mixer": s.streamMixer}
 	var brightAsking atomic.Bool // a brightness question from this phone is being answered
 	stop := map[string]context.CancelFunc{}
 	defer func() {
@@ -583,6 +586,27 @@ func (s *Server) streamStats(ctx context.Context, c *websocket.Conn) {
 	for {
 		snap := s.sample()
 		if err := wsjson.Write(ctx, c, serverMsg{Type: "stats", Stats: &snap}); err != nil {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+	}
+}
+
+// claudeInterval is how often the Claude numbers are sent. The logs change
+// slowly, and the countdown on the phone moves by itself in between.
+const claudeInterval = 5 * time.Second
+
+// streamClaude sends Claude Code's token use until ctx is cancelled.
+func (s *Server) streamClaude(ctx context.Context, c *websocket.Conn) {
+	t := time.NewTicker(claudeInterval)
+	defer t.Stop()
+	for {
+		u := s.claudeUse()
+		if err := wsjson.Write(ctx, c, serverMsg{Type: "claude", Claude: &u}); err != nil {
 			return
 		}
 		select {

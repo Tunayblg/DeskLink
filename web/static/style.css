@@ -277,7 +277,10 @@ body.pairing .rail .tab, body.pairing .tab-pill { visibility: hidden; }
   content: "";
 }
 
-.np { display: flex; align-items: center; gap: 16px; min-height: 0; will-change: transform; }
+.np { display: flex; align-items: center; gap: 16px; min-height: 0; }
+/* The card's top part gets its own layer only while it slides (a swipe), not
+   all the time: a permanent layer costs memory on old phones. */
+.np.sliding { will-change: transform, opacity; }
 .np-art {
   position: relative;
   flex: 0 0 auto;
@@ -285,8 +288,11 @@ body.pairing .rail .tab, body.pairing .tab-pill { visibility: hidden; }
   height: 142px;
   overflow: hidden;
   border-radius: 14px;
+  /* Clip the sliding covers to the rounded frame. overflow and the mask below
+     are not always enough in Safari while a child is moving, a clip-path is. */
+  -webkit-clip-path: inset(0 round 14px);
+  clip-path: inset(0 round 14px);
   background: rgba(255, 255, 255, .06);
-  box-shadow: 0 18px 36px -14px rgba(0, 0, 0, .85), 0 0 0 1px rgba(255, 255, 255, .06);
 }
 .np-art svg {
   position: absolute;
@@ -304,22 +310,20 @@ body.pairing .rail .tab, body.pairing .tab-pill { visibility: hidden; }
   top: 0; left: 0;
   width: 100%; height: 100%;
   object-fit: cover;
-  /* Rounded on the image itself: Safari does not clip a moving child to the
-     parent's rounded corners, which showed the cover as a square mid-slide. */
-  border-radius: 14px;
-  -webkit-backface-visibility: hidden;
+  /* Rounded on the image itself too, so a corner never shows square mid-slide.
+     The slide is short (8%) so even a missed clip leaves little to see. */
+  border-radius: inherit;
   opacity: 0;
-  transform: translateX(calc(var(--dir) * 16%)) scale(.94);
-  transition: opacity .5s cubic-bezier(.4, 0, .2, 1), transform .85s cubic-bezier(.22, 1, .36, 1);
-  will-change: transform, opacity;
+  transform: translateX(calc(var(--dir) * 8%)) scale(.96);
+  transition: opacity .45s cubic-bezier(.4, 0, .2, 1), transform .7s cubic-bezier(.22, 1, .36, 1);
 }
 .np-art img.shown { z-index: 1; opacity: 1; transform: none; }
 /* The old cover fades a beat later than the new one appears, so the frame is
    always covered. */
 .np-art img.gone {
   opacity: 0;
-  transform: translateX(calc(var(--dir) * -16%)) scale(.94);
-  transition: opacity .45s .12s cubic-bezier(.4, 0, .2, 1), transform .85s cubic-bezier(.22, 1, .36, 1);
+  transform: translateX(calc(var(--dir) * -8%)) scale(.96);
+  transition: opacity .4s .1s cubic-bezier(.4, 0, .2, 1), transform .7s cubic-bezier(.22, 1, .36, 1);
 }
 .np-art img.instant { transition: none; }
 /* With a cover the empty-frame look (tint and note icon) is gone. */
@@ -664,6 +668,35 @@ body.pairing .rail .tab, body.pairing .tab-pill { visibility: hidden; }
   font-variant-numeric: tabular-nums;
 }
 .mini-label { font-size: 10px; font-weight: 700; letter-spacing: .12em; color: var(--muted); }
+
+/* The bottom card of the home screen is a pager: CPU and GPU, then Claude. */
+.mini-pager { position: relative; flex: 1; min-height: 0; overflow: hidden; border-radius: 16px; }
+.mini-track { display: flex; width: 200%; height: 100%; transition: transform .4s var(--ease); }
+.mini-track > * { flex: 0 0 50%; min-width: 0; height: 100%; box-sizing: border-box; }
+.mini-dots { position: absolute; left: 0; right: 0; bottom: 3px; display: flex; justify-content: center; gap: 4px; pointer-events: none; }
+.mini-dots i { width: 4px; height: 4px; border-radius: 50%; background: rgba(255, 255, 255, .22); transition: background .3s, transform .3s; }
+.mini-dots i.on { background: rgba(255, 255, 255, .75); transform: scale(1.25); }
+
+.claude {
+  --c: #d97757;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .03);
+  border: 1px solid var(--edge);
+}
+.claude.off { --c: var(--muted); }
+.cl-ring { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; flex: 0 0 auto; min-height: 0; }
+.claude .donut { width: 58px; height: 58px; }
+.claude .donut b { font-size: 12px; }
+.cl-info { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+.cl-rows > div { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; line-height: 1.35; }
+.cl-rows span { font-size: 9px; font-weight: 700; letter-spacing: .12em; color: var(--muted); }
+.cl-rows b { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.cl-rows > div:first-child b { color: var(--c); }
+.cl-note { font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Grid: square tiles */
 .grid-body { display: grid; gap: 8px; }
@@ -1334,8 +1367,7 @@ body.rail-peek .face-dots { opacity: 1; pointer-events: auto; }
 @media (min-height: 450px) {
   /* Now playing: a bigger cover, title and transport. */
   .np { gap: 20px; }
-  .np-art { width: calc(var(--vh) * 36); height: calc(var(--vh) * 36); max-width: 250px; max-height: 250px; border-radius: 18px; }
-  .np-art img { border-radius: 18px; }
+  .np-art { width: calc(var(--vh) * 36); height: calc(var(--vh) * 36); max-width: 250px; max-height: 250px; border-radius: 18px; -webkit-clip-path: inset(0 round 18px); clip-path: inset(0 round 18px); }
   .np-title { font-size: 24px; }
   .np-artist { font-size: 16px; }
   .np-app { font-size: 11px; }
@@ -1506,4 +1538,21 @@ body.booting * { animation: none !important; transition: none !important; }
   .stile .initial { font-size: 30px; }
   .quick .gtile.stile .icon { height: 54%; }
   .stile-name { font-size: 10px; bottom: 8px; }
+}
+
+/* Claude page: the plan limits as two rings, or the token counts until there is data. */
+.cl-limits { display: none; flex: 1; justify-content: space-around; align-items: center; min-width: 0; }
+.claude.limits .cl-limits { display: flex; }
+.claude.limits .cl-info { display: none; }
+.cl-lim { --c: #d97757; display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; }
+.cl-lim .donut { width: 52px; height: 52px; }
+.cl-lim .donut b { font-size: 13px; }
+.cl-lim.warn { --c: var(--amber); }
+.cl-lim.hot { --c: var(--red); }
+.cl-lim.na { opacity: .4; }
+.cl-sub { font-size: 9px; color: var(--muted); white-space: nowrap; min-height: 11px; }
+@media (min-height: 450px) {
+  .cl-lim .donut { width: 64px; height: 64px; }
+  .cl-lim .donut b { font-size: 15px; }
+  .cl-sub { font-size: 10px; }
 }

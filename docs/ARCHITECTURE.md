@@ -28,6 +28,7 @@
 | `internal/media` | Now playing (Windows media sessions, via WinRT), the system volume and the per-program mixer (Core Audio). |
 | `internal/brightness` | Screen brightness: DDC/CI for monitors, Windows' own control for laptop panels, and a see-through dimming window for every other screen. |
 | `internal/stats` | CPU, RAM and NVIDIA GPU readings (NVML). |
+| `internal/claude` | Claude Code token use (five-hour window, today, seven days), read from its local logs under `~/.claude/projects`. Only numbers leave the PC, never what was said. |
 | `internal/procstat` | DeskLink's own memory and CPU use, for the dashboard. |
 | `internal/pointer` | The trackpad: relative mouse moves, clicks and scrolling. |
 | `internal/tray`, `internal/desktop` | Notification-area icon and menu, dashboard window, dialogs, start with Windows. |
@@ -44,7 +45,7 @@ Windows APIs are called directly through `syscall`, with no cgo. Outside the Go 
 3. The page opens `ws://<host>/ws` and sends `{"type":"auth","token":"…"}` as its first message (within 5 s).
 4. The server replies with the layout: groups of buttons, the games with their art, and the home screen tiles. Action targets (paths, addresses) never leave the PC.
 5. A tap sends `{"type":"press","id":"…"}` and the server answers with a `result`. The other messages a phone can send are just as narrow: a volume level (0–100) for the PC or a program in the mixer, a screen brightness (0–100), one of the three watch mode buttons (`playpause`, `back`, `forward`), and trackpad moves.
-6. The page turns live data on and off for the screen it is showing: `{"type":"media","on":true}` on the home screen, `{"type":"stats","on":true}` in game mode, `{"type":"mixer","on":true}` in game and watch mode. Nothing is sampled while no phone asks for it.
+6. The page turns live data on and off for the screen it is showing: `{"type":"media","on":true}` on the home screen, `{"type":"stats","on":true}` in game mode, `{"type":"mixer","on":true}` in game and watch mode, `{"type":"claude","on":true}` on the home screen's Claude page. Nothing is sampled while no phone asks for it.
 7. If the token is unknown, the server sends `{"type":"unauthorized"}`. The page deletes the token and shows the pairing screen.
 
 Keeping the connection alive:

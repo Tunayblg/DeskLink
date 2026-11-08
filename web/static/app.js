@@ -25,6 +25,7 @@
       rotate: "Rotate your phone", noGames: "No games yet. Add them to config.json on your PC.",
       notPlaying: "Not playing", nothingPlaying: "Nothing playing", startMusic: "Start music on your PC",
       paused: "Paused", media: "Media", play: "PLAY",
+      clFive: "5 HOURS", clSeven: "7 DAYS", clLeft: "{} left", d: "d", h: "h", m: "m", clWindow: "5 HOURS", clToday: "TODAY", clWeek: "7 DAYS", clNone: "Claude Code not found on this PC", clHint: "Open Claude Code to see limits",
       launching: "Launching…", toGameMode: "Switching to game mode",
       noAnswer: "No answer from the PC", launchFailed: "Could not start the game",
       alreadyRunning: "Already running", doubleTap: "Double-tap to start",
@@ -45,6 +46,7 @@
       rotate: "Telefonu yan çevir", noGames: "Henüz oyun yok. Bilgisayardaki config.json dosyasına ekle.",
       notPlaying: "Çalmıyor", nothingPlaying: "Şu an bir şey çalmıyor", startMusic: "Bilgisayarda müzik başlat",
       paused: "Duraklatıldı", media: "Medya", play: "OYNA",
+      clFive: "5 SAAT", clSeven: "7 GÜN", clLeft: "{} kaldı", d: "g", h: "sa", m: "dk", clWindow: "5 SAAT", clToday: "BUGÜN", clWeek: "7 GÜN", clNone: "Bu PC'de Claude Code bulunamadı", clHint: "Limitler için Claude Code'u aç",
       launching: "Başlatılıyor…", toGameMode: "Oyun moduna geçiliyor",
       noAnswer: "Bilgisayardan yanıt gelmedi", launchFailed: "Oyun başlatılamadı",
       alreadyRunning: "Zaten çalışıyor", doubleTap: "Açmak için çift dokun",
@@ -274,6 +276,9 @@
       case "media":
         if (msg.media) onMedia(msg.media, msg.art);
         break;
+      case "claude":
+        if (msg.claude) renderClaude(msg.claude);
+        break;
       case "mixer":
         if (msg.mixer) renderMixer(msg.mixer, msg.icons);
         break;
@@ -298,7 +303,8 @@
     var live = !document.body.classList.contains("pairing") &&
       document.visibilityState === "visible" && ws && ws.readyState === WebSocket.OPEN;
     var want = {
-      stats: !!(live && ((view === "stats" && statsPage === 0) || (view === "home" && miniEls))),
+      stats: !!(live && ((view === "stats" && statsPage === 0) || (view === "home" && miniEls && miniPage === 0))),
+      claude: !!(live && view === "home" && claudeEls && miniPage === 1),
       media: !!(live && view === "home" && np),
       mixer: !!(live && (view === "stats" || view === "watch"))
     };
@@ -572,12 +578,25 @@
           '<circle class="value" cx="22" cy="22" r="19" stroke-dasharray="119.4" stroke-dashoffset="119.4"/>' +
           '</svg><b>–</b></div><span class="mini-label">' + k.toUpperCase() + "</span></div>";
       }).join("");
-      body.appendChild(mini);
+      // The bottom of the card is a pager: CPU and GPU, and a swipe to the side
+      // shows Claude Code's token use.
+      var pager = document.createElement("div");
+      pager.className = "mini-pager";
+      var track = document.createElement("div");
+      track.className = "mini-track";
+      track.appendChild(mini);
+      track.appendChild(claudePage());
+      pager.appendChild(track);
+      pager.insertAdjacentHTML("beforeend", '<div class="mini-dots"><i></i><i></i></div>');
+      body.appendChild(pager);
       miniEls = {};
       ["cpu", "gpu"].forEach(function (k) {
         var item = mini.querySelector("." + k);
         miniEls[k] = { root: item, value: item.querySelector("b"), ring: item.querySelector(".value") };
       });
+      bindPager(pager, track);
+      setMiniPage(miniPage, true);
+      if (claudeLast) renderClaude(claudeLast);
     },
     grid: function (body, buttons) {
       body.classList.add("grid-body");
@@ -622,6 +641,137 @@
 
   var clockEl = null;
   var miniEls = null; // CPU/GPU mini charts on the home screen, if any
+
+  // ---- Claude Code -------------------------------------------------------
+
+  var miniPage = 0;       // 0: CPU and GPU, 1: Claude
+  var claudeEls = null;   // the Claude page's elements, once the home screen is drawn
+  var claudeLast = null;  // the last "claude" message
+
+  // The second page of the home screen's bottom card: two rings with the plan
+  // limits in percent (5 hours and 7 days), as in Claude's /usage. Until Claude
+  // Code has reported them, the token counts are shown instead.
+  // r = 19 → circumference 119.4
+  function limitRing(key) {
+    return '<div class="cl-lim ' + key + '"><div class="donut"><svg viewBox="0 0 44 44"><circle class="track" cx="22" cy="22" r="19"/>' +
+      '<circle class="value" cx="22" cy="22" r="19" stroke-dasharray="119.4" stroke-dashoffset="119.4"/></svg><b>–</b></div>' +
+      '<span class="mini-label"></span><span class="cl-sub"></span></div>';
+  }
+  function claudePage() {
+    var el = document.createElement("div");
+    el.className = "claude";
+    el.innerHTML = '<div class="cl-limits">' + limitRing("five") + limitRing("seven") + '</div>' +
+      '<div class="cl-info"><div class="cl-rows"></div><div class="cl-note"></div></div>';
+    function ring(k) {
+      var r = el.querySelector(".cl-lim." + k);
+      return { root: r, ring: r.querySelector(".value"), pct: r.querySelector("b"), label: r.querySelector(".mini-label"), sub: r.querySelector(".cl-sub") };
+    }
+    claudeEls = { root: el, five: ring("five"), seven: ring("seven"), rows: el.querySelector(".cl-rows"), note: el.querySelector(".cl-note") };
+    return el;
+  }
+
+  // 1234 -> 1.2K, 1234567 -> 1.2M
+  function short(n) {
+    if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + "M";
+    if (n >= 1e3) return (n / 1e3).toFixed(n >= 1e4 ? 0 : 1) + "K";
+    return String(n);
+  }
+
+  // 8700 s -> "2h 25m", 400000 s -> "4d 15h"
+  function until(s) {
+    var m = Math.round(s / 60);
+    if (m >= 1440) return Math.floor(m / 1440) + t("d") + " " + Math.floor((m % 1440) / 60) + t("h");
+    if (m >= 60) return Math.floor(m / 60) + t("h") + " " + (m % 60) + t("m");
+    return Math.max(1, m) + t("m");
+  }
+
+  function drawLimit(e, label, w) {
+    e.label.textContent = label;
+    var has = !!w;
+    var pct = has ? Math.round(w.pct) : 0;
+    e.root.classList.toggle("na", !has);
+    e.root.classList.toggle("warn", has && pct >= 70 && pct < 90);
+    e.root.classList.toggle("hot", has && pct >= 90);
+    e.pct.textContent = has ? pct + "%" : "–";
+    e.ring.setAttribute("stroke-dashoffset", (119.4 * (1 - (has ? Math.min(100, w.pct) : 0) / 100)).toFixed(1));
+    e.sub.textContent = has && w.reset_s > 0 ? t("clLeft", until(w.reset_s)) : "";
+  }
+
+  function renderClaude(c) {
+    claudeLast = c;
+    var e = claudeEls;
+    if (!e) return;
+    var lim = c.limits;
+    var show = !!(lim && (lim.five_hour || lim.seven_day));
+    e.root.classList.toggle("limits", show);
+    if (show) {
+      drawLimit(e.five, t("clFive"), lim.five_hour);
+      drawLimit(e.seven, t("clSeven"), lim.seven_day);
+      return;
+    }
+    // No limits yet: the token counts from the logs.
+    var b = c.block || {};
+    if (!c.found) {
+      e.rows.innerHTML = "";
+      e.note.textContent = t("clNone");
+      return;
+    }
+    var rows = [[t("clWindow"), c.active ? short(b.tokens) : "–"], [t("clToday"), short(c.today)], [t("clWeek"), short(c.week)]];
+    e.rows.innerHTML = rows.map(function (r) {
+      return "<div><span>" + r[0] + "</span><b>" + r[1] + "</b></div>";
+    }).join("");
+    e.note.textContent = t("clHint");
+  }
+
+  // Moves the pager to a page (0 or 1). instant skips the animation.
+  function setMiniPage(p, instant) {
+    miniPage = p;
+    var track = document.querySelector(".mini-track");
+    if (track) {
+      track.style.transition = instant ? "none" : "";
+      track.style.transform = p ? "translateX(-50%)" : "";
+      var dots = track.parentNode.querySelectorAll(".mini-dots i");
+      for (var i = 0; i < dots.length; i++) dots[i].classList.toggle("on", i === p);
+    }
+    syncStreams();
+  }
+
+  // A horizontal swipe on the card follows the finger and switches page.
+  function bindPager(el, track) {
+    var x0 = null, y0 = 0, axis = null, dx = 0, w = 1;
+    el.addEventListener("touchstart", function (e) {
+      x0 = e.touches[0].clientX;
+      y0 = e.touches[0].clientY;
+      axis = null;
+      dx = 0;
+      w = el.offsetWidth || 1;
+    }, { passive: true });
+    el.addEventListener("touchmove", function (e) {
+      if (x0 === null) return;
+      dx = e.touches[0].clientX - x0;
+      var dy = e.touches[0].clientY - y0;
+      if (!axis && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+      if (axis !== "x") return;
+      e.preventDefault();
+      // Pulling past the first or last page gives a little, then resists.
+      var base = miniPage ? -w : 0;
+      var pos = base + dx;
+      if (pos > 0) pos *= 0.3;
+      if (pos < -w) pos = -w + (pos + w) * 0.3;
+      track.style.transition = "none";
+      track.style.transform = "translateX(" + pos.toFixed(1) + "px)";
+    }, { passive: false });
+    function end() {
+      if (x0 === null) return;
+      x0 = null;
+      if (axis !== "x") return;
+      var next = miniPage;
+      if (dx < -40) next = 1; else if (dx > 40) next = 0;
+      setMiniPage(next);
+    }
+    el.addEventListener("touchend", end);
+    el.addEventListener("touchcancel", end);
+  }
 
   // One row of home screen tiles. A filled tile opens its game, website or
   // program on the PC; an empty one shows a "+" and says where to add it.
@@ -679,6 +829,7 @@
     np = null;
     clockEl = null;
     miniEls = null;
+    claudeEls = null;
     home.style.gridTemplateColumns = groups.map(function (g) {
       return g.style === "media" ? "1.55fr" : "1fr";
     }).join(" ") || "1fr";
@@ -786,6 +937,7 @@
   // progress bar, buttons and slider stay put.
   function slideSource(step) {
     var r = np.root;
+    r.classList.add("sliding");
     r.style.transition = "transform .2s cubic-bezier(.4,0,1,1), opacity .2s ease-in";
     r.style.transform = "translateX(" + (-step * 70) + "px)";
     r.style.opacity = "0";
@@ -798,6 +950,7 @@
       r.style.transition = "transform .55s cubic-bezier(.22,1,.36,1), opacity .4s ease-out";
       r.style.transform = "";
       r.style.opacity = "";
+      setTimeout(function () { r.classList.remove("sliding"); }, 600);
     }, 200);
   }
 
@@ -855,8 +1008,10 @@
         meta.classList.remove("in");
       }, first ? 0 : 230);
     }
-    np.app.textContent = app;
-    np.play.innerHTML = svg(has && m.playing ? GLYPH.pause : GLYPH.play);
+    // The server repeats this about every second; only touch the DOM on a change.
+    if (np.appText !== app) { np.appText = app; np.app.textContent = app; }
+    var playing = has && m.playing;
+    if (np.glyphPlaying !== playing) { np.glyphPlaying = playing; np.play.innerHTML = svg(playing ? GLYPH.pause : GLYPH.play); }
 
     playback = has ? { pos: m.position_ms, dur: m.duration_ms, playing: m.playing, t: Date.now() } : null;
     tickProgress(true);
@@ -894,6 +1049,7 @@
       if (axis !== "x") return;
       e.preventDefault();
       var r = np.root;
+      r.classList.add("sliding");
       r.style.transition = "none";
       r.style.transform = "translateX(" + (dx * (many() ? 0.45 : 0.12)).toFixed(1) + "px)";
       r.style.opacity = many() ? Math.max(0.3, 1 - Math.abs(dx) / 400).toFixed(2) : "";
@@ -907,6 +1063,7 @@
       r.style.transition = "transform .45s cubic-bezier(.22,1,.36,1), opacity .3s ease-out";
       r.style.transform = "";
       r.style.opacity = "";
+      setTimeout(function () { r.classList.remove("sliding"); }, 500);
     }
     el.addEventListener("touchend", end);
     el.addEventListener("touchcancel", end);
