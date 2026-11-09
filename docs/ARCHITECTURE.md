@@ -28,6 +28,7 @@
 | `internal/media` | Now playing (Windows media sessions, via WinRT), the system volume and the per-program mixer (Core Audio). |
 | `internal/brightness` | Screen brightness: DDC/CI for monitors, Windows' own control for laptop panels, and a see-through dimming window for every other screen. |
 | `internal/stats` | CPU, RAM and NVIDIA GPU readings (NVML). |
+| `internal/plan` | Reminders/tasks with optional HH:MM, date (or every day) and `done_on`, persisted in `plan.json` (legacy `end` ignored). Phones send `planadd`, `plandel`, `plantoggle` with a validated local date; daily tasks reopen each day, dated tasks stay completed. |
 | `internal/claude` | Claude Code token use (five-hour window, today, seven days), read from its local logs under `~/.claude/projects`. Only numbers leave the PC, never what was said. |
 | `internal/procstat` | DeskLink's own memory and CPU use, for the dashboard. |
 | `internal/pointer` | The trackpad: relative mouse moves, clicks and scrolling. |

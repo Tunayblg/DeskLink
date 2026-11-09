@@ -2,6 +2,79 @@
 (function () {
   "use strict";
 
+  // ---- Sideways fallback ---------------------------------------------------
+  //
+  // iOS 15 sometimes opens the home screen app in portrait although the phone
+  // is held sideways, and only turning the phone upright and back fixes it. A
+  // page cannot make iOS turn its window, so instead the panel runs in a frame
+  // the size of a landscape screen, turned 90 degrees. Inside the frame
+  // everything (layout, swipes, sliders) sees a normal landscape screen.
+  // It starts from the "rotate your phone" screen, and after that whenever
+  // the app opens upright. Turning the phone for real leaves it.
+  var ROT_KEY = "desklink.rotate";
+  var framed = window.parent !== window;
+  function rotPref() { try { return localStorage.getItem(ROT_KEY); } catch (e) { return null; } }
+  function orientReport(what) {
+    if (!window.DeskReport) return;
+    window.DeskReport("orientation " + what + ": inner " + window.innerWidth + "x" + window.innerHeight +
+      ", screen " + screen.width + "x" + screen.height + ", window.orientation " + window.orientation +
+      ", saved " + rotPref() + (framed ? ", in frame" : ""), "orientation");
+  }
+  function startFramed() {
+    var force = false;
+    try { force = sessionStorage.getItem(ROT_KEY) === "now"; sessionStorage.removeItem(ROT_KEY); } catch (e) { /* no storage */ }
+    var deg = rotPref();
+    if (framed || !deg) return false;
+    var upright = window.innerHeight > window.innerWidth;
+    if (!force && !(upright && Math.abs(window.orientation || 0) !== 90)) return false;
+
+    var body = document.body;
+    body.innerHTML = "";
+    body.className = "rot-host";
+    var frame = document.createElement("iframe");
+    frame.className = "rot-frame";
+    frame.setAttribute("scrolling", "no");
+    frame.src = location.href;
+    var flip = document.createElement("button");
+    flip.type = "button";
+    flip.className = "rot-flip";
+    flip.setAttribute("aria-label", "Flip");
+    flip.innerHTML = '<svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 21v-5h5"/></svg>';
+    // iOS keeps its status bar (clock, battery) along the top of the upright
+    // window, and a page cannot hide it. The frame starts below it so the bar
+    // sits beside the panel instead of over it.
+    var probe = document.createElement("div");
+    probe.style.paddingTop = "env(safe-area-inset-top)";
+    body.appendChild(probe);
+    var bar = parseFloat(getComputedStyle(probe).paddingTop) || (navigator.standalone ? 20 : 0);
+    body.removeChild(probe);
+    function place() {
+      var w = window.innerHeight - bar, h = window.innerWidth;
+      frame.style.top = bar + "px";
+      frame.style.width = w + "px";
+      frame.style.height = h + "px";
+      frame.style.transform = deg === "-90" ? "rotate(-90deg) translateX(-100%)" : "rotate(90deg) translateY(-100%)";
+    }
+    flip.addEventListener("click", function () {
+      deg = deg === "-90" ? "90" : "-90";
+      try { localStorage.setItem(ROT_KEY, deg); } catch (e) { /* no storage */ }
+      place();
+    });
+    function check() {
+      // The window really turned to landscape: run the panel normally again.
+      if (window.innerWidth > window.innerHeight) { location.reload(); return; }
+      place();
+    }
+    window.addEventListener("resize", check);
+    window.addEventListener("orientationchange", function () { setTimeout(check, 300); });
+    place();
+    body.appendChild(frame);
+    body.appendChild(flip);
+    setTimeout(function () { orientReport("framed"); }, 1500);
+    return true;
+  }
+  if (startFramed()) return;
+
   var TOKEN_KEY = "desklink.token";
   var VIEW_KEY = "desklink.view";
   var VIEWS = ["home", "games", "stats", "watch", "pad", "clock"];
@@ -22,9 +95,11 @@
       expiredLink: "This link has expired. Enter the code shown on your PC.",
       a2hs: "Paired. For full screen, tap Share, then Add to Home Screen.",
       pairTitle: "Pair this device", pairHint: "Scan the QR code on your PC with the camera, or enter the code shown under it.", pair: "Pair",
-      rotate: "Rotate your phone", noGames: "No games yet. Add them to config.json on your PC.",
+      rotate: "Rotate your phone", rotateGo: "Show sideways", noGames: "No games yet. Add them to config.json on your PC.",
       notPlaying: "Not playing", nothingPlaying: "Nothing playing", startMusic: "Start music on your PC",
-      paused: "Paused", media: "Media", play: "PLAY",
+      paused: "Paused", media: "Media", play: "PLAY", pinMedia: "Pin this player", unpinMedia: "Unpin player",
+      plan: "PLAN", planNext: "NEXT", planDone: "All done", planAfter: "Then {}", planTapAdd: "Tap to set an alarm", planLate: "Overdue",
+      planTitle: "Alarms", planName: "Name (optional)", planTime: "Remind at", planDate: "Date", planToday: "Today", planTomorrow: "Tomorrow", planEvery: "Every day", planAdd: "Add", planNextAlarm: "NEXT ALARM", sec: "s", planSet: "Set alarm", planSetDone: "Set", planActive: "{} active", planDoneTag: "Done", planClose: "Close", planEmpty: "No alarms yet. Set one on the left.", planDel: "Delete", planNow: "Now!", planNeed: "Set a time or write a name", planToggle: "Complete / undo",
       clFive: "5 HOURS", clSeven: "7 DAYS", clLeft: "{} left", d: "d", h: "h", m: "m", clWindow: "5 HOURS", clToday: "TODAY", clWeek: "7 DAYS", clNone: "Claude Code not found on this PC", clHint: "Open Claude Code to see limits",
       launching: "Launching…", toGameMode: "Switching to game mode",
       noAnswer: "No answer from the PC", launchFailed: "Could not start the game",
@@ -43,9 +118,11 @@
       expiredLink: "Bu bağlantının süresi doldu. Bilgisayardaki kodu gir.",
       a2hs: "Eşleşti. Tam ekran için Paylaş, sonra Ana Ekrana Ekle'ye dokun.",
       pairTitle: "Bu cihazı eşleştir", pairHint: "Bilgisayardaki QR kodu kamerayla okut ya da altındaki kodu gir.", pair: "Eşleştir",
-      rotate: "Telefonu yan çevir", noGames: "Henüz oyun yok. Bilgisayardaki config.json dosyasına ekle.",
+      rotate: "Telefonu yan çevir", rotateGo: "Yatay göster", noGames: "Henüz oyun yok. Bilgisayardaki config.json dosyasına ekle.",
       notPlaying: "Çalmıyor", nothingPlaying: "Şu an bir şey çalmıyor", startMusic: "Bilgisayarda müzik başlat",
-      paused: "Duraklatıldı", media: "Medya", play: "OYNA",
+      paused: "Duraklatıldı", media: "Medya", play: "OYNA", pinMedia: "Bu oynatıcıyı sabitle", unpinMedia: "Sabitlemeyi kaldır",
+      plan: "PLAN", planNext: "SIRADA", planDone: "Hepsi tamam", planAfter: "Sonra {}", planTapAdd: "Alarm kurmak için dokun", planLate: "Gecikti",
+      planTitle: "Alarmlar", planName: "İsim (isteğe bağlı)", planTime: "Hatırlat", planDate: "Tarih", planToday: "Bugün", planTomorrow: "Yarın", planEvery: "Her gün", planAdd: "Ekle", planNextAlarm: "SIRADAKİ ALARM", sec: "sn", planSet: "Alarm kur", planSetDone: "Kuruldu", planActive: "{} aktif", planDoneTag: "Tamamlandı", planClose: "Kapat", planEmpty: "Henüz alarm yok. Soldan kur.", planDel: "Sil", planNow: "Şimdi!", planNeed: "Bir saat seç ya da isim yaz", planToggle: "Tamamla / geri al",
       clFive: "5 SAAT", clSeven: "7 GÜN", clLeft: "{} kaldı", d: "g", h: "sa", m: "dk", clWindow: "5 SAAT", clToday: "BUGÜN", clWeek: "7 GÜN", clNone: "Bu PC'de Claude Code bulunamadı", clHint: "Limitler için Claude Code'u aç",
       launching: "Başlatılıyor…", toGameMode: "Oyun moduna geçiliyor",
       noAnswer: "Bilgisayardan yanıt gelmedi", launchFailed: "Oyun başlatılamadı",
@@ -279,6 +356,13 @@
       case "claude":
         if (msg.claude) renderClaude(msg.claude);
         break;
+      case "plan":
+        planItems = msg.plan || [];
+        renderPlan();
+        break;
+      case "planerr":
+        toast(msg.error || "");
+        break;
       case "mixer":
         if (msg.mixer) renderMixer(msg.mixer, msg.icons);
         break;
@@ -313,6 +397,13 @@
     });
     clearInterval(progressTimer);
     progressTimer = want.media ? setInterval(function () { tickProgress(false); }, 1000) : null;
+    // The plan counts down on the phone's own clock, so it needs no stream.
+    clearInterval(planTimer);
+    planTimer = null;
+    if (live && view === "home" && planEls) {
+      renderPlan();
+      planTimer = setInterval(renderPlan, miniPage === 2 ? 1000 : 15000);
+    }
   }
 
   // iOS pans (rubber-bands) the whole page on a drag even though nothing
@@ -331,7 +422,7 @@
     touchDragging = e.touches.length > 1;
   }, { passive: true });
   document.addEventListener("touchmove", function (e) {
-    if (e.target.closest && e.target.closest(".game-list")) return;
+    if (e.target.closest && e.target.closest(".game-list, .ps-items")) return;
     if (!touchDragging) {
       var t = e.touches[0];
       if (Math.abs(t.clientX - touchX) < TAP_SLOP && Math.abs(t.clientY - touchY) < TAP_SLOP) return;
@@ -522,6 +613,11 @@
         state: null
       };
       np.dots.className = "np-dots";
+      np.lock = document.createElement("button");
+      np.lock.type = "button";
+      np.lock.className = "np-lock";
+      np.lock.addEventListener("click", toggleLock);
+      body.appendChild(np.lock);
       bindSwipe(card);
       if (mediaState) renderMedia();
     },
@@ -586,8 +682,9 @@
       track.className = "mini-track";
       track.appendChild(mini);
       track.appendChild(claudePage());
+      track.appendChild(planPage());
       pager.appendChild(track);
-      pager.insertAdjacentHTML("beforeend", '<div class="mini-dots"><i></i><i></i></div>');
+      pager.insertAdjacentHTML("beforeend", '<div class="mini-dots"><i></i><i></i><i></i></div>');
       body.appendChild(pager);
       miniEls = {};
       ["cpu", "gpu"].forEach(function (k) {
@@ -597,6 +694,7 @@
       bindPager(pager, track);
       setMiniPage(miniPage, true);
       if (claudeLast) renderClaude(claudeLast);
+      renderPlan();
     },
     grid: function (body, buttons) {
       body.classList.add("grid-body");
@@ -723,13 +821,352 @@
     e.note.textContent = t("clHint");
   }
 
-  // Moves the pager to a page (0 or 1). instant skips the animation.
+  // ---- Day plan ----------------------------------------------------------
+
+  var PAGES = 3;          // pager pages: CPU and GPU, Claude, plan
+  var planItems = [];     // the plan from the PC
+  var planEls = null;     // the plan page's elements, once the home screen is drawn
+  var planTimer = null;
+  var alerted = "";       // the last reminder that rang on this phone
+  var sheet = null;       // the plan sheet, while it is open
+
+  function planPage() {
+    var el = document.createElement("div");
+    el.className = "plan-page";
+    el.tabIndex = 0;
+    el.setAttribute("role", "button");
+    el.setAttribute("aria-label", t("planTitle"));
+    el.addEventListener("keydown", function (ev) { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); openPlan(); } });
+    el.innerHTML = '<div class="pl-ring"><div class="donut"><svg viewBox="0 0 44 44"><circle class="track" cx="22" cy="22" r="19"/>' +
+      '<circle class="value" cx="22" cy="22" r="19" stroke-dasharray="119.4" stroke-dashoffset="119.4"/></svg>' +
+      '<b><span class="pl-time">+</span><span class="pl-unit"></span></b></div></div>' +
+      '<div class="pl-info"><div class="pl-label"></div><div class="pl-title"></div><div class="pl-sub"></div><div class="pl-next"></div></div>';
+    planEls = { root: el, ring: el.querySelector(".value"), time: el.querySelector(".pl-time"), unit: el.querySelector(".pl-unit"),
+      label: el.querySelector(".pl-label"), title: el.querySelector(".pl-title"), sub: el.querySelector(".pl-sub"), next: el.querySelector(".pl-next"), state: "" };
+    el.addEventListener("click", openPlan);
+    return el;
+  }
+
+  function pad2(n) { return (n < 10 ? "0" : "") + n; }
+  function dayKey(d) { return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()); }
+  function minutesOf(hhmm) { return +hhmm.slice(0, 2) * 60 + +hhmm.slice(3); }
+
+  function isDone(it, key) { return !!it.done_on && (!!it.date || it.done_on === key); }
+  function sortTasks(list, key) {
+    return list.sort(function (a, b) {
+      var done = Number(isDone(a, key)) - Number(isDone(b, key));
+      if (done) return done;
+      var at = a.time || "99:99", bt = b.time || "99:99";
+      return at < bt ? -1 : at > bt ? 1 : 0;
+    });
+  }
+  function itemsOn(key) {
+    return sortTasks(planItems.filter(function (it) { return !it.date || it.date === key; }), key);
+  }
+  function planText(el, value) { if (el.textContent !== value) el.textContent = value; }
+
+  // The home card shows the next alarm as a live countdown: hours and minutes
+  // while it is far off, minutes and seconds in the last hour with the ring
+  // running down once a second, and a pulse when it is due.
+  function renderPlan() {
+    var e = planEls, now = new Date(), key = dayKey(now);
+    if (e) {
+      var today = itemsOn(key), pending = today.filter(function (it) { return !isDone(it, key); });
+      var next = pending[0], after = pending[1];
+      var center = "+", unit = "", ratio = 0, state = "idle", title = t("planTapAdd"), sub = "";
+      if (next && next.time) {
+        var rem = minutesOf(next.time) * 60 - (now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds());
+        title = next.time;
+        sub = next.title || "";
+        if (rem > 0) {
+          if (rem >= 3600) { center = Math.floor(rem / 3600) + ":" + pad2(Math.floor(rem % 3600 / 60)); unit = t("h") + " " + t("m"); ratio = 1; state = "run"; }
+          else { center = pad2(Math.floor(rem / 60)) + ":" + pad2(rem % 60); unit = t("m") + " " + t("sec"); ratio = rem / 3600; state = rem <= 60 ? "soon" : "run"; }
+        } else {
+          center = "!"; unit = rem > -60 ? t("planNow") : t("planLate"); ratio = 1; state = "late";
+        }
+        if (rem <= 0 && rem > -120 && alerted !== next.id + key + next.time) {
+          alerted = next.id + key + next.time;
+          toast(next.time + (next.title ? " · " + next.title : ""));
+          try { if (navigator.vibrate) navigator.vibrate([300, 150, 300]); } catch (x) { /* not supported */ }
+        }
+      } else if (next) {
+        center = "•"; ratio = 0; state = "run"; title = next.title;
+      } else if (today.length) {
+        center = "✓"; ratio = 1; state = "done"; title = t("planDone");
+      }
+      planText(e.time, center);
+      planText(e.unit, unit);
+      planText(e.label, state === "idle" ? t("plan") : t("planNextAlarm"));
+      planText(e.title, title);
+      planText(e.sub, sub);
+      planText(e.next, after ? t("planAfter", (after.time ? after.time + " " : "") + (after.title || "")) : "");
+      if (e.state !== state) {
+        e.root.classList.remove("st-idle", "st-run", "st-soon", "st-late", "st-done");
+        e.root.classList.add("st-" + state);
+        e.state = state;
+      }
+      var offset = (119.4 * (1 - ratio)).toFixed(1);
+      if (e.ring.getAttribute("stroke-dashoffset") !== offset) e.ring.setAttribute("stroke-dashoffset", offset);
+    }
+    if (sheet) fillSheet();
+  }
+
+  // A drum for picking a number (hours, minutes). It loops round, is dragged
+  // with the finger and keeps rolling a little after letting go, then settles on
+  // one number. Only seven rows exist at a time; they are placed from the
+  // position, so dragging costs almost nothing. Own touch handling (not native
+  // scrolling) so it behaves the same every time.
+  var DRUM_H = 40;
+  function drum(count, onChange) {
+    var box = document.createElement("div"), rows = [], pos = 0, shown = 0, raf = 0, anim = null;
+    box.className = "drum";
+    box.setAttribute("role", "spinbutton");
+    box.tabIndex = 0;
+    for (var i = 0; i < 7; i++) {
+      var r = document.createElement("i");
+      rows.push(r);
+      box.appendChild(r);
+    }
+    function mod(n) { return ((n % count) + count) % count; }
+    function paint() {
+      var base = Math.round(pos);
+      for (var k = -3; k <= 3; k++) {
+        var d = base + k - pos, ad = Math.abs(d), r = rows[k + 3];
+        var text = pad2(mod(base + k));
+        if (r.textContent !== text) r.textContent = text;
+        r.style.transform = "translateY(" + (d * DRUM_H).toFixed(1) + "px) rotateX(" + (-d * 26).toFixed(1) + "deg) scale(" + Math.max(0.6, 1 - ad * 0.1).toFixed(3) + ")";
+        r.style.opacity = Math.max(0, 1 - ad * 0.32).toFixed(2);
+        r.className = ad < 0.5 ? "on" : "";
+      }
+      var v = mod(base);
+      if (v !== shown) { shown = v; box.setAttribute("aria-valuenow", String(v)); if (onChange) onChange(); }
+    }
+    function stop() { if (raf) cancelAnimationFrame(raf); raf = 0; anim = null; }
+    // Roll to a position (in rows) with an ease-out.
+    function roll(target, ms) {
+      stop();
+      var from = pos, t0 = Date.now();
+      ms = ms || 280;
+      anim = function () {
+        var k = Math.min(1, (Date.now() - t0) / ms), e = 1 - Math.pow(1 - k, 3);
+        pos = from + (target - from) * e;
+        paint();
+        raf = k < 1 ? requestAnimationFrame(anim) : 0;
+      };
+      anim();
+    }
+    var down = false, y0 = 0, p0 = 0, hist = [];
+    box.addEventListener("pointerdown", function (e) {
+      down = true; y0 = e.clientY; p0 = pos; hist = [[Date.now(), e.clientY]];
+      stop();
+      try { box.setPointerCapture(e.pointerId); } catch (x) { /* not supported */ }
+    });
+    box.addEventListener("pointermove", function (e) {
+      if (!down) return;
+      pos = p0 - (e.clientY - y0) / DRUM_H;
+      var now = Date.now();
+      hist.push([now, e.clientY]);
+      while (hist.length > 2 && now - hist[0][0] > 120) hist.shift();
+      paint();
+    });
+    function release(e) {
+      if (!down) return;
+      down = false;
+      var moved = Math.abs(e.clientY - y0);
+      if (moved < 6) {
+        // A tap: the row above or below the middle steps one way.
+        var rect = box.getBoundingClientRect(), off = (e.clientY - rect.top - rect.height / 2) / DRUM_H;
+        roll(Math.round(pos) + (Math.abs(off) < 0.5 ? 0 : Math.round(off)), 220);
+        return;
+      }
+      var first = hist[0], last = hist[hist.length - 1], dt = Math.max(1, last[0] - first[0]);
+      var v = (first[1] - last[1]) / dt / DRUM_H;          // rows per ms, positive: towards bigger numbers
+      if (Date.now() - last[0] > 90) v = 0;                // held still before letting go
+      var target = Math.round(pos + Math.max(-14, Math.min(14, v * 260)));
+      roll(target, 260 + Math.min(500, Math.abs(target - pos) * 45));
+    }
+    box.addEventListener("pointerup", release);
+    box.addEventListener("pointercancel", release);
+    box.addEventListener("wheel", function (e) { e.preventDefault(); roll(Math.round(pos) + (e.deltaY > 0 ? 1 : -1), 160); }, { passive: false });
+    box.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowUp" || e.key === "ArrowDown") { e.preventDefault(); roll(Math.round(pos) + (e.key === "ArrowDown" ? 1 : -1), 160); }
+    });
+    paint();
+    return {
+      el: box,
+      get: function () { return mod(Math.round(pos)); },
+      // Rolls to a number by the shortest way round.
+      set: function (v, animate) {
+        var cur = Math.round(pos), diff = mod(v) - mod(cur);
+        if (diff > count / 2) diff -= count; else if (diff < -count / 2) diff += count;
+        if (animate) roll(cur + diff, 380); else { stop(); pos = cur + diff; paint(); }
+      }
+    };
+  }
+
+  function openPlan() {
+    if (sheet) return;
+    var el = document.createElement("div");
+    el.className = "plan-sheet";
+    el.innerHTML = '<div class="ps-box" role="dialog" aria-modal="true" aria-labelledby="ps-heading">' +
+      '<div class="ps-header"><h2 class="ps-head" id="ps-heading"></h2><span class="ps-count"></span><button class="ps-close" type="button"></button></div>' +
+      '<div class="ps-body">' +
+      '<form class="ps-form" autocomplete="off">' +
+      '<div class="ps-clock"><div class="ps-drums"><i class="ps-band"></i><span class="ps-colon">:</span></div><div class="ps-eta"></div></div>' +
+      '<div class="ps-side"><div class="ps-quick"></div>' +
+      '<input class="ps-name" maxlength="60" enterkeyhint="done">' +
+      '<div class="ps-days" role="radiogroup"></div>' +
+      '<button type="submit" class="ps-add"></button></div></form>' +
+      '<div class="ps-items"></div></div></div>';
+    el.querySelector(".ps-head").textContent = t("planTitle");
+    var name = el.querySelector(".ps-name"), addBtn = el.querySelector(".ps-add");
+    name.placeholder = t("planName");
+    name.setAttribute("aria-label", t("planName"));
+    addBtn.textContent = t("planSet");
+    var closeBtn = el.querySelector(".ps-close");
+    closeBtn.textContent = "×";
+    closeBtn.setAttribute("aria-label", t("planClose"));
+
+    var etaEl = el.querySelector(".ps-eta"), drums = el.querySelector(".ps-drums");
+    var hours = drum(24, eta), mins = drum(60, eta);
+    drums.insertBefore(hours.el, drums.children[1]);
+    drums.appendChild(mins.el);
+    hours.el.setAttribute("aria-label", t("h"));
+    mins.el.setAttribute("aria-label", t("m"));
+    function untilText(m) {
+      return (m >= 60 ? Math.floor(m / 60) + " " + t("h") + " " : "") + (m % 60) + " " + t("m");
+    }
+    // How long until the chosen time (the next time it comes round).
+    function eta() {
+      var now = new Date(), m = hours.get() * 60 + mins.get() - now.getHours() * 60 - now.getMinutes();
+      if (m < 0) m += 1440;
+      etaEl.textContent = t("clLeft", untilText(m));
+    }
+
+    // Quick picks: a time counted from now.
+    var quick = el.querySelector(".ps-quick");
+    [[10, "+10 " + t("m")], [30, "+30 " + t("m")], [60, "+1 " + t("h")]].forEach(function (q) {
+      var b = document.createElement("button");
+      b.type = "button"; b.textContent = q[1];
+      b.addEventListener("click", function () {
+        var at = new Date(Date.now() + q[0] * 60000);
+        hours.set(at.getHours(), true); mins.set(at.getMinutes(), true);
+      });
+      quick.appendChild(b);
+    });
+
+    var day = "today", days = el.querySelector(".ps-days");
+    [["today", t("planToday")], ["tomorrow", t("planTomorrow")], ["every", t("planEvery")]].forEach(function (d) {
+      var b = document.createElement("button");
+      b.type = "button"; b.textContent = d[1];
+      b.setAttribute("role", "radio");
+      b.className = d[0] === day ? "on" : "";
+      b.setAttribute("aria-checked", String(d[0] === day));
+      b.addEventListener("click", function () {
+        day = d[0];
+        Array.prototype.forEach.call(days.children, function (c) { c.classList.toggle("on", c === b); c.setAttribute("aria-checked", String(c === b)); });
+      });
+      days.appendChild(b);
+    });
+
+    function close() {
+      if (window.visualViewport) { window.visualViewport.removeEventListener("resize", fit); window.visualViewport.removeEventListener("scroll", fit); }
+      sheet = null; el.remove();
+      if (planEls) planEls.root.focus();
+    }
+    function fit() {
+      var v = window.visualViewport;
+      if (v) { el.style.height = v.height + "px"; el.style.top = v.offsetTop + "px"; }
+    }
+    closeBtn.addEventListener("click", close);
+    el.addEventListener("click", function (ev) { if (ev.target === el) close(); });
+    el.addEventListener("keydown", function (ev) { if (ev.key === "Escape") close(); });
+    var doneTimer = null;
+    el.querySelector(".ps-form").addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      var when = new Date(); if (day === "tomorrow") when.setDate(when.getDate() + 1);
+      var at = pad2(hours.get()) + ":" + pad2(mins.get());
+      // The name is optional: an alarm needs only its time.
+      if (send({ type: "planadd", title: name.value.trim(), time: at, date: day === "every" ? "" : dayKey(when) })) {
+        name.value = ""; name.blur();
+        addBtn.classList.add("ok"); addBtn.textContent = "✓ " + t("planSetDone");
+        clearTimeout(doneTimer);
+        doneTimer = setTimeout(function () { addBtn.classList.remove("ok"); addBtn.textContent = t("planSet"); }, 1400);
+      } else toast(t("notConnected"));
+    });
+    el.querySelector(".ps-items").addEventListener("click", function (ev) {
+      var button = ev.target.closest("button[data-id]");
+      if (button && !send({ type: button.dataset.action, id: button.dataset.id, date: dayKey(new Date()) })) toast(t("notConnected"));
+    });
+    document.body.appendChild(el);
+    sheet = el;
+    if (window.visualViewport) { window.visualViewport.addEventListener("resize", fit); window.visualViewport.addEventListener("scroll", fit); }
+    fit(); fillSheet();
+    // Starts on the next full hour.
+    var soon = new Date(Date.now() + 3600000);
+    hours.set(soon.getHours()); mins.set(0);
+    eta();
+  }
+
+  // The alarm list on the right of the sheet: the next one first, done ones last.
+  function fillSheet() {
+    var now = new Date(), key = dayKey(now), nowMin = now.getHours() * 60 + now.getMinutes();
+    var list = sortTasks(planItems.slice(), key);
+    var stamp = key + ":" + nowMin + ":" + JSON.stringify(planItems);
+    if (sheet._stamp === stamp) return;
+    sheet._stamp = stamp;
+    var box = sheet.querySelector(".ps-items"), scroll = box.scrollTop;
+    var active = document.activeElement, focusID = active && active.dataset && active.dataset.id, focusAction = active && active.dataset && active.dataset.action;
+    box.textContent = "";
+    var pending = list.filter(function (it) { return !isDone(it, key); }).length;
+    sheet.querySelector(".ps-count").textContent = list.length ? t("planActive", pending) : "";
+    if (!list.length) {
+      var empty = document.createElement("div");
+      empty.className = "ps-empty";
+      empty.innerHTML = svg('<circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M5 3 2 6M19 3l3 3"/>') ;
+      empty.appendChild(textNode("", t("planEmpty")));
+      box.appendChild(empty);
+    }
+    list.forEach(function (it) {
+      var done = isDone(it, key), row = document.createElement("div");
+      var late = false, sub = "";
+      if (done) sub = t("planDoneTag");
+      else if (it.time) {
+        var rem = minutesOf(it.time) - nowMin;
+        late = rem < 0;
+        sub = rem === 0 ? t("planNow") : late ? t("planLate") : t("clLeft", (rem >= 60 ? Math.floor(rem / 60) + " " + t("h") + " " : "") + rem % 60 + " " + t("m"));
+      }
+      row.className = "ps-row" + (done ? " done" : "") + (late ? " late" : "");
+      var toggle = document.createElement("button");
+      toggle.type = "button"; toggle.className = "ps-toggle";
+      toggle.dataset.id = it.id; toggle.dataset.action = "plantoggle";
+      toggle.setAttribute("role", "checkbox"); toggle.setAttribute("aria-checked", String(done));
+      toggle.setAttribute("aria-label", t("planToggle") + ": " + (it.title || it.time));
+      toggle.innerHTML = svg('<path d="m5 12.5 4.5 4.5L19 7.5"/>');
+      row.appendChild(toggle);
+      var text = document.createElement("div");
+      text.className = "ps-text";
+      text.appendChild(textNode("ps-time-text", it.time || "—"));
+      text.appendChild(textNode("ps-what", it.title || (it.date ? (it.date === key ? t("planToday") : it.date) : t("planEvery"))));
+      text.appendChild(textNode("ps-sub", (it.title ? (it.date ? (it.date === key ? t("planToday") : it.date) : t("planEvery")) + (sub ? " · " : "") : "") + sub));
+      row.appendChild(text);
+      var del = document.createElement("button");
+      del.type = "button"; del.className = "ps-del";
+      del.dataset.id = it.id; del.dataset.action = "plandel";
+      del.setAttribute("aria-label", t("planDel") + ": " + (it.title || it.time)); del.textContent = "×";
+      row.appendChild(del); box.appendChild(row);
+      if (focusID === it.id) (focusAction === "plantoggle" ? toggle : del).focus();
+    });
+    box.scrollTop = scroll;
+  }
+
+  // Moves the pager to a page (0, 1 or 2). instant skips the animation.
   function setMiniPage(p, instant) {
     miniPage = p;
     var track = document.querySelector(".mini-track");
     if (track) {
       track.style.transition = instant ? "none" : "";
-      track.style.transform = p ? "translateX(-50%)" : "";
+      track.style.transform = p ? "translateX(-" + (p * 100 / PAGES).toFixed(3) + "%)" : "";
       var dots = track.parentNode.querySelectorAll(".mini-dots i");
       for (var i = 0; i < dots.length; i++) dots[i].classList.toggle("on", i === p);
     }
@@ -754,10 +1191,11 @@
       if (axis !== "x") return;
       e.preventDefault();
       // Pulling past the first or last page gives a little, then resists.
-      var base = miniPage ? -w : 0;
+      var base = -miniPage * w;
       var pos = base + dx;
+      var low = -(PAGES - 1) * w;
       if (pos > 0) pos *= 0.3;
-      if (pos < -w) pos = -w + (pos + w) * 0.3;
+      if (pos < low) pos = low + (pos - low) * 0.3;
       track.style.transition = "none";
       track.style.transform = "translateX(" + pos.toFixed(1) + "px)";
     }, { passive: false });
@@ -766,7 +1204,7 @@
       x0 = null;
       if (axis !== "x") return;
       var next = miniPage;
-      if (dx < -40) next = 1; else if (dx > 40) next = 0;
+      if (dx < -40) next = Math.min(PAGES - 1, miniPage + 1); else if (dx > 40) next = Math.max(0, miniPage - 1);
       setMiniPage(next);
     }
     el.addEventListener("touchend", end);
@@ -830,6 +1268,7 @@
     clockEl = null;
     miniEls = null;
     claudeEls = null;
+    planEls = null;
     home.style.gridTemplateColumns = groups.map(function (g) {
       return g.style === "media" ? "1.55fr" : "1fr";
     }).join(" ") || "1fr";
@@ -882,7 +1321,8 @@
     var wasPlaying = {};
     if (prev) (prev.sources || []).forEach(function (s) { wasPlaying[s.id] = s.playing; });
     if (selected && !list.some(function (s) { return s.id === selected; })) selected = null;
-    if (Date.now() - pickedAt > FOLLOW_AFTER) {
+    if (locked && !list.some(function (s) { return s.id === locked; })) locked = null;
+    if (!locked && Date.now() - pickedAt > FOLLOW_AFTER) {
       list.forEach(function (s) {
         if (s.playing && !wasPlaying[s.id] && prev && s.id !== selected) pickSource(s.id, false);
       });
@@ -901,8 +1341,14 @@
     var list = mediaState && mediaState.sources || [];
     var by = function (f) { for (var i = 0; i < list.length; i++) if (f(list[i])) return list[i]; return null; };
     var cur = mediaState && mediaState.current;
-    return by(function (s) { return s.id === selected; }) ||
-      by(function (s) { return s.playing && s.id === cur; }) ||
+    // A locked source stays until the user swipes. A picked one is only kept
+    // while it plays (or was just picked): once it is paused, whatever else
+    // is playing takes over instead of a stale paused tab staying on screen.
+    var lk = locked && by(function (s) { return s.id === locked; });
+    if (lk) return lk;
+    var sel = selected && by(function (s) { return s.id === selected; });
+    if (sel && (sel.playing || Date.now() - pickedAt < 15000 || !by(function (s) { return s.playing; }))) return sel;
+    return by(function (s) { return s.playing && s.id === cur; }) ||
       by(function (s) { return s.playing; }) ||
       by(function (s) { return s.id === cur; }) || list[0] || null;
   }
@@ -917,7 +1363,19 @@
     }
     if (np && a >= 0 && b >= 0 && a !== b) { np.dir = b > a ? 1 : -1; np.dirAt = Date.now(); }
     selected = id;
+    if (locked) locked = id; // swiping moves the lock along
     if (byUser) pickedAt = Date.now();
+  }
+
+  var locked = null;        // ID of the source the user pinned, null when unpinned
+  var LOCK_ICON = '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>';
+  var UNLOCK_ICON = '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/>';
+
+  function toggleLock() {
+    var cur = shownSource();
+    locked = locked ? null : cur ? cur.id : null;
+    if (!locked) { selected = null; pickedAt = 0; }
+    renderMedia(true);
   }
 
   function swipeSource(step) {
@@ -983,6 +1441,15 @@
     else if (np.lastArt && sameSource) revealArt(true);
     else showArt(null);
     renderDots(list, m.id);
+    var lockState = (locked ? "1" : "0") + (m.id ? "1" : "0");
+    if (np.lockState !== lockState) {
+      np.lockState = lockState;
+      np.lock.classList.toggle("on", !!locked);
+      np.lock.setAttribute("aria-pressed", String(!!locked));
+      np.lock.setAttribute("aria-label", t(locked ? "unpinMedia" : "pinMedia"));
+      np.lock.innerHTML = svg(locked ? LOCK_ICON : UNLOCK_ICON);
+    }
+    np.lock.style.display = m.id ? "" : "none";
     np.root.classList.toggle("idle", !has);
     np.root.classList.toggle("playing", has && m.playing);
 
@@ -1968,7 +2435,7 @@
   // (#h=<code>); "Add to Home Screen" saves that URL, and the home screen app
   // trades the code for the same token on first launch.
 
-  var standalone = !!(navigator.standalone || (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches));
+  var standalone = framed || !!(navigator.standalone || (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches));
   var isiOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
 
   function showPairing(err) {
@@ -2114,6 +2581,23 @@
     fitViewport();
     setTimeout(fixHeight, 250);
   });
+
+  // "Show sideways" on the rotate screen: open the panel in the turned frame.
+  var rotateGo = $("rotate-go");
+  if (rotateGo) {
+    if (framed) rotateGo.hidden = true;
+    rotateGo.addEventListener("click", function () {
+      orientReport("button");
+      try {
+        if (!rotPref()) localStorage.setItem(ROT_KEY, "90");
+        sessionStorage.setItem(ROT_KEY, "now");
+      } catch (e) { /* no storage */ }
+      setTimeout(function () { location.reload(); }, 300);
+    });
+  }
+  // Tell the PC log what the phone reports when it opens upright, to see
+  // which way iOS got it wrong.
+  setTimeout(function () { if (window.innerHeight > window.innerWidth) orientReport("upright at start"); }, 1200);
 
   fitViewport();
   buildGauges();

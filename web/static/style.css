@@ -257,14 +257,18 @@ body.pairing .rail .tab, body.pairing .tab-pill { visibility: hidden; }
 
 /* Media: now playing. The cover is shown large; the card behind it takes on
    the cover's two main colors as soft glows (see palette() in app.js). */
-.group.media { overflow: hidden; background: #0c0d12; }
+/* The glow layers fade in and out inside this card. Safari lets a fading child
+   show through the rounded corners as a square for a moment, so the card is
+   clipped with a clip-path (as the cover frame is), not just overflow. */
+.group.media { overflow: hidden; background: #0c0d12; isolation: isolate; -webkit-clip-path: inset(0 round 24px); clip-path: inset(0 round 24px); }
 .group.media .group-title { display: none; }
 .group.media .group-body { position: relative; z-index: 1; gap: 12px; }
 
-.np-bg { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 0; }
+.np-bg { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 0; overflow: hidden; border-radius: 24px; -webkit-clip-path: inset(0 round 24px); clip-path: inset(0 round 24px); }
 .np-bg i {
   position: absolute;
   top: 0; right: 0; bottom: 0; left: 0;
+  border-radius: inherit;
   opacity: 0;
   transition: opacity 1.2s var(--ease);
 }
@@ -390,6 +394,15 @@ body.pairing .rail .tab, body.pairing .tab-pill { visibility: hidden; }
 .np-dots { position: absolute; top: 0; right: 0; display: flex; gap: 5px; pointer-events: none; }
 .np-dots i { width: 6px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .28); transition: width .35s var(--ease), background .35s var(--ease); }
 .np-dots i.on { width: 16px; background: rgba(255, 255, 255, .85); }
+/* Media lock: pins the card to the source shown, just under the source dots. */
+.np-lock {
+  position: absolute; top: 12px; right: -6px; width: 32px; height: 32px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 50%; background: transparent; color: rgba(255, 255, 255, .3);
+  transition: color .25s, background .25s;
+}
+.np-lock svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.np-lock.on { color: rgba(255, 255, 255, .95); background: rgba(255, 255, 255, .14); }
 
 /* Transport: big filled glyphs, no buttons drawn around them (as in Apple
    Music). A soft disc blooms behind a glyph only while it is pressed. */
@@ -669,10 +682,10 @@ body.pairing .rail .tab, body.pairing .tab-pill { visibility: hidden; }
 }
 .mini-label { font-size: 10px; font-weight: 700; letter-spacing: .12em; color: var(--muted); }
 
-/* The bottom card of the home screen is a pager: CPU and GPU, then Claude. */
+/* The bottom card of the home screen is a pager: CPU and GPU, Claude, then the day plan. */
 .mini-pager { position: relative; flex: 1; min-height: 0; overflow: hidden; border-radius: 16px; }
-.mini-track { display: flex; width: 200%; height: 100%; transition: transform .4s var(--ease); }
-.mini-track > * { flex: 0 0 50%; min-width: 0; height: 100%; box-sizing: border-box; }
+.mini-track { display: flex; width: 300%; height: 100%; transition: transform .4s var(--ease); }
+.mini-track > * { flex: 0 0 33.3333%; min-width: 0; height: 100%; box-sizing: border-box; }
 .mini-dots { position: absolute; left: 0; right: 0; bottom: 3px; display: flex; justify-content: center; gap: 4px; pointer-events: none; }
 .mini-dots i { width: 4px; height: 4px; border-radius: 50%; background: rgba(255, 255, 255, .22); transition: background .3s, transform .3s; }
 .mini-dots i.on { background: rgba(255, 255, 255, .75); transform: scale(1.25); }
@@ -1450,6 +1463,16 @@ body.rail-peek .face-dots { opacity: 1; pointer-events: auto; }
 @media (orientation: portrait) {
   body:not(.pairing) .rotate { display: flex; }
 }
+.rotate-go { padding: 12px 22px; border: 0; border-radius: 999px; background: var(--cyan); color: #04121a; font: inherit; font-weight: 700; font-size: 15px; }
+/* The sideways fallback: the page only holds the turned frame (see app.js). */
+body.rot-host { margin: 0; overflow: hidden; background: #07080c; }
+.rot-frame { position: fixed; top: 0; left: 0; border: 0; transform-origin: 0 0; background: #07080c; }
+.rot-flip {
+  position: fixed; right: 6px; bottom: 6px; z-index: 5; width: 34px; height: 34px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 50%; background: rgba(255, 255, 255, .08); color: rgba(255, 255, 255, .35);
+}
+.rot-flip svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
 .toast {
   position: fixed;
@@ -1520,8 +1543,8 @@ body.booting * { animation: none !important; transition: none !important; }
 /* ---------- Home: three shortcut tiles under the games ---------- */
 
 .quick .shortcut-row .gtile { aspect-ratio: 5 / 4; max-height: 104px; }
-.stile .initial { top: 40%; font-size: 24px; color: #fff; }
-.quick .gtile.stile .icon { top: 41%; width: auto; height: 52%; max-width: none; aspect-ratio: 1 / 1; object-fit: contain; border-radius: 20%; }
+.stile .initial { top: 37%; font-size: 22px; color: #fff; }
+.quick .gtile.stile .icon { top: 37%; width: auto; height: 40%; max-width: none; aspect-ratio: 1 / 1; object-fit: contain; border-radius: 20%; }
 .quick .gtile.stile svg.svc-icon { display: block; width: auto; border-radius: 0; }
 .stile-name {
   position: absolute; left: 0; right: 0; bottom: 5px;
@@ -1535,9 +1558,9 @@ body.booting * { animation: none !important; transition: none !important; }
 .gtile.empty .plus { position: absolute; top: 50%; left: 50%; width: 24px; height: 24px; margin: -12px 0 0 -12px; }
 .gtile.empty.pressed { background: rgba(255, 255, 255, .05); }
 @media (min-height: 450px) {
-  .stile .initial { font-size: 30px; }
-  .quick .gtile.stile .icon { height: 54%; }
-  .stile-name { font-size: 10px; bottom: 8px; }
+  .stile .initial { font-size: 28px; }
+  .quick .gtile.stile .icon { height: 44%; top: 38%; }
+  .stile-name { font-size: 10px; bottom: 7px; }
 }
 
 /* Claude page: the plan limits as two rings, or the token counts until there is data. */
@@ -1555,4 +1578,112 @@ body.booting * { animation: none !important; transition: none !important; }
   .cl-lim .donut { width: 64px; height: 64px; }
   .cl-lim .donut b { font-size: 15px; }
   .cl-sub { font-size: 10px; }
+}
+
+/* ---------- Day plan: the pager's third page and its sheet ---------- */
+.plan-page {
+  --c: var(--cyan);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 14px;
+  border-radius: 16px;
+  background: radial-gradient(120% 140% at 0% 50%, rgba(56, 189, 248, .14), transparent 60%), rgba(255, 255, 255, .03);
+  border: 1px solid var(--edge);
+  cursor: pointer;
+  transition: border-color .4s;
+}
+.plan-page.st-soon { --c: var(--amber); border-color: rgba(251, 191, 36, .35); background: radial-gradient(120% 140% at 0% 50%, rgba(251, 191, 36, .16), transparent 60%), rgba(255, 255, 255, .03); }
+.plan-page.st-late { --c: var(--red, #f43f5e); border-color: rgba(244, 63, 94, .45); background: radial-gradient(120% 140% at 0% 50%, rgba(244, 63, 94, .2), transparent 60%), rgba(255, 255, 255, .03); }
+.plan-page.st-done { --c: var(--green); }
+.plan-page.st-idle { --c: rgba(255, 255, 255, .4); }
+.pl-ring { flex: 0 0 auto; display: flex; align-items: center; }
+.pl-ring .donut { width: 64px; height: 64px; }
+.pl-ring .donut circle { stroke-width: 4; }
+.pl-ring .donut .value { stroke: var(--c); transition: stroke-dashoffset 1s linear, stroke .4s; }
+.plan-page.st-idle .donut .track { stroke-dasharray: 3 5; }
+.pl-ring .donut b { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; line-height: 1; }
+.pl-time { font-size: 15px; font-weight: 800; letter-spacing: -.01em; }
+.plan-page.st-idle .pl-time { font-size: 24px; font-weight: 300; color: rgba(255, 255, 255, .6); }
+.plan-page.st-done .pl-time { font-size: 22px; color: var(--green); }
+.plan-page.st-late .pl-time { font-size: 22px; color: #fda4af; }
+.pl-unit { font-size: 8px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.plan-page.st-soon .pl-ring .donut, .plan-page.st-late .pl-ring .donut { animation: plpulse 1.4s ease-in-out infinite; }
+@keyframes plpulse { 50% { transform: scale(1.07); } }
+.pl-info { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+.pl-label { font-size: 9px; font-weight: 800; letter-spacing: .14em; color: var(--muted); }
+.pl-title { font-size: 26px; font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plan-page.st-idle .pl-title { font-size: 15px; font-weight: 700; }
+.plan-page.st-done .pl-title { font-size: 17px; }
+.pl-sub { font-size: 13px; font-weight: 600; color: var(--c); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 0; }
+.pl-sub:empty { display: none; }
+.pl-next { font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 12px; }
+@media (min-height: 450px) {
+  .pl-ring .donut { width: 84px; height: 84px; }
+  .pl-time { font-size: 20px; }
+  .pl-unit { font-size: 9px; }
+  .pl-title { font-size: 34px; }
+  .pl-sub { font-size: 15px; }
+  .pl-next { font-size: 11px; }
+}
+
+.plan-sheet { position: fixed; inset: 0; bottom: auto; height: calc(var(--vh, 1vh) * 100); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 6px; background: rgba(4, 6, 10, .72); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); animation: ps-in .25s var(--ease); }
+@keyframes ps-in { from { opacity: 0; } }
+.ps-box { display: flex; flex-direction: column; width: 100%; max-width: 700px; height: 100%; max-height: 420px; min-height: 0; padding: 10px 12px 12px; gap: 8px; border-radius: 22px; background: linear-gradient(165deg, var(--panel-2), var(--panel)); border: 1px solid var(--edge); box-shadow: 0 24px 60px -20px rgba(0, 0, 0, .8); animation: ps-up .35s var(--ease); }
+@keyframes ps-up { from { transform: translateY(18px) scale(.98); opacity: 0; } }
+.ps-header { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.ps-head { margin: 0; font-size: 16px; font-weight: 700; letter-spacing: .01em; }
+.ps-count { flex: 1; font-size: 12px; color: var(--cyan); }
+.ps-box button { font: inherit; color: var(--text); }
+.ps-box .ps-close { width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .08); font-size: 22px; line-height: 1; color: var(--muted); }
+.ps-body { flex: 1; min-height: 0; display: flex; gap: 12px; }
+.ps-form { flex: 0 0 auto; display: flex; align-items: stretch; gap: 12px; }
+
+.ps-clock { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 8px 10px; border-radius: 18px; background: rgba(255, 255, 255, .04); border: 1px solid var(--edge); }
+.ps-drums { position: relative; display: flex; align-items: center; justify-content: center; }
+.ps-band { position: absolute; left: 0; right: 0; top: 50%; height: 40px; margin-top: -20px; border-radius: 13px; background: rgba(56, 189, 248, .13); box-shadow: inset 0 0 0 1px rgba(56, 189, 248, .4), 0 0 20px rgba(56, 189, 248, .16); pointer-events: none; }
+.ps-colon { position: relative; font-size: 28px; font-weight: 700; color: var(--cyan); padding-bottom: 4px; animation: blink 2s ease-in-out infinite; }
+@keyframes blink { 50% { opacity: .35; } }
+.ps-eta { font-size: 12px; font-weight: 600; color: var(--cyan); min-height: 15px; font-variant-numeric: tabular-nums; }
+.drum { position: relative; width: 62px; height: 160px; overflow: hidden; touch-action: none; -webkit-user-select: none; user-select: none; cursor: grab; outline: none; -webkit-tap-highlight-color: transparent; -webkit-mask-image: linear-gradient(transparent, #000 26%, #000 74%, transparent); mask-image: linear-gradient(transparent, #000 26%, #000 74%, transparent); }
+.drum i { position: absolute; left: 0; right: 0; top: 50%; height: 40px; margin-top: -20px; line-height: 40px; text-align: center; font-style: normal; font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; color: rgba(255, 255, 255, .6); will-change: transform; pointer-events: none; }
+.drum i.on { color: #fff; font-weight: 700; text-shadow: 0 0 14px rgba(56, 189, 248, .6); }
+
+.ps-side { display: flex; flex-direction: column; justify-content: center; gap: 8px; width: 190px; min-width: 0; }
+.ps-quick { display: flex; gap: 6px; }
+.ps-box .ps-quick button { flex: 1; min-width: 0; height: 34px; padding: 0; border: 1px solid var(--edge); border-radius: 10px; background: rgba(255, 255, 255, .05); font-size: 13px; font-weight: 600; }
+.ps-box .ps-quick button:active { background: rgba(56, 189, 248, .2); }
+.ps-name { width: 100%; box-sizing: border-box; height: 40px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--edge); background: rgba(255, 255, 255, .05); color: var(--text); font: inherit; font-size: 16px; outline: none; }
+.ps-name:focus { border-color: rgba(56, 189, 248, .6); }
+.ps-days { display: flex; gap: 4px; padding: 3px; border-radius: 999px; background: rgba(255, 255, 255, .05); }
+.ps-box .ps-days button { flex: 1; min-width: 0; height: 30px; padding: 0 2px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 600; transition: background .2s, color .2s; white-space: nowrap; }
+.ps-box .ps-days button.on { background: rgba(255, 255, 255, .16); color: #fff; }
+.ps-box .ps-add { height: 44px; border: 0; border-radius: 13px; font-weight: 700; font-size: 15px; background: var(--cyan); color: #04121a; transition: background .25s, transform .15s; }
+.ps-box .ps-add:active { transform: scale(.97); }
+.ps-box .ps-add.ok { background: var(--green); }
+
+.ps-items { flex: 1; min-width: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; gap: 6px; padding-right: 2px; }
+.ps-empty { margin: auto; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 10px; font-size: 13px; color: var(--muted); text-align: center; }
+.ps-empty svg { width: 34px; height: 34px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; opacity: .5; }
+.ps-row { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; min-height: 54px; padding: 6px 8px 6px 8px; border-radius: 14px; background: rgba(255, 255, 255, .05); border: 1px solid var(--edge); }
+.ps-row.late { border-color: rgba(251, 191, 36, .45); }
+.ps-row.done { opacity: .45; }
+.ps-text { flex: 1; min-width: 0; display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-items: baseline; }
+.ps-time-text { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ps-what { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; }
+.ps-sub { grid-column: 1 / -1; min-height: 14px; font-size: 11px; color: var(--cyan); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ps-row.late .ps-sub { color: var(--amber); }
+.ps-row.done .ps-what, .ps-row.done .ps-time-text { text-decoration: line-through; }
+.ps-box .ps-toggle { flex: 0 0 34px; width: 34px; height: 34px; padding: 0; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .25); background: transparent; display: flex; align-items: center; justify-content: center; transition: background .2s, border-color .2s; }
+.ps-toggle svg { width: 18px; height: 18px; fill: none; stroke: #04121a; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; opacity: 0; transition: opacity .2s; }
+.ps-row.done .ps-toggle { background: var(--green); border-color: var(--green); }
+.ps-row.done .ps-toggle svg { opacity: 1; }
+.ps-box .ps-del { flex: 0 0 34px; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; background: transparent; font-size: 22px; line-height: 1; color: var(--muted); }
+.ps-box .ps-del:active { background: rgba(244, 63, 94, .25); color: #fda4af; }
+/* A narrow screen: the list goes under the form and the whole sheet scrolls. */
+@media (max-width: 560px) {
+  .ps-box { overflow-y: auto; max-height: none; }
+  .ps-body { flex-direction: column; flex: 0 0 auto; }
+  .ps-items { flex: 0 0 auto; overflow: visible; }
+  .ps-side { flex: 1; width: auto; }
 }

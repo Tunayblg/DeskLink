@@ -27,12 +27,13 @@ import (
 	"github.com/Tunayblg/DeskLink/internal/auth"
 	"github.com/Tunayblg/DeskLink/internal/config"
 	"github.com/Tunayblg/DeskLink/internal/desktop"
+	"github.com/Tunayblg/DeskLink/internal/plan"
 	"github.com/Tunayblg/DeskLink/internal/server"
 	"github.com/Tunayblg/DeskLink/internal/tray"
 	"github.com/Tunayblg/DeskLink/web"
 )
 
-var version = "1.1.0"
+var version = "1.2.0"
 
 const maxLog = 1 << 20
 
@@ -79,6 +80,11 @@ func main() {
 
 	app := server.New(cfg, store, web.Files, art.Load(cfg.Games))
 	app.Version = version
+	if pl, err := plan.Open(filepath.Join(dataDir, "plan.json")); err != nil {
+		log.Printf("plan.json: %v (the day plan is off)", err)
+	} else {
+		app.SetPlan(pl)
+	}
 	app.AdminPage = web.AdminPage
 	app.ConfigPath = filepath.Join(dataDir, "config.json")
 	app.LogRequests = *debug

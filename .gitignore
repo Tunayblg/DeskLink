@@ -4,6 +4,8 @@
 config.json
 config.*.json
 devices.json
+plan.json
+plan.json.tmp
 devices.json.tmp
 *.log
 

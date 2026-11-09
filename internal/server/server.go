@@ -30,6 +30,7 @@ import (
 	"github.com/Tunayblg/DeskLink/internal/claude"
 	"github.com/Tunayblg/DeskLink/internal/config"
 	"github.com/Tunayblg/DeskLink/internal/media"
+	"github.com/Tunayblg/DeskLink/internal/plan"
 	"github.com/Tunayblg/DeskLink/internal/pointer"
 	"github.com/Tunayblg/DeskLink/internal/procstat"
 	"github.com/Tunayblg/DeskLink/internal/running"
@@ -83,6 +84,7 @@ type Server struct {
 	sample      func() stats.Snapshot
 	system      func() stats.Snapshot // CPU and RAM only, for the dashboard
 	claudeUse   func() claude.Usage   // Claude Code token use, read from its logs
+	plan        *plan.Store           // the day plan (see plan.go); nil when it could not be opened
 
 	media      *media.Watcher
 	nowPlaying func() media.State
@@ -197,6 +199,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /admin/api/games", s.adminAPI(s.handleGamesSave))
 	mux.HandleFunc("GET /admin/api/shortcuts", s.adminAPI(s.handleShortcutsGet))
 	mux.HandleFunc("POST /admin/api/shortcuts", s.adminAPI(s.handleShortcutsSave))
+	mux.HandleFunc("GET /admin/api/plan", s.adminAPI(s.handlePlanGet))
+	mux.HandleFunc("POST /admin/api/plan", s.adminAPI(s.handlePlanEdit))
 	mux.HandleFunc("GET /admin/api/steam", s.adminAPI(s.handleSteamGames))
 	mux.HandleFunc("POST /admin/api/browse", s.adminAPI(s.handleBrowse))
 	mux.HandleFunc("POST /admin/api/window", s.adminAPI(s.handleWindow))
@@ -298,6 +302,9 @@ type clientMsg struct {
 	Button string `json:"button,omitempty"` // "mouse": left, right, middle
 	DX     int    `json:"dx,omitempty"`     // "mouse": pixels (move) or wheel units (hscroll uses dy)
 	DY     int    `json:"dy,omitempty"`
+	Title  string `json:"title,omitempty"` // "planadd"
+	Time   string `json:"time,omitempty"`  // "planadd": due time, HH:MM, may be empty
+	Date   string `json:"date,omitempty"`  // "planadd": YYYY-MM-DD, empty for every day; "plantoggle": the phone's today
 }
 
 type serverMsg struct {
@@ -315,6 +322,7 @@ type serverMsg struct {
 	Mic        *media.Mic           `json:"mic,omitempty"`        // "micack": the microphone now (absent: none)
 	Icons      map[string]string    `json:"icons,omitempty"`      // mixer app ID -> data: URI, each sent once
 	Shortcuts  []publicShortcut     `json:"shortcuts,omitempty"`  // "layout": the three home screen shortcut tiles
+	Plan       *[]plan.Item         `json:"plan,omitempty"`       // "plan": the day plan (an empty list is still sent)
 	Brightness *int                 `json:"brightness,omitempty"` // "brightness": the screen now, in percent (absent: cannot be controlled)
 }
 
@@ -353,6 +361,11 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	if err := wsjson.Write(ctx, c, s.layout()); err != nil {
 		log.Printf("disconnected: %s (%s, while sending the layout)", name, closeReason(ctx, err))
 		return
+	}
+	if pm, ok := s.planMsg(); ok {
+		if err := wsjson.Write(ctx, c, pm); err != nil {
+			return
+		}
 	}
 
 	var last sync.Map // button id -> time.Time of last press
@@ -458,6 +471,10 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			if s.knownApp(msg.App) {
 				s.toggleMute(msg.App)
 			}
+			continue
+		}
+		if msg.Type == "planadd" || msg.Type == "plantoggle" || msg.Type == "plandel" {
+			s.editPlan(ctx, c, msg)
 			continue
 		}
 		if msg.Type == "watch" {
@@ -850,9 +867,11 @@ func securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
 		h.Set("X-Content-Type-Options", "nosniff")
-		h.Set("X-Frame-Options", "DENY")
+		// SAMEORIGIN: the panel frames itself for the sideways fallback on iOS
+		// (see app.js); other sites still cannot frame it.
+		h.Set("X-Frame-Options", "SAMEORIGIN")
 		h.Set("Referrer-Policy", "no-referrer")
-		h.Set("Content-Security-Policy", "default-src 'self'; connect-src 'self' ws:; img-src 'self' data:; frame-ancestors 'none'")
+		h.Set("Content-Security-Policy", "default-src 'self'; connect-src 'self' ws:; img-src 'self' data:; frame-ancestors 'self'")
 		next.ServeHTTP(w, r)
 	})
 }

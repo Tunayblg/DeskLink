@@ -152,6 +152,12 @@ button.row { cursor: pointer; }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 .offline { margin-bottom: 14px; padding: 10px 14px; border-radius: 10px; background: rgba(244,63,94,.1); color: #fda4af; }
 @media (max-width: 900px) { .metrics { grid-template-columns: repeat(2, 1fr); } .charts { grid-template-columns: 1fr; } .split { grid-template-columns: 1fr; } }
+.pl-add { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
+.pl-add input[type=time] { width: 150px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--edge); background: var(--panel-2); color: inherit; font: 600 26px/1.2 inherit; font-variant-numeric: tabular-nums; color-scheme: dark; }
+.pl-add input[type=text] { flex: 1; min-width: 160px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--edge); background: var(--panel-2); color: inherit; font: inherit; }
+.pl-every { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+.pl-row .when { font: 600 20px/1 inherit; font-variant-numeric: tabular-nums; min-width: 64px; }
+.pl-row.done .txt { opacity: .45; text-decoration: line-through; }
 /*{{GUIDE_CSS}}*/
 </style>
 </head>
@@ -162,6 +168,7 @@ button.row { cursor: pointer; }
     <button data-view="overview" class="on"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span data-t="overview"></span></button>
     <button data-view="devices"><svg viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg><span data-t="devices"></span><span class="count" id="nav-online" hidden></span></button>
     <button data-view="games"><svg viewBox="0 0 24 24"><path d="M6 11h4M8 9v4"/><path d="M15 12h.01M18 10h.01"/><path d="M17.3 5H6.7a4 4 0 0 0-4 3.6l-.9 8.1A2.5 2.5 0 0 0 4.3 19.5c.9 0 1.7-.5 2.1-1.3L8 15h8l1.6 3.2c.4.8 1.2 1.3 2.1 1.3a2.5 2.5 0 0 0 2.5-2.8l-.9-8.1A4 4 0 0 0 17.3 5z"/></svg><span data-t="games"></span></button>
+    <button data-view="plan"><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M5 3 2 6M19 3l3 3"/></svg><span data-t="remind"></span></button>
     <button data-view="guide"><svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/><path d="M9 8h6"/></svg><span data-t="guide"></span></button>
   </nav>
   <div class="grow"></div>
@@ -242,6 +249,20 @@ button.row { cursor: pointer; }
     </div>
     <div class="head second"><div><h2 data-t="shortcuts"></h2><p data-t="shortcutsSub"></p></div></div>
     <div class="card"><div class="list" id="sc-list"></div></div>
+  </section>
+
+  <section id="v-plan" hidden>
+    <div class="head"><div><h1 data-t="remind"></h1><p data-t="remindSub"></p></div></div>
+    <div class="card">
+      <div class="chips" id="pl-presets"></div>
+      <form class="pl-add" id="pl-form" autocomplete="off">
+        <input type="time" id="pl-time" required>
+        <input type="text" id="pl-name" maxlength="60">
+        <label class="pl-every"><input type="checkbox" id="pl-every"><span data-t="everyDay"></span></label>
+        <button class="btn primary" type="submit" data-t="setAlarm"></button>
+      </form>
+      <div class="list" id="pl-list"></div>
+    </div>
   </section>
 
   <section id="v-guide" hidden>
@@ -330,6 +351,7 @@ button.row { cursor: pointer; }
       twoMin: "5 min ago", nowL: "now", nowS: "Now", peakS: "Peak", avgS: "Average", wsS: "Working set", memChart: "DeskLink memory", cpuChart: "DeskLink CPU", ramShare: "{}% of this PC's RAM", startPeak: "peak since start {} MB",
       paired: "Paired devices", pairedHint: "Phones and tablets that can connect", noneConnected: "No device is connected right now.",
       devicesSub: "Everything paired with this PC.", noDevices: "No devices yet.",
+      remind: "Reminders", remindSub: "Set an alarm from here. It shows on connected phones right away. A name is optional.", everyDay: "Every day", setAlarm: "Set alarm", noName: "No name", namePh: "Name (optional)",
       gamesSub: "Games you can start from the phone. Changes show up on connected phones right away.", noGames: "No games yet.",
       pairSub: "Scan this with the phone's camera.", newCode: "New code", manualOpen: "Trouble scanning? Connect manually",
       manualText: "On the phone (same Wi-Fi), open this address and enter the code above:", done: "Done",
@@ -355,6 +377,7 @@ button.row { cursor: pointer; }
       twoMin: "5 dk önce", nowL: "şimdi", nowS: "Şimdi", peakS: "En yüksek", avgS: "Ortalama", wsS: "Çalışma kümesi", memChart: "DeskLink belleği", cpuChart: "DeskLink işlemci", ramShare: "bu bilgisayarın RAM'inin %{}'i", startPeak: "açılıştan beri en yüksek {} MB",
       paired: "Eşleşmiş cihazlar", pairedHint: "Bağlanabilen telefon ve tabletler", noneConnected: "Şu an bağlı cihaz yok.",
       devicesSub: "Bu bilgisayarla eşleşmiş her şey.", noDevices: "Henüz cihaz yok.",
+      remind: "Hatırlatıcılar", remindSub: "Buradan alarm kur. Bağlı telefonlarda anında görünür. İsim yazmak zorunda değilsin.", everyDay: "Her gün", setAlarm: "Alarm kur", noName: "İsimsiz", namePh: "İsim (isteğe bağlı)",
       gamesSub: "Telefondan başlatabileceğin oyunlar. Değişiklikler bağlı telefonlarda anında görünür.", noGames: "Henüz oyun yok.",
       pairSub: "Telefonun kamerasıyla okut.", newCode: "Yeni kod", manualOpen: "Okutamıyor musun? Elle bağlan",
       manualText: "Telefonda (aynı Wi-Fi) bu adresi aç ve yukarıdaki kodu gir:", done: "Tamam",
@@ -423,36 +446,25 @@ button.row { cursor: pointer; }
     closeGuide();
     current = view;
     Array.prototype.forEach.call(navButtons, function (b) { b.classList.toggle("on", b.dataset.view === view); });
-    ["overview", "devices", "games"].forEach(function (v) { $("v-" + v).hidden = v !== view; });
+    ["overview", "devices", "games", "plan"].forEach(function (v) { $("v-" + v).hidden = v !== view; });
     if (view === "games") { loadGames(); loadShortcuts(); }
+    if (view === "plan") loadPlan();
     if (view === "overview") pollUsage();
     if (last) render(last);
   }
 
-  // The guide opens in the middle of the window over a blurred dashboard. The
-  // window itself is enlarged while it is open, as with the middle button of its
-  // title bar (the PC does that, a web page cannot), and put back on closing.
-  var guideMaximized = false; // true when the guide is what enlarged the window
+  // The guide opens in the middle of the window over a blurred dashboard; the
+  // window keeps its size.
   function openGuide() {
     if (!$("v-guide").hidden) return;
     $("v-guide").hidden = false;
     Array.prototype.forEach.call(navButtons, function (b) { b.classList.toggle("on", b.dataset.view === "guide"); });
-    api("window", { maximize: true }).then(function (r) {
-      if (!r.changed) return;
-      // The guide may have been closed before the answer came.
-      if ($("v-guide").hidden) api("window", { maximize: false }).catch(function () {});
-      else guideMaximized = true;
-    }, function () {});
     if (window.DeskGuide) window.DeskGuide.show();
   }
   function closeGuide() {
     if ($("v-guide").hidden) return;
     $("v-guide").hidden = true;
     Array.prototype.forEach.call(navButtons, function (b) { b.classList.toggle("on", b.dataset.view === current); });
-    if (guideMaximized) {
-      guideMaximized = false;
-      api("window", { maximize: false }).catch(function () {});
-    }
   }
   // A click on the blurred dashboard around the guide closes it.
   $("v-guide").addEventListener("click", function (ev) { if (ev.target === $("v-guide")) closeGuide(); });
@@ -682,6 +694,50 @@ button.row { cursor: pointer; }
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape") { $("pair-modal").hidden = true; $("game-modal").hidden = true; }
   });
+
+  // ---- Reminders ---------------------------------------------------------
+
+  var planList = [];
+  // Ready-made everyday reminders: a tap fills in the name and a usual time.
+  var PRESETS = {
+    en: [["Take medicine", "09:00", "💊"], ["Drink water", "11:00", "💧"], ["Lunch", "13:00", "🍽"], ["Take a break", "16:00", "☕"], ["Workout", "18:00", "🏃"], ["Dinner", "20:00", "🍲"], ["Go to bed", "23:00", "🌙"]],
+    tr: [["İlacını iç", "09:00", "💊"], ["Su iç", "11:00", "💧"], ["Yemek ye", "13:00", "🍽"], ["Mola ver", "16:00", "☕"], ["Spor yap", "18:00", "🏃"], ["Akşam yemeği", "20:00", "🍲"], ["Yat uyu", "23:00", "🌙"]]
+  };
+  PRESETS[LANG].forEach(function (pr) {
+    var b = el("button", "chipbtn"); b.type = "button"; b.textContent = pr[2] + " " + pr[0];
+    b.onclick = function () { $("pl-name").value = pr[0]; $("pl-time").value = pr[1]; $("pl-every").checked = true; $("pl-time").focus(); };
+    $("pl-presets").appendChild(b);
+  });
+  $("pl-name").placeholder = t("namePh");
+  $("pl-time").value = (function () { var d = new Date(Date.now() + 3600000); return ("0" + d.getHours()).slice(-2) + ":00"; })();
+  function loadPlan() { return api("plan").then(function (r) { planList = r; renderPlan(); }, function () {}); }
+  function planCall(body) {
+    return api("plan", body).then(function (r) { planList = r; renderPlan(); }, function (e) { toast(e.message); });
+  }
+  function renderPlan() {
+    var list = $("pl-list"); list.innerHTML = "";
+    var today = new Date(), key = today.getFullYear() + "-" + ("0" + (today.getMonth() + 1)).slice(-2) + "-" + ("0" + today.getDate()).slice(-2);
+    planList.forEach(function (it) {
+      var done = !!it.done_on && (!!it.date || it.done_on === key);
+      var r = el("div", "row pl-row" + (done ? " done" : ""));
+      r.appendChild(text("span", "when", it.time || "—"));
+      var tx = el("span", "txt"); tx.appendChild(text("b", "", it.title || t("noName")));
+      tx.appendChild(text("span", "", it.date ? it.date : t("everyDay"))); r.appendChild(tx);
+      var acts = el("span", "actions");
+      var ok = el("button", "icon-btn", '<svg viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></svg>');
+      ok.onclick = function () { planCall({ action: "toggle", id: it.id }); };
+      var del = el("button", "icon-btn danger", ICON_TRASH); del.title = t("remove");
+      del.onclick = function () { planCall({ action: "delete", id: it.id }); };
+      acts.appendChild(ok); acts.appendChild(del); r.appendChild(acts);
+      list.appendChild(r);
+    });
+  }
+  $("pl-form").onsubmit = function (ev) {
+    ev.preventDefault();
+    var d = new Date(), date = d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2);
+    planCall({ action: "add", title: $("pl-name").value.trim(), time: $("pl-time").value, date: $("pl-every").checked ? "" : date })
+      .then(function () { $("pl-name").value = ""; });
+  };
 
   // ---- Games -------------------------------------------------------------
 
