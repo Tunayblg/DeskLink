@@ -2286,3 +2286,29 @@ html.framed .rotate, body.kb-open .rotate { display: none !important; }
 /* Settings and the window picker never let iOS pan the page (they scroll by code). */
 .settings-view, .settings-view *, .dev-sheet, .dev-sheet * { touch-action: none; }
 html, body { overscroll-behavior: none; }
+
+/* Developer mode is new: a small Beta tag and a note that can be closed. */
+.dev-beta {
+  flex: none; padding: 2px 7px; border-radius: 999px;
+  border: 1px solid rgba(251, 191, 36, .28); background: rgba(251, 191, 36, .08);
+  color: rgba(252, 211, 77, .85); font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+}
+.dev-note {
+  display: flex; align-items: center; gap: 8px; margin: 0; padding: 6px 6px 6px 12px;
+  border-radius: 12px; background: rgba(251, 191, 36, .06);
+  color: rgba(243, 220, 156, .8); font-size: 11.5px; line-height: 1.35;
+}
+.dev-note[hidden] { display: none; }
+.dev-note span { flex: 1; min-width: 0; }
+.dev-note-x { flex: none; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 9px; background: none; color: inherit; }
+.dev-note-x svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.dev-note-x:active { background: rgba(255, 255, 255, .08); }
+body.kb-open .dev-note { display: none; }
+/* A narrow screen: the status pill gives way (its words get an ellipsis) instead of running off. */
+.stats-head { min-width: 0; }
+.dev-chips { flex: 0 1 auto; min-width: 0; }
+.dev-live { min-width: 0; }
+@media (max-width: 540px) {
+  .dev-beta { display: none; } /* the note under the prompt says it */
+  .dev-chips { flex: none; }
+}

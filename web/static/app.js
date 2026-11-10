@@ -134,7 +134,7 @@
       shortcutEmpty: "Add a shortcut from DeskLink on your PC", shortcutAdd: "Add shortcut",
       devMode: "DEVELOPER", devLost: "Another window came to the front. Live typing stopped.", setLive: "Live typing", devFront: "In front", devSendTo: "Send to", devGone: "That window is closed", devNoFocus: "Could not bring that window forward", devRefused: "Windows blocked typing there (an administrator window?)", devNoWindows: "No Claude, Codex, terminal or editor window is open", devLoading: "Loading…", devPlaceholder: "Write or dictate a prompt for Claude, Codex or any tool", devListening: "Listening… speak now",
       devSend: "Send", devType: "Type only", devSent: "Sent to the PC", devTyped: "Typed on the PC", devEmpty: "Nothing to send", devOffline: "Not connected to the PC",
-      devWorking: "thinking…", devReady: "ready", devIdle: "done", devDone: "Agent finished", devNotDev: "The window in front is not a developer app. Pick one from the list.", doShell: "running a command", doEdit: "editing files", doRead: "reading code", doWeb: "searching the web", doAgent: "running a helper", doPlan: "planning", doAsk: "waiting for you", devFive: "5h", devSeven: "7d",
+      devWorking: "thinking…", devReady: "ready", devIdle: "done", devDone: "Agent finished", devBetaNote: "Dictation and typing are still in development, so expect some bugs.", devNotDev: "The window in front is not a developer app. Pick one from the list.", doShell: "running a command", doEdit: "editing files", doRead: "reading code", doWeb: "searching the web", doAgent: "running a helper", doPlan: "planning", doAsk: "waiting for you", devFive: "5h", devSeven: "7d",
       devMicHelp: "Dictation is probably off. On iPhone: Settings › General › Keyboard › Enable Dictation. Then tap the prompt box and use the mic key on the keyboard.",
       devMicNet: "Dictation needs an internet connection.", devMicQuiet: "Did not hear anything. Try again.",
       settings: "SETTINGS", setHint: "Saved on this phone", setTabs: "Tabs", setDev: "Developer mode", setGeneral: "General",
@@ -166,7 +166,7 @@
       shortcutEmpty: "Bilgisayardaki DeskLink'ten kısayol ekle", shortcutAdd: "Kısayol ekle",
       devMode: "GELİŞTİRİCİ", devLost: "Başka pencere öne geçti, canlı yazma durdu", setLive: "Canlı yazma", devFront: "Öndeki pencere", devSendTo: "Gönderilecek yer", devGone: "O pencere kapanmış", devNoFocus: "O pencere öne getirilemedi", devRefused: "Windows oraya yazmayı engelledi (yönetici penceresi mi?)", devNoWindows: "Açık Claude, Codex, terminal ya da editör penceresi yok", devLoading: "Yükleniyor…", devPlaceholder: "Claude, Codex ya da herhangi bir araç için prompt yaz veya söyle", devListening: "Dinleniyor… konuşabilirsin",
       devSend: "Gönder", devType: "Sadece yaz", devSent: "Bilgisayara gönderildi", devTyped: "Bilgisayara yazıldı", devEmpty: "Gönderilecek bir şey yok", devOffline: "Bilgisayara bağlı değil",
-      devWorking: "düşünüyor…", devReady: "hazır", devIdle: "bitti", devDone: "Ajan bitirdi", devNotDev: "Öndeki pencere bir geliştirici uygulaması değil. Listeden seç.", doShell: "komut çalıştırıyor", doEdit: "dosya düzenliyor", doRead: "kodu okuyor", doWeb: "web'de arıyor", doAgent: "yardımcı ajan çalışıyor", doPlan: "plan yapıyor", doAsk: "senden cevap bekliyor", devFive: "5sa", devSeven: "7g",
+      devWorking: "düşünüyor…", devReady: "hazır", devIdle: "bitti", devDone: "Ajan bitirdi", devBetaNote: "Dikte ve yazma henüz geliştirme aşamasında, hatalar olabilir.", devNotDev: "Öndeki pencere bir geliştirici uygulaması değil. Listeden seç.", doShell: "komut çalıştırıyor", doEdit: "dosya düzenliyor", doRead: "kodu okuyor", doWeb: "web'de arıyor", doAgent: "yardımcı ajan çalışıyor", doPlan: "plan yapıyor", doAsk: "senden cevap bekliyor", devFive: "5sa", devSeven: "7g",
       devMicHelp: "Dikte büyük ihtimalle kapalı. iPhone'da Ayarlar › Genel › Klavye › Dikteyi Etkinleştir'i aç. Sonra yazı kutusuna dokun ve klavyedeki mikrofon tuşunu kullan.",
       devMicNet: "Dikte için internet gerekir.", devMicQuiet: "Ses duyulmadı. Tekrar dene.",
       settings: "AYARLAR", setHint: "Bu telefonda saklanır", setTabs: "Sekmeler", setDev: "Geliştirici modu", setGeneral: "Genel",
@@ -1106,6 +1106,12 @@
         setTimeout(function () { b.classList.remove("pressed"); }, 140);
       });
     });
+    // Dictation and typing are new: a note says so until it is closed.
+    var note = $("dev-note");
+    if (note) {
+      note.hidden = load("desklink.betanote") === "1";
+      onTap($("dev-note-x"), function () { note.hidden = true; save("desklink.betanote", "1"); });
+    }
     devApplyPrefs();
   }
 
@@ -1585,6 +1591,9 @@
   // height: measure again once the page has its size, and when it changes.
   requestAnimationFrame(placePill);
   window.addEventListener("resize", placePill);
+  // The rail can change height without a window resize (the sideways frame,
+  // the keyboard, the media queries for short screens): follow the rail itself.
+  if (window.ResizeObserver && $("rail")) new ResizeObserver(function () { placePill(); }).observe($("rail"));
 
   // ---- Day plan ----------------------------------------------------------
 

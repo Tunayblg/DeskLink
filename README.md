@@ -20,7 +20,8 @@ Media controls with cover art, a game launcher, per-app volume, screen brightnes
 - 🪶 **Featherweight.** One small `.exe`, roughly 20–50 MB of RAM and almost no CPU.
 - 🎮 **Made for gaming.** Launch a game and the phone turns into a live hardware monitor.
 - 🍿 **Watch mode.** PC volume, play/pause, jump back and forward, screen brightness and a shut down button, made for the couch.
-- 🧑‍💻 **Developer mode.** Dictate or write a prompt on the phone and it is typed into Claude Code, Codex or any tool on your PC, with quick keys (Esc, Tab, arrows, Ctrl+C, Enter).
+- 🧑‍💻 **Developer mode (beta).** Dictate or write a prompt on the phone and it is typed into Claude, Codex, ChatGPT, a terminal or your editor, live as you speak. See what the agent is doing (thinking, running a command, editing files, done), plus quick keys and a mini trackpad.
+- 🎛️ **Make it yours.** Hide or reorder any tab and switch features on or off right on the phone. Calm mode turns every animation off.
 - ⭐ **Six home screen tiles.** Each opens a game, Netflix, YouTube, any website or any program.
 - 🎚️ **More than buttons.** A volume mixer for each program, one-tap mic mute and a trackpad for your PC.
 - 🔒 **Private.** Stays on your Wi-Fi. No cloud, no account. Pair by scanning a QR code.
@@ -41,6 +42,35 @@ Media controls with cover art, a game launcher, per-app volume, screen brightnes
   <tr>
     <td><img src="docs/images/launch.png" alt="Launch"><br><b>Launch animation</b></td>
     <td><img src="docs/images/clock.png" alt="Clock"><br><b>Desk clock</b>, a rev-counter dial with shift lights for the seconds</td>
+  </tr>
+</table>
+
+## Developer mode
+
+Prompt your AI coding agent from across the desk. DeskLink only types into developer apps, never into chat or other programs. Dictation and typing are still in beta, so expect a few rough edges.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/developer.png" alt="Developer mode"><br><b>Speak or type a prompt</b>, with the agent's status and plan usage on top</td>
+    <td width="50%"><img src="docs/images/developer-targets.png" alt="Picking a window"><br><b>Pick where it goes</b>: Claude, ChatGPT, a terminal or your editor</td>
+  </tr>
+</table>
+
+## Make it yours
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/settings.png" alt="Settings"><br><b>Settings on the phone</b>: show, hide and reorder tabs, and turn live typing, usage, agent status and dictation options on or off</td>
+    <td width="50%">
+
+- **Tabs:** hide the ones you never use (Watch mode, Games...) and move the rest into your order.
+- **Developer mode:** live typing, usage, agent status, send after dictation, dictation language.
+- **Calm mode:** no animations at all.
+- Saved on each phone, so every device can have its own layout.
+
+Buttons, games and home screen tiles are set up on the PC, in the dashboard or the **[configuration file](docs/CONFIG.md)**.
+
+</td>
   </tr>
 </table>
 
