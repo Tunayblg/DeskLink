@@ -641,6 +641,29 @@
     clearTimeout(peekTimer);
     peekTimer = setTimeout(function () { document.body.classList.remove("rail-peek"); }, 4000);
   });
+  // The clock has no tab bar: a swipe up or down goes to the next or the
+  // previous tab instead (left and right still change the face, see clock.js).
+  function stepTab(step) {
+    var list = tabs.filter(function (t) { return !t.hidden && !t.classList.contains("settings-tab"); })
+      .map(function (t) { return t.dataset.view; });
+    var i = list.indexOf(view);
+    if (i < 0 || list.length < 2) return;
+    showView(list[(i + step + list.length) % list.length]);
+  }
+  (function clockSwipe() {
+    var el = $("view-clock"), x0 = null, y0 = 0;
+    if (!el) return;
+    el.addEventListener("touchstart", function (e) {
+      x0 = e.touches.length === 1 ? e.touches[0].clientX : null;
+      y0 = e.touches[0].clientY;
+    }, { passive: true });
+    el.addEventListener("touchend", function (e) {
+      if (x0 === null || view !== "clock") return;
+      var p = e.changedTouches[0], dx = p.clientX - x0, dy = p.clientY - y0;
+      x0 = null;
+      if (Math.abs(dy) > 60 && Math.abs(dy) > Math.abs(dx) * 1.5) stepTab(dy < 0 ? 1 : -1);
+    }, { passive: true });
+  })();
   if ($("clock-exit")) $("clock-exit").addEventListener("click", function (e) {
     e.stopPropagation();
     showView(beforeClock);

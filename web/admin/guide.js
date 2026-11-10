@@ -137,7 +137,7 @@
             "<b>Games:</b> add them on the PC, tap to launch. The phone turns into a live CPU and GPU monitor.",
             "<b>Mixer:</b> set the volume for each program on its own.",
             "<b>Trackpad:</b> use the phone as a mouse for the PC.",
-            "<b>Clock:</b> swipe to change the desk clock face."] }
+            "<b>Clock:</b> swipe left or right to change the face, up or down for the next or previous tab."] }
       ],
       tr: [
         { cover: true, sub: "iPhone ve iPad kılavuzu", text: "İlk bağlantıdan masandaki tam ekran kumanda paneline kadar.", tag: "Yaklaşık 1 dakika · App Store yok" },
@@ -220,7 +220,7 @@
             "<b>Oyunlar:</b> bilgisayardan ekle, dokunup başlat. Telefon canlı CPU ve GPU monitörüne dönüşür.",
             "<b>Mikser:</b> her programın sesini ayrı ayrı ayarla.",
             "<b>Trackpad:</b> telefonu bilgisayar için fare olarak kullan.",
-            "<b>Saat:</b> masa saati yüzünü kaydırarak değiştir."] }
+            "<b>Saat:</b> sağa sola kaydırarak yüzünü değiştir, yukarı aşağı kaydırarak sonraki ya da önceki sekmeye geç."] }
       ]
     },
 
@@ -305,7 +305,7 @@
             "<b>Games:</b> add them on the PC, tap to launch. The phone turns into a live CPU and GPU monitor.",
             "<b>Mixer:</b> set the volume for each program on its own.",
             "<b>Trackpad:</b> use the phone as a mouse for the PC.",
-            "<b>Clock:</b> swipe to change the desk clock face."] }
+            "<b>Clock:</b> swipe left or right to change the face, up or down for the next or previous tab."] }
       ],
       tr: [
         { cover: true, sub: "Android kılavuzu", text: "DeskLink uygulamasını kur, Android'ini Stream Deck'e çevir.", tag: "Yaklaşık 2 dakika · Play Store yok" },
@@ -387,7 +387,7 @@
             "<b>Oyunlar:</b> bilgisayardan ekle, dokunup başlat. Telefon canlı CPU ve GPU monitörüne dönüşür.",
             "<b>Mikser:</b> her programın sesini ayrı ayrı ayarla.",
             "<b>Trackpad:</b> telefonu bilgisayar için fare olarak kullan.",
-            "<b>Saat:</b> masa saati yüzünü kaydırarak değiştir."] }
+            "<b>Saat:</b> sağa sola kaydırarak yüzünü değiştir, yukarı aşağı kaydırarak sonraki ya da önceki sekmeye geç."] }
       ]
     }
   };
