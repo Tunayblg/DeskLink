@@ -96,6 +96,10 @@ type Watcher struct {
 
 const cacheFor = 700 * time.Millisecond
 
+// sampleFor is how long a media reading is shared. It is short so a track
+// change reaches the phone quickly.
+const sampleFor = 250 * time.Millisecond
+
 func (w *Watcher) init() {
 	if !w.ready {
 		w.src = newSource()
@@ -107,7 +111,7 @@ func (w *Watcher) init() {
 func (w *Watcher) Sample() State {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if time.Since(w.at) < cacheFor {
+	if time.Since(w.at) < sampleFor {
 		return w.last
 	}
 	w.init()

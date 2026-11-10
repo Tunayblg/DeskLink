@@ -29,12 +29,14 @@ import (
 	"github.com/Tunayblg/DeskLink/internal/brightness"
 	"github.com/Tunayblg/DeskLink/internal/claude"
 	"github.com/Tunayblg/DeskLink/internal/config"
+	"github.com/Tunayblg/DeskLink/internal/keyboard"
 	"github.com/Tunayblg/DeskLink/internal/media"
 	"github.com/Tunayblg/DeskLink/internal/plan"
 	"github.com/Tunayblg/DeskLink/internal/pointer"
 	"github.com/Tunayblg/DeskLink/internal/procstat"
 	"github.com/Tunayblg/DeskLink/internal/running"
 	"github.com/Tunayblg/DeskLink/internal/stats"
+	"github.com/Tunayblg/DeskLink/internal/winlist"
 )
 
 // errAlreadyRunning is the answer to a press on a game that is already open.
@@ -46,6 +48,9 @@ const (
 	// idleTimeout closes a connection that has been silent this long; the
 	// phone sends a ping every 15 s.
 	idleTimeout = 45 * time.Second
+	// readLimit is the biggest message from a phone: room for a long dictated
+	// prompt (keyboard.MaxRunes characters, up to 4 bytes each) in JSON.
+	readLimit = 12 << 10
 	// heldTimeout lets go of a held mouse button when the phone has said
 	// nothing for this long (it pings every 15 s), so a dropped Wi-Fi link in
 	// the middle of a drag cannot leave the button stuck down.
@@ -60,6 +65,7 @@ const (
 	minPressGap   = 120 * time.Millisecond
 	statsInterval = time.Second
 	mediaResync   = 5 * time.Second
+	mediaPoll     = 300 * time.Millisecond // how often the media state is checked for a change
 )
 
 // Server wires config, auth and actions to HTTP.
@@ -81,6 +87,14 @@ type Server struct {
 	// diagnosing a phone that will not load. Set by main from -debug.
 	LogRequests bool
 	run         func(actions.Action) error
+	typer       func(string) bool       // types text on the PC, false if Windows refused (see typing.go)
+	typeMu      sync.Mutex              // one text or key press at a time, so two phones cannot interleave
+	windows     func() []winlist.Window // the open program windows, front to back
+	focus       func(id uint64) error   // brings one of them to the front
+	foreground  func() uint64           // the window in front now
+	liveTyper   func(string) bool       // types a piece of a live text, spaces and all
+	liveOwner   *liveSession            // the live session allowed to type (the newest); guarded by typeMu
+	backspace   func(n int) bool        // presses Backspace n times
 	sample      func() stats.Snapshot
 	system      func() stats.Snapshot // CPU and RAM only, for the dashboard
 	claudeUse   func() claude.Usage   // Claude Code token use, read from its logs
@@ -137,7 +151,7 @@ func New(cfg *config.Config, store *auth.Store, web fs.FS, pictures map[string]a
 	var c stats.Collector
 	w := &media.Watcher{}
 	bright := brightness.NewSetter()
-	return &Server{cfg: cfg, auth: store, web: web, assetVersion: AssetVersion(web), games: publicGames(cfg, pictures), shortcuts: buildShortcuts(cfg), run: actions.Run, sample: c.Sample, system: c.System, claudeUse: (&claude.Reader{}).Sample,
+	return &Server{cfg: cfg, auth: store, web: web, assetVersion: AssetVersion(web), games: publicGames(cfg, pictures), shortcuts: buildShortcuts(cfg), run: actions.Run, typer: keyboard.Type, windows: winlist.List, focus: winlist.Focus, foreground: winlist.Foreground, liveTyper: keyboard.TypeLive, backspace: keyboard.Backspace, sample: c.Sample, system: c.System, claudeUse: (&claude.Reader{}).Sample,
 		media: w, nowPlaying: w.Sample, setVolume: setVolume(w), control: w.Control,
 		readMixer: w.Mixer, setMixerVolume: w.SetMixerVolume, toggleMute: w.ToggleMute, setMic: w.SetMic, getBrightness: brightness.Get, setBrightness: bright.Set, newPad: func() padder { return pointer.NewPad() }, gameExes: gameExes(cfg.Games), running: running.Names, icons: map[string]string{},
 		adminToken: newAdminToken(), started: time.Now(), sessions: map[*session]struct{}{}}
@@ -162,7 +176,7 @@ func (s *Server) layout() serverMsg {
 	s.cfgMu.RLock()
 	cfg, games, shortcuts := s.cfg, s.games, s.shortcuts
 	s.cfgMu.RUnlock()
-	return serverMsg{Type: "layout", Groups: cfg.Public(), Games: games, Shortcuts: shortcuts}
+	return serverMsg{Type: "layout", Groups: cfg.Public(), Games: games, Shortcuts: shortcuts, Version: s.assetVersion}
 }
 
 // apply switches to a new config and sends the new layout to every phone.
@@ -302,9 +316,12 @@ type clientMsg struct {
 	Button string `json:"button,omitempty"` // "mouse": left, right, middle
 	DX     int    `json:"dx,omitempty"`     // "mouse": pixels (move) or wheel units (hscroll uses dy)
 	DY     int    `json:"dy,omitempty"`
-	Title  string `json:"title,omitempty"` // "planadd"
-	Time   string `json:"time,omitempty"`  // "planadd": due time, HH:MM, may be empty
-	Date   string `json:"date,omitempty"`  // "planadd": YYYY-MM-DD, empty for every day; "plantoggle": the phone's today
+	Title  string `json:"title,omitempty"`  // "planadd"
+	Time   string `json:"time,omitempty"`   // "planadd": due time, HH:MM, may be empty
+	Date   string `json:"date,omitempty"`   // "planadd": YYYY-MM-DD, empty for every day; "plantoggle": the phone's today
+	Text   string `json:"text,omitempty"`   // "type": what to type on the PC (see typing.go)
+	Send   bool   `json:"send,omitempty"`   // "type": press Enter afterwards; "key" uses Action for the key's name
+	Window uint64 `json:"window,omitempty"` // "type", "key": a window from the "windows" list to send it to; 0: the one in front
 }
 
 type serverMsg struct {
@@ -324,6 +341,8 @@ type serverMsg struct {
 	Shortcuts  []publicShortcut     `json:"shortcuts,omitempty"`  // "layout": the three home screen shortcut tiles
 	Plan       *[]plan.Item         `json:"plan,omitempty"`       // "plan": the day plan (an empty list is still sent)
 	Brightness *int                 `json:"brightness,omitempty"` // "brightness": the screen now, in percent (absent: cannot be controlled)
+	Windows    []winlist.Window     `json:"windows,omitempty"`    // "windows": the open program windows
+	Version    string               `json:"version,omitempty"`    // "layout": the panel's files; a phone showing older ones reloads
 }
 
 func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
@@ -336,7 +355,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer c.CloseNow()
-	c.SetReadLimit(4096)
+	c.SetReadLimit(readLimit)
 
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
@@ -371,6 +390,8 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	var last sync.Map // button id -> time.Time of last press
 	// The trackpad: buttons the phone holds are let go when the connection ends.
 	pad := s.newPad()
+	live := &liveSession{} // what this phone has typed live (see live.go)
+	defer s.liveEnd(live, false)
 	defer pad.Release()
 	var lastMsg atomic.Int64 // unix nanoseconds of the last message from the phone
 	lastMsg.Store(time.Now().UnixNano())
@@ -479,6 +500,47 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		}
 		if msg.Type == "watch" {
 			s.watch(msg.Action)
+			continue
+		}
+		if msg.Type == "type" || msg.Type == "key" {
+			// A key or a whole text changes what is in the window: the live
+			// session no longer knows it, so it ends here.
+			s.liveEnd(live, false)
+			code := ""
+			if msg.Type == "type" {
+				code = s.typeText(msg.Text, msg.Send, msg.Window)
+			} else {
+				code = s.pressNamed(msg.Action, msg.Window)
+			}
+			// Success needs no answer; the phone already said "sent".
+			if code != "" {
+				if err := wsjson.Write(ctx, c, serverMsg{Type: "typeres", Error: code}); err != nil {
+					return
+				}
+			}
+			continue
+		}
+		if msg.Type == "live" || msg.Type == "liveend" {
+			code := ""
+			if msg.Type == "live" {
+				code = s.liveUpdate(live, msg.Text, msg.Window)
+			} else {
+				code = s.liveEnd(live, msg.Send)
+			}
+			if code != "" {
+				if err := wsjson.Write(ctx, c, serverMsg{Type: "typeres", Error: code}); err != nil {
+					return
+				}
+			}
+			continue
+		}
+		if msg.Type == "windows" {
+			// Listing windows takes a moment: do not hold up the phone's other messages.
+			go func() {
+				if err := wsjson.Write(ctx, c, serverMsg{Type: "windows", Windows: s.listWindows()}); err != nil {
+					log.Printf("windows reply to %s: %v", name, err)
+				}
+			}()
 			continue
 		}
 		if msg.Type == "brightness" {
@@ -657,7 +719,7 @@ func (s *Server) knownSource(id string) bool {
 // streamMedia sends the now-playing state when it changes (and every few
 // seconds to resync the progress bars). Each cover is sent once per connection.
 func (s *Server) streamMedia(ctx context.Context, c *websocket.Conn) {
-	t := time.NewTicker(statsInterval)
+	t := time.NewTicker(mediaPoll)
 	defer t.Stop()
 	var prev media.State
 	var sentAt time.Time

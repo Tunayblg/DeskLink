@@ -16,8 +16,8 @@ android {
         applicationId = "com.desklink.app"
         minSdk = 21
         targetSdk = 34
-        versionCode = 3
-        versionName = "1.2.0"
+        versionCode = 4
+        versionName = "1.3.0"
     }
 
     signingConfigs {

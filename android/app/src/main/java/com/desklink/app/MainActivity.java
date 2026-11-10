@@ -38,6 +38,7 @@ public class MainActivity extends Activity {
     private WebView panel;
     private WebView setup;
     private boolean panelLoaded = false;
+    private String panelUrl = ""; // the address the panel was last asked to load
 
     @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
     @Override
@@ -64,6 +65,13 @@ public class MainActivity extends Activity {
         setup.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                return true;
+            }
+
+            // Android 5 and 6 only call this older form.
+            @Override
+            @SuppressWarnings("deprecation")
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
                 return true;
             }
         });
@@ -118,7 +126,12 @@ public class MainActivity extends Activity {
         String host = slash >= 0 ? rest.substring(0, slash) : rest;
         String path = slash >= 0 ? rest.substring(slash) : "/";
         if (host.isEmpty() || host.contains(" ")) return null;
-        if (!host.contains(":")) host = host + ":" + DEFAULT_PORT;
+        if (!host.startsWith("[") && host.indexOf(':') != host.lastIndexOf(':')) {
+            host = "[" + host + "]"; // a bare IPv6 address needs its brackets before a port can follow
+        }
+        // The port is what follows the last colon after the closing bracket of an IPv6 address.
+        boolean hasPort = host.startsWith("[") ? host.contains("]:") : host.contains(":");
+        if (!hasPort) host = host + ":" + DEFAULT_PORT;
         return scheme + host + path + hash;
     }
 
@@ -155,11 +168,17 @@ public class MainActivity extends Activity {
         return !h.contains(".") || h.endsWith(".local") || h.endsWith(".lan") || h.endsWith(".home.arpa");
     }
 
+    private static String withoutHash(String url) {
+        int h = url.indexOf('#');
+        return h >= 0 ? url.substring(0, h) : url;
+    }
+
     private void openPanel(String url) {
         int hash = url.indexOf('#');
         String clean = hash >= 0 ? url.substring(0, hash) : url;
         getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(KEY_URL, clean).apply();
         panelLoaded = true;
+        panelUrl = url;
         setup.setVisibility(View.GONE);
         panel.loadUrl(url);
     }
@@ -177,18 +196,41 @@ public class MainActivity extends Activity {
     // ---- Panel navigation --------------------------------------------------------
 
     private class PanelClient extends WebViewClient {
-        @Override
-        public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-            // Stay inside the PC's panel. Anything else is not ours to open.
+        // Stay inside the PC's panel. Anything else is not ours to open.
+        private boolean leavesPanel(Uri url) {
             String saved = saved();
             if (saved == null) return true;
-            String host = request.getUrl().getHost();
+            String host = url.getHost();
             return host == null || !host.equals(Uri.parse(saved).getHost());
+        }
+
+        @Override
+        public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+            return leavesPanel(request.getUrl());
+        }
+
+        // Android 5 and 6 only call this older form.
+        @Override
+        @SuppressWarnings("deprecation")
+        public boolean shouldOverrideUrlLoading(WebView view, String url) {
+            return leavesPanel(Uri.parse(url));
         }
 
         @Override
         public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
             if (request.isForMainFrame()) {
+                panelLoaded = false;
+                setupError("unreachable");
+            }
+        }
+
+        // Android 5.x calls this older form, for the page and for everything it loads, so
+        // only the address the app asked for counts.
+        @Override
+        @SuppressWarnings("deprecation")
+        public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M && failingUrl != null
+                    && withoutHash(failingUrl).equals(withoutHash(panelUrl))) {
                 panelLoaded = false;
                 setupError("unreachable");
             }

@@ -187,10 +187,12 @@ func (s source) do(c command) {
 type worker struct {
 	manager    *com
 	enumerator *com
-	trackKeys  map[string]string  // source ID -> the track its cover belongs to
-	procs      map[uint32]proc    // process ID -> its executable
-	names      map[string]string  // executable path -> display name
-	unmuted    map[string]float32 // mixer IDs -> volume before a mute, where mute is volume zero
+	trackKeys  map[string]string    // source ID -> the track its cover belongs to
+	procs      map[uint32]proc      // process ID -> its executable
+	names      map[string]string    // executable path -> display name
+	unmuted    map[string]float32   // mixer IDs -> volume before a mute, where mute is volume zero
+	lastInfo   map[string]Source    // source ID -> the track text last read, kept if a read comes back empty
+	stale      map[string]time.Time // source ID -> since when a new track has shown the old track's cover
 }
 
 type proc struct{ id, path string }
@@ -198,7 +200,7 @@ type proc struct{ id, path string }
 func (s source) loop() {
 	runtime.LockOSThread()
 	roInit.Call(1) // RO_INIT_MULTITHREADED
-	w := worker{trackKeys: map[string]string{}, procs: map[uint32]proc{}, names: map[string]string{}, unmuted: map[string]float32{}}
+	w := worker{trackKeys: map[string]string{}, procs: map[uint32]proc{}, names: map[string]string{}, unmuted: map[string]float32{}, lastInfo: map[string]Source{}, stale: map[string]time.Time{}}
 	for req := range s.req {
 		w.handle(req)
 	}
@@ -340,8 +342,28 @@ func (w *worker) read(prevArt map[string]string) (State, map[string][]byte) {
 			src.ArtID = prevArt[id]
 			keys[id] = key
 		} else if img != nil {
-			art[id] = img
-			keys[id] = key
+			// A player often announces a new track before it swaps the cover, and
+			// a fast reading then finds the old cover under the new title. Keep
+			// the old cover and look again; a new track that really shares its
+			// cover (the next song of an album) is accepted after a moment.
+			old := w.trackKeys[id]
+			if old != "" && old != key && prevArt[id] != "" && artID(img) == prevArt[id] {
+				since, waiting := w.stale[id]
+				if !waiting {
+					since = time.Now()
+					w.stale[id] = since
+				}
+				if time.Since(since) < 2500*time.Millisecond {
+					src.ArtID = prevArt[id]
+					keys[id] = old
+					img = nil
+				}
+			}
+			if img != nil {
+				delete(w.stale, id)
+				art[id] = img
+				keys[id] = key
+			}
 		}
 		// Without a cover yet, players often publish it a moment later; the
 		// key stays unset so the next reading tries again.
@@ -391,12 +413,22 @@ func (w *worker) readSession(id string, session *com) (src Source, key string, i
 
 	props := await(session.out(7)) // TryGetMediaPropertiesAsync
 	if props == nil {
+		// Between two tracks a player can answer with nothing. Keep showing the
+		// last track instead of an empty card.
+		if last, ok := w.lastInfo[id]; ok {
+			src.Title, src.Artist, src.Album = last.Title, last.Artist, last.Album
+			return src, w.trackKeys[id], nil
+		}
 		return src, "", nil
 	}
 	defer props.release()
 	src.Title = props.getString(6)
 	src.Artist = props.getString(9)
 	src.Album = props.getString(10)
+	if len(w.lastInfo) > 32 {
+		clear(w.lastInfo)
+	}
+	w.lastInfo[id] = Source{Title: src.Title, Artist: src.Artist, Album: src.Album}
 
 	key = src.Title + "\x00" + src.Artist + "\x00" + src.Album
 	if key == w.trackKeys[id] {

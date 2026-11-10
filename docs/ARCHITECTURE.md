@@ -32,6 +32,8 @@
 | `internal/claude` | Claude Code token use (five-hour window, today, seven days), read from its local logs under `~/.claude/projects`. Only numbers leave the PC, never what was said. |
 | `internal/procstat` | DeskLink's own memory and CPU use, for the dashboard. |
 | `internal/pointer` | The trackpad: relative mouse moves, clicks and scrolling. |
+| `internal/winlist` | The open program windows and bringing one to the front, checked before anything is typed. The server narrows the list to AI, terminal and editor windows (`internal/server/targets.go`). |
+| `internal/keyboard` | Developer mode typing: text is cleaned, capped at 2000 characters and sent to the focused window as Unicode (no clipboard, any language), plus a short list of named keys. |
 | `internal/tray`, `internal/desktop` | Notification-area icon and menu, dashboard window, dialogs, start with Windows. |
 | `web/static` | The phone panel. |
 | `web/admin` | The dashboard and its two user guides (iPhone and Android). Both folders are embedded into the executable with `go:embed`. |

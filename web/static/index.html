@@ -30,11 +30,17 @@
   <button class="tab" type="button" data-view="watch" aria-label="Watch mode">
     <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12.5" rx="2.5"/><path d="M10.2 8.2v4.6l3.8-2.3z"/><path d="M8 20.2h8"/></svg>
   </button>
+  <button class="tab" type="button" data-view="dev" aria-label="Developer">
+    <svg viewBox="0 0 24 24"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/></svg>
+  </button>
   <button class="tab" type="button" data-view="pad" aria-label="Trackpad">
     <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 15h18M12 15v4"/></svg>
   </button>
   <button class="tab" type="button" data-view="clock" aria-label="Clock">
     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+  </button>
+  <button class="tab settings-tab" type="button" data-view="settings" aria-label="Settings">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
   </button>
   <span class="tab-pill" id="tab-pill"></span>
 </nav>
@@ -114,6 +120,83 @@
       <div class="watch-side" id="watch-bright" hidden><div class="mix-row" id="watch-bright-row"></div></div>
     </div>
   </section>
+  <section class="view dev-view" id="view-dev">
+    <header class="stats-head">
+      <span class="stats-title" data-t="devMode">DEVELOPER</span>
+      <button type="button" class="dev-target" id="dev-target" aria-haspopup="listbox">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2.5"/><path d="M8 21h8"/></svg>
+        <span id="dev-target-name" data-t="devFront">In front</span>
+        <svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <span class="dev-chips" id="dev-chips" hidden>
+        <span class="dev-live" id="dev-live" hidden><i></i><b></b><em></em></span>
+        <span class="dev-usage" id="dev-usage" hidden></span>
+      </span>
+    </header>
+    <div class="dev-stage">
+      <div class="dev-card">
+        <div class="dev-grid">
+          <div class="dev-pad" id="dev-pad" aria-label="Trackpad">
+            <div class="dev-pad-surface"><svg viewBox="0 0 24 24"><path d="M6 3l12 9-5.5 1.2L15 20l-2.6 1-2.6-6.8L6 18z"/></svg></div>
+            <div class="dev-pad-btns"><span class="dev-zone" data-btn="left"></span><span class="dev-zone" data-btn="right"></span></div>
+          </div>
+          <div class="dev-field">
+            <textarea id="dev-text" class="dev-text" rows="3" enterkeyhint="send" autocomplete="off" autocorrect="on" spellcheck="false" aria-label="Prompt"></textarea>
+            <button type="button" class="dev-clear" id="dev-clear" aria-label="Clear" hidden>
+              <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>
+            </button>
+          </div>
+          <div class="dev-actions">
+            <button type="button" class="dev-mic" id="dev-mic" aria-label="Dictate">
+              <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>
+            </button>
+            <button type="button" class="dev-send" id="dev-send"><span data-t="devSend">Send</span><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+            <button type="button" class="dev-type" id="dev-type" data-t="devType">Type only</button>
+          </div>
+          <div class="dev-keys" id="dev-keys">
+          <button type="button" class="dev-key" data-key="esc" aria-label="Escape">Esc</button>
+          <button type="button" class="dev-key" data-key="tab" aria-label="Tab">Tab</button>
+          <button type="button" class="dev-key" data-key="shifttab" aria-label="Shift Tab">⇧ Tab</button>
+          <button type="button" class="dev-key" data-key="up" aria-label="Up">↑</button>
+          <button type="button" class="dev-key" data-key="down" aria-label="Down">↓</button>
+          <button type="button" class="dev-key" data-key="ctrlc" aria-label="Control C">^C</button>
+          <button type="button" class="dev-key main" data-key="enter" aria-label="Enter">⏎</button>
+          </div>
+        </div>
+        <p class="dev-help" id="dev-help" hidden></p>
+      </div>
+    </div>
+    <div class="dev-sheet" id="dev-sheet" hidden>
+      <div class="dev-sheet-box" role="listbox">
+        <div class="dev-sheet-head"><b data-t="devSendTo">Send to</b>
+          <button type="button" id="dev-sheet-refresh" aria-label="Refresh"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.5-5.8M20 4v4h-4"/></svg></button>
+        </div>
+        <div class="dev-sheet-list" id="dev-sheet-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="view settings-view" id="view-settings">
+    <header class="stats-head">
+      <span class="stats-title" data-t="settings">SETTINGS</span>
+      <span class="gpu-name" data-t="setHint">Saved on this phone</span>
+    </header>
+    <div class="set-scroll" id="set-scroll">
+      <div class="set-inner" id="set-inner">
+      <div class="set-col">
+        <h3 data-t="setTabs">Tabs</h3>
+        <div class="set-list" id="set-tabs"></div>
+      </div>
+      <div class="set-col">
+        <h3 data-t="setDev">Developer mode</h3>
+        <div class="set-list" id="set-dev"></div>
+        <h3 data-t="setGeneral">General</h3>
+        <div class="set-list" id="set-general"></div>
+      </div>
+      </div>
+    </div>
+  </section>
+
   <section class="view pad" id="view-pad">
     <div class="pad-surface"><p class="pad-hint" id="pad-hint" data-t="padHint">Slide to move · tap to click · two fingers: right click</p></div>
     <div class="pad-zones">

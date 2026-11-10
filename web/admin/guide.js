@@ -43,7 +43,9 @@
     deck: '<svg viewBox="0 0 160 120"><rect class="f" x="30" y="12" width="100" height="96" rx="12"/><rect x="30" y="12" width="100" height="96" rx="12"/><rect class="s" x="42" y="26" width="34" height="26" rx="6"/><rect x="84" y="26" width="34" height="26" rx="6"/><rect x="42" y="62" width="34" height="26" rx="6"/><rect class="s" x="84" y="62" width="34" height="26" rx="6"/></svg>',
     link: '<svg viewBox="0 0 160 120"><rect class="f" x="26" y="26" width="108" height="68" rx="12"/><rect x="26" y="26" width="108" height="68" rx="12"/><path class="s" d="M70 52l-8 8a8 8 0 0 0 11 11l5-5M90 68l8-8a8 8 0 0 0-11-11l-5 5"/><path d="M44 106h72"/></svg>',
     watch: '<svg viewBox="0 0 160 120"><rect class="f" x="18" y="14" width="124" height="78" rx="10"/><rect x="18" y="14" width="124" height="78" rx="10"/><path class="s" d="M72 38v28l24-14z"/><path d="M60 108h40M80 92v16"/></svg>',
-    folder: '<svg viewBox="0 0 160 120"><path class="f" d="M20 34a8 8 0 0 1 8-8h32l12 14h60a8 8 0 0 1 8 8v46a8 8 0 0 1-8 8H28a8 8 0 0 1-8-8z"/><path d="M20 34a8 8 0 0 1 8-8h32l12 14h60a8 8 0 0 1 8 8v46a8 8 0 0 1-8 8H28a8 8 0 0 1-8-8z"/></svg>'
+    folder: '<svg viewBox="0 0 160 120"><path class="f" d="M20 34a8 8 0 0 1 8-8h32l12 14h60a8 8 0 0 1 8 8v46a8 8 0 0 1-8 8H28a8 8 0 0 1-8-8z"/><path d="M20 34a8 8 0 0 1 8-8h32l12 14h60a8 8 0 0 1 8 8v46a8 8 0 0 1-8 8H28a8 8 0 0 1-8-8z"/></svg>',
+    dev: '<svg viewBox="0 0 160 120"><rect class="f" x="18" y="16" width="124" height="88" rx="10"/><rect x="18" y="16" width="124" height="88" rx="10"/><path class="s" d="M58 46L42 60l16 14M102 46l16 14-16 14M88 40l-16 40"/></svg>',
+    gear: '<svg viewBox="0 0 160 120"><circle class="f" cx="80" cy="60" r="40"/><circle cx="80" cy="60" r="40"/><circle class="s" cx="80" cy="60" r="14"/><path d="M80 12v14M80 94v14M32 60h14M114 60h14M46 26l10 10M104 84l10 10M46 94l10-10M104 36l10-10"/></svg>'
   };
 
   // ---- The books --------------------------------------------------------------
@@ -97,6 +99,19 @@
             "<b>Middle:</b> rewind, play or pause and fast forward. They press keys, so the player window must be in front.",
             "The red power button shuts the PC down, after you confirm."],
           tip: "Brightness uses your monitor when it allows it (<b>DDC/CI</b>), a laptop's own panel, or otherwise dims the picture in software, so the bar works on any screen. Software dimming never goes fully black." },
+        { art: "dev", h: "Developer mode", ul: [
+            "The <b>&lt;/&gt;</b> tab sends prompts to Claude, Codex, ChatGPT, a terminal or your editor on the PC.",
+            "Type, or tap the <b>microphone</b> and speak. With <b>live typing</b> the words appear on the PC while you talk.",
+            "The pill at the top picks the window. Only developer apps are listed, never chat or other programs.",
+            "The bar on top shows what Claude or Codex is doing: thinking, running a command, editing files, or done.",
+            "The small pad on the left is a mouse; the keys below press Esc, Tab, the arrows, Ctrl+C and Enter."],
+          tip: "Dictation needs Siri and Dictation switched on in the phone's settings." },
+        { art: "gear", h: "Settings", ul: [
+            "The quiet gear at the bottom of the tab bar opens Settings.",
+            "Switch any tab off, or move it up and down with the arrows.",
+            "Turn live typing, usage, the agent status, sending after dictation and the dictation language on or off.",
+            "<b>Calm mode</b> stops all animation."],
+          tip: "Settings are saved on the phone itself, so each phone can have its own layout." },
         { art: "code", h: "Connecting manually", p: ["No camera, or the QR code will not open? Use the address instead."], ol: [
             "On the PC press <b>Add device</b>, then <b>Trouble scanning? Connect manually</b>.",
             "In Safari on the phone, type the address shown there, like " + ADDR + ".",
@@ -166,6 +181,19 @@
             "<b>Ortada:</b> geri sar, oynat veya durdur ve ileri sar. Tuş bastıkları için oynatıcı penceresi önde olmalı.",
             "Kırmızı güç düğmesi, onayladıktan sonra bilgisayarı kapatır."],
           tip: "Parlaklık, monitör izin veriyorsa monitörün kendisini (<b>DDC/CI</b>), laptopta panelini, olmazsa görüntüyü yazılımla karartır. Böylece çubuk her ekranda çalışır. Yazılımla karartma ekranı hiçbir zaman tamamen karartmaz." },
+        { art: "dev", h: "Geliştirici modu", ul: [
+            "<b>&lt;/&gt;</b> sekmesi bilgisayardaki Claude, Codex, ChatGPT, terminal ya da kod editörüne prompt gönderir.",
+            "Yaz ya da <b>mikrofona</b> dokunup konuş. <b>Canlı yazma</b> açıksa sen konuşurken yazı bilgisayarda belirir.",
+            "Üstteki düğmeden pencereyi seç. Yalnızca geliştirici uygulamaları listelenir, sohbet ve başka programlar asla.",
+            "Üstteki çubuk Claude ya da Codex'in ne yaptığını gösterir: düşünüyor, komut çalıştırıyor, dosya düzenliyor ya da bitti.",
+            "Soldaki küçük alan bir faredir; alttaki tuşlar Esc, Tab, oklar, Ctrl+C ve Enter'a basar."],
+          tip: "Dikte için telefonun ayarlarında Siri ve Dikte açık olmalı." },
+        { art: "gear", h: "Ayarlar", ul: [
+            "Sekme çubuğunun en altındaki sade dişli Ayarlar'ı açar.",
+            "İstediğin sekmeyi kapat ya da oklarla yukarı aşağı taşı.",
+            "Canlı yazmayı, kullanımı, ajan durumunu, dikteden sonra göndermeyi ve dikte dilini aç ya da kapat.",
+            "<b>Sakin mod</b> tüm animasyonları durdurur."],
+          tip: "Ayarlar telefonun kendisinde saklanır, her telefonun kendi düzeni olabilir." },
         { art: "code", h: "Elle bağlanma", p: ["Kamera yok mu ya da QR kod açılmıyor mu? Adresi kullan."], ol: [
             "Bilgisayarda <b>Cihaz ekle</b>'ye, sonra <b>Okutamıyor musun? Elle bağlan</b>'a bas.",
             "Telefonda Safari'ye orada yazan adresi gir, örneğin " + ADDR + ".",
@@ -237,6 +265,19 @@
             "<b>Middle:</b> rewind, play or pause and fast forward. They press keys, so the player window must be in front.",
             "The red power button shuts the PC down, after you confirm."],
           tip: "Brightness uses your monitor when it allows it (<b>DDC/CI</b>), a laptop's own panel, or otherwise dims the picture in software, so the bar works on any screen. Software dimming never goes fully black." },
+        { art: "dev", h: "Developer mode", ul: [
+            "The <b>&lt;/&gt;</b> tab sends prompts to Claude, Codex, ChatGPT, a terminal or your editor on the PC.",
+            "Type, or tap the <b>microphone</b> and speak. With <b>live typing</b> the words appear on the PC while you talk.",
+            "The pill at the top picks the window. Only developer apps are listed, never chat or other programs.",
+            "The bar on top shows what Claude or Codex is doing: thinking, running a command, editing files, or done.",
+            "The small pad on the left is a mouse; the keys below press Esc, Tab, the arrows, Ctrl+C and Enter."],
+          tip: "Dictation needs Siri and Dictation switched on in the phone's settings." },
+        { art: "gear", h: "Settings", ul: [
+            "The quiet gear at the bottom of the tab bar opens Settings.",
+            "Switch any tab off, or move it up and down with the arrows.",
+            "Turn live typing, usage, the agent status, sending after dictation and the dictation language on or off.",
+            "<b>Calm mode</b> stops all animation."],
+          tip: "Settings are saved on the phone itself, so each phone can have its own layout." },
         { art: "code", h: "Connecting manually", p: ["The QR scanner does not work for you? Type the address instead."], ol: [
             "On the PC press <b>Add device</b>, then <b>Trouble scanning? Connect manually</b>.",
             "In the app, type the address shown there into the address box, like " + ADDR + ", and tap <b>Connect</b>.",
@@ -305,6 +346,19 @@
             "<b>Ortada:</b> geri sar, oynat veya durdur ve ileri sar. Tuş bastıkları için oynatıcı penceresi önde olmalı.",
             "Kırmızı güç düğmesi, onayladıktan sonra bilgisayarı kapatır."],
           tip: "Parlaklık, monitör izin veriyorsa monitörün kendisini (<b>DDC/CI</b>), laptopta panelini, olmazsa görüntüyü yazılımla karartır. Böylece çubuk her ekranda çalışır. Yazılımla karartma ekranı hiçbir zaman tamamen karartmaz." },
+        { art: "dev", h: "Geliştirici modu", ul: [
+            "<b>&lt;/&gt;</b> sekmesi bilgisayardaki Claude, Codex, ChatGPT, terminal ya da kod editörüne prompt gönderir.",
+            "Yaz ya da <b>mikrofona</b> dokunup konuş. <b>Canlı yazma</b> açıksa sen konuşurken yazı bilgisayarda belirir.",
+            "Üstteki düğmeden pencereyi seç. Yalnızca geliştirici uygulamaları listelenir, sohbet ve başka programlar asla.",
+            "Üstteki çubuk Claude ya da Codex'in ne yaptığını gösterir: düşünüyor, komut çalıştırıyor, dosya düzenliyor ya da bitti.",
+            "Soldaki küçük alan bir faredir; alttaki tuşlar Esc, Tab, oklar, Ctrl+C ve Enter'a basar."],
+          tip: "Dikte için telefonun ayarlarında Siri ve Dikte açık olmalı." },
+        { art: "gear", h: "Ayarlar", ul: [
+            "Sekme çubuğunun en altındaki sade dişli Ayarlar'ı açar.",
+            "İstediğin sekmeyi kapat ya da oklarla yukarı aşağı taşı.",
+            "Canlı yazmayı, kullanımı, ajan durumunu, dikteden sonra göndermeyi ve dikte dilini aç ya da kapat.",
+            "<b>Sakin mod</b> tüm animasyonları durdurur."],
+          tip: "Ayarlar telefonun kendisinde saklanır, her telefonun kendi düzeni olabilir." },
         { art: "code", h: "Elle bağlanma", p: ["QR tarayıcı işine yaramadı mı? Adresi yaz."], ol: [
             "Bilgisayarda <b>Cihaz ekle</b>'ye, sonra <b>Okutamıyor musun? Elle bağlan</b>'a bas.",
             "Uygulamada orada yazan adresi adres kutusuna gir, örneğin " + ADDR + ", ve <b>Bağlan</b>'a dokun.",

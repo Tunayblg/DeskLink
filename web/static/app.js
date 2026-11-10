@@ -13,7 +13,10 @@
   // the app opens upright. Turning the phone for real leaves it.
   var ROT_KEY = "desklink.rotate";
   var framed = window.parent !== window;
-  function rotPref() { try { return localStorage.getItem(ROT_KEY); } catch (e) { return null; } }
+  // The turn direction is remembered per physical position of the phone, so the
+  // sideways position it was last flipped in is not mixed up with upright.
+  function rotKey() { return ROT_KEY + "." + (window.orientation || 0); }
+  function rotPref() { try { return localStorage.getItem(rotKey()) || localStorage.getItem(ROT_KEY); } catch (e) { return null; } }
   function orientReport(what) {
     if (!window.DeskReport) return;
     window.DeskReport("orientation " + what + ": inner " + window.innerWidth + "x" + window.innerHeight +
@@ -26,7 +29,9 @@
     var deg = rotPref();
     if (framed || !deg) return false;
     var upright = window.innerHeight > window.innerWidth;
-    if (!force && !(upright && Math.abs(window.orientation || 0) !== 90)) return false;
+    // A window taller than wide is the stuck-in-portrait case, whether the
+    // phone is held upright or already sideways.
+    if (!force && !upright) return false;
 
     var body = document.body;
     body.innerHTML = "";
@@ -48,16 +53,23 @@
     body.appendChild(probe);
     var bar = parseFloat(getComputedStyle(probe).paddingTop) || (navigator.standalone ? 20 : 0);
     body.removeChild(probe);
+    // With the keyboard up, the visible part of the (upright) window is shorter:
+    // the frame is made as wide as that part, so the panel is squeezed into what
+    // can be seen instead of hiding behind the keyboard. The panel tells us
+    // when a text box takes the keyboard.
+    var kbOpen = false;
+    var vv = window.visualViewport;
     function place() {
-      var w = window.innerHeight - bar, h = window.innerWidth;
-      frame.style.top = bar + "px";
+      var visible = kbOpen && vv ? vv.height : window.innerHeight;
+      var w = visible - bar, h = window.innerWidth;
+      frame.style.top = (bar + (kbOpen && vv ? vv.offsetTop : 0)) + "px";
       frame.style.width = w + "px";
       frame.style.height = h + "px";
       frame.style.transform = deg === "-90" ? "rotate(-90deg) translateX(-100%)" : "rotate(90deg) translateY(-100%)";
     }
     flip.addEventListener("click", function () {
       deg = deg === "-90" ? "90" : "-90";
-      try { localStorage.setItem(ROT_KEY, deg); } catch (e) { /* no storage */ }
+      try { localStorage.setItem(ROT_KEY, deg); localStorage.setItem(rotKey(), deg); } catch (e) { /* no storage */ }
       place();
     });
     function check() {
@@ -67,6 +79,16 @@
     }
     window.addEventListener("resize", check);
     window.addEventListener("orientationchange", function () { setTimeout(check, 300); });
+    window.addEventListener("message", function (e) {
+      if (e.origin !== location.origin || !e.data || e.data.type !== "kb") return;
+      kbOpen = !!e.data.on;
+      place();
+      if (!kbOpen) window.scrollTo(0, 0);
+    });
+    if (vv) {
+      vv.addEventListener("resize", place);
+      vv.addEventListener("scroll", place);
+    }
     place();
     body.appendChild(frame);
     body.appendChild(flip);
@@ -74,10 +96,15 @@
     return true;
   }
   if (startFramed()) return;
+  // Inside the sideways frame the panel is landscape by design, even while the
+  // keyboard makes the frame narrow: never ask to rotate the phone there.
+  if (framed) document.documentElement.classList.add("framed");
 
   var TOKEN_KEY = "desklink.token";
   var VIEW_KEY = "desklink.view";
-  var VIEWS = ["home", "games", "stats", "watch", "pad", "clock"];
+  var VIEWS = ["home", "games", "stats", "watch", "dev", "pad", "clock", "settings"];
+  var PREFS_KEY = "desklink.prefs";
+  var pageVersion = ""; // the panel version this page was loaded with
   var RETRY_MAX = 10000;
   var STATS_AFTER_LAUNCH = 1600; // ms before switching to stats after a game starts
   var SHIFT_EVERY = 3 * 60 * 1000;
@@ -105,6 +132,15 @@
       noAnswer: "No answer from the PC", launchFailed: "Could not start the game",
       alreadyRunning: "Already running", doubleTap: "Double-tap to start",
       shortcutEmpty: "Add a shortcut from DeskLink on your PC", shortcutAdd: "Add shortcut",
+      devMode: "DEVELOPER", devLost: "Another window came to the front. Live typing stopped.", setLive: "Live typing", devFront: "In front", devSendTo: "Send to", devGone: "That window is closed", devNoFocus: "Could not bring that window forward", devRefused: "Windows blocked typing there (an administrator window?)", devNoWindows: "No Claude, Codex, terminal or editor window is open", devLoading: "Loading…", devPlaceholder: "Write or dictate a prompt for Claude, Codex or any tool", devListening: "Listening… speak now",
+      devSend: "Send", devType: "Type only", devSent: "Sent to the PC", devTyped: "Typed on the PC", devEmpty: "Nothing to send", devOffline: "Not connected to the PC",
+      devWorking: "thinking…", devReady: "ready", devIdle: "done", devDone: "Agent finished", devNotDev: "The window in front is not a developer app. Pick one from the list.", doShell: "running a command", doEdit: "editing files", doRead: "reading code", doWeb: "searching the web", doAgent: "running a helper", doPlan: "planning", doAsk: "waiting for you", devFive: "5h", devSeven: "7d",
+      devMicHelp: "Dictation is probably off. On iPhone: Settings › General › Keyboard › Enable Dictation. Then tap the prompt box and use the mic key on the keyboard.",
+      devMicNet: "Dictation needs an internet connection.", devMicQuiet: "Did not hear anything. Try again.",
+      settings: "SETTINGS", setHint: "Saved on this phone", setTabs: "Tabs", setDev: "Developer mode", setGeneral: "General",
+      tabHome: "Home", tabGames: "Games", tabStats: "Stats", tabWatch: "Watch mode", tabDev: "Developer", tabPad: "Trackpad", tabClock: "Clock",
+      setActivity: "Show what Claude / Codex is doing", setUsage: "Show usage", setAutosend: "Send after dictation", setLang: "Dictation language", setCalm: "Calm mode", setReset: "Reset tabs and settings", setResetDone: "Reset",
+      setUp: "Move up", setDown: "Move down",
       watchMode: "WATCH MODE", brightness: "BRIGHTNESS", shutdownQ: "Shut down the PC?",
       gameMode: "GAME MODE", gpuFan: "GPU FAN", gpuFanIdle: "GPU FAN · IDLE",
       coreClock: "CORE CLOCK", noGpu: "No NVIDIA GPU found. GPU stats are only available for NVIDIA cards for now.",
@@ -128,6 +164,15 @@
       noAnswer: "Bilgisayardan yanıt gelmedi", launchFailed: "Oyun başlatılamadı",
       alreadyRunning: "Zaten çalışıyor", doubleTap: "Açmak için çift dokun",
       shortcutEmpty: "Bilgisayardaki DeskLink'ten kısayol ekle", shortcutAdd: "Kısayol ekle",
+      devMode: "GELİŞTİRİCİ", devLost: "Başka pencere öne geçti, canlı yazma durdu", setLive: "Canlı yazma", devFront: "Öndeki pencere", devSendTo: "Gönderilecek yer", devGone: "O pencere kapanmış", devNoFocus: "O pencere öne getirilemedi", devRefused: "Windows oraya yazmayı engelledi (yönetici penceresi mi?)", devNoWindows: "Açık Claude, Codex, terminal ya da editör penceresi yok", devLoading: "Yükleniyor…", devPlaceholder: "Claude, Codex ya da herhangi bir araç için prompt yaz veya söyle", devListening: "Dinleniyor… konuşabilirsin",
+      devSend: "Gönder", devType: "Sadece yaz", devSent: "Bilgisayara gönderildi", devTyped: "Bilgisayara yazıldı", devEmpty: "Gönderilecek bir şey yok", devOffline: "Bilgisayara bağlı değil",
+      devWorking: "düşünüyor…", devReady: "hazır", devIdle: "bitti", devDone: "Ajan bitirdi", devNotDev: "Öndeki pencere bir geliştirici uygulaması değil. Listeden seç.", doShell: "komut çalıştırıyor", doEdit: "dosya düzenliyor", doRead: "kodu okuyor", doWeb: "web'de arıyor", doAgent: "yardımcı ajan çalışıyor", doPlan: "plan yapıyor", doAsk: "senden cevap bekliyor", devFive: "5sa", devSeven: "7g",
+      devMicHelp: "Dikte büyük ihtimalle kapalı. iPhone'da Ayarlar › Genel › Klavye › Dikteyi Etkinleştir'i aç. Sonra yazı kutusuna dokun ve klavyedeki mikrofon tuşunu kullan.",
+      devMicNet: "Dikte için internet gerekir.", devMicQuiet: "Ses duyulmadı. Tekrar dene.",
+      settings: "AYARLAR", setHint: "Bu telefonda saklanır", setTabs: "Sekmeler", setDev: "Geliştirici modu", setGeneral: "Genel",
+      tabHome: "Ana ekran", tabGames: "Oyunlar", tabStats: "İstatistik", tabWatch: "Dizi modu", tabDev: "Geliştirici", tabPad: "Dokunmatik yüzey", tabClock: "Saat",
+      setActivity: "Claude / Codex ne yapıyor göster", setUsage: "Kullanımı göster", setAutosend: "Konuşunca hemen gönder", setLang: "Dikte dili", setCalm: "Sakin mod", setReset: "Sekmeleri ve ayarları sıfırla", setResetDone: "Sıfırlandı",
+      setUp: "Yukarı al", setDown: "Aşağı al",
       watchMode: "DİZİ MODU", brightness: "PARLAKLIK", shutdownQ: "Bilgisayar kapatılsın mı?",
       gameMode: "OYUN MODU", gpuFan: "GPU FANI", gpuFanIdle: "GPU FANI · DURDU",
       coreClock: "ÇEKİRDEK HIZI", noGpu: "NVIDIA ekran kartı bulunamadı. GPU verileri şimdilik sadece NVIDIA kartlarda var.",
@@ -181,6 +226,40 @@
     $("view-home").classList.toggle("disabled", !online);
     $("view-games").classList.toggle("disabled", !online);
     $("view-stats").classList.toggle("stale", !online);
+    if (!online) devOffline(); // the busy light is not known without the PC
+  }
+
+  // ---- Preferences -------------------------------------------------------
+
+  // What the person switched on or off in Settings: which tabs show and in
+  // what order, and the Claude mode options. Kept in this phone's storage.
+  var DEFAULT_ORDER = ["home", "games", "stats", "watch", "dev", "pad", "clock"];
+  var hasGames = true; // until the PC's layout says whether any game exists
+
+  function loadPrefs() {
+    var p = {};
+    try { p = JSON.parse(load(PREFS_KEY) || "{}") || {}; } catch (e) { p = {}; }
+    var out = { hidden: {}, order: DEFAULT_ORDER.slice(), agent: p.agent !== false, usage: p.usage !== false, live: p.live !== false, autosend: p.autosend === true, calm: p.calm === true, speech: p.speech === "tr" || p.speech === "en" ? p.speech : "" };
+    if (p.hidden && typeof p.hidden === "object") {
+      DEFAULT_ORDER.forEach(function (n) { if (n !== "home" && p.hidden[n] === true) out.hidden[n] = true; });
+    }
+    if (Array.isArray(p.order)) {
+      var seen = {}, order = [];
+      p.order.concat(DEFAULT_ORDER).forEach(function (n) {
+        if (DEFAULT_ORDER.indexOf(n) >= 0 && !seen[n]) { seen[n] = true; order.push(n); }
+      });
+      out.order = order;
+    }
+    return out;
+  }
+  var prefs = loadPrefs();
+  function savePrefs() { save(PREFS_KEY, JSON.stringify(prefs)); }
+
+  // Home and Settings always stay; the games tab also needs a game on the PC.
+  function tabHidden(name) {
+    if (name === "home" || name === "settings" || name === "pair") return false;
+    if (name === "games" && !hasGames) return true;
+    return !!prefs.hidden[name];
   }
 
   // ---- Views -------------------------------------------------------------
@@ -193,7 +272,8 @@
     var sx = 0, sy = 0, tap = false;
     t.addEventListener("touchstart", function (e) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; tap = e.touches.length === 1; }, { passive: true });
     t.addEventListener("touchmove", function (e) {
-      if (Math.abs(e.touches[0].clientX - sx) > 12 || Math.abs(e.touches[0].clientY - sy) > 12) tap = false;
+      var p = e.touches && e.touches[0];
+      if (!p || Math.abs(p.clientX - sx) > 12 || Math.abs(p.clientY - sy) > 12) tap = false;
     }, { passive: true });
     t.addEventListener("touchend", function () { if (tap) showView(t.dataset.view); tap = false; }, { passive: true });
   });
@@ -201,6 +281,7 @@
   var padReset = null; // lets go of trackpad buttons (set by the trackpad code)
 
   function showView(name, remember) {
+    if (name !== "pair" && tabHidden(name)) name = "home"; // a tab the user switched off
     var prev = document.querySelector(".view.active");
     var next = $("view-" + name);
     if (prev !== next) {
@@ -227,13 +308,28 @@
     if (name !== "pair") {
       view = name;
       if (remember !== false) save(VIEW_KEY, name);
-      tabs.forEach(function (t, i) {
-        var on = t.dataset.view === name;
-        t.classList.toggle("active", on);
-        if (on) $("tab-pill").style.transform = "translateY(" + (t.offsetTop - tabs[0].offsetTop) + "px)";
-      });
+      placePill();
     }
+    if (name === "dev") devShown();
     syncStreams();
+  }
+
+  // The highlight behind the active tab. It sits where the first tab would be
+  // (its CSS top) and slides down by the active tab's offset.
+  function placePill() {
+    var pill = $("tab-pill");
+    var base = parseFloat(getComputedStyle(pill).top) || 0;
+    var found = false;
+    tabs.forEach(function (t) {
+      var on = t.dataset.view === view && !t.hidden;
+      t.classList.toggle("active", on);
+      if (on) {
+        found = true;
+        pill.style.transform = "translateY(" + (t.offsetTop - base) + "px)";
+        pill.classList.toggle("soft", t.classList.contains("settings-tab"));
+      }
+    });
+    pill.style.visibility = found ? "" : "hidden";
   }
 
   // ---- Connection --------------------------------------------------------
@@ -322,6 +418,16 @@
   function handle(msg) {
     switch (msg.type) {
       case "layout":
+        if (msg.version) {
+          if (!pageVersion) {
+            pageVersion = msg.version;
+            if (window.DeskReport) window.DeskReport("panel " + msg.version + " " + window.innerWidth + "x" + window.innerHeight + (framed ? " in frame" : ""), "start");
+          } else if (msg.version !== pageVersion) {
+            // DeskLink was updated: load the new panel (the whole page, frame included).
+            (framed ? window.parent : window).location.reload();
+            return;
+          }
+        }
         retryDelay = 1000;
         layout = msg;
         gameIDs = {};
@@ -332,8 +438,8 @@
         renderGames(msg.games || []);
         setStatus("online", "Connected");
         // The games screen is only worth a tab once a game has been added on the PC.
-        var hasGames = (msg.games || []).length > 0;
-        tabs.forEach(function (tb) { if (tb.dataset.view === "games") tb.hidden = !hasGames; });
+        hasGames = (msg.games || []).length > 0;
+        applyTabs();
         if (!hasGames && view === "games") view = "home";
         showView(view, false);
         if (view === "watch") askBrightness();
@@ -353,8 +459,14 @@
       case "media":
         if (msg.media) onMedia(msg.media, msg.art);
         break;
+      case "windows":
+        devWindows(msg.windows || []);
+        break;
+      case "typeres":
+        devTypeResult(msg.error);
+        break;
       case "claude":
-        if (msg.claude) renderClaude(msg.claude);
+        if (msg.claude) { renderClaude(msg.claude); devRender(msg.claude); }
         break;
       case "plan":
         planItems = msg.plan || [];
@@ -388,13 +500,19 @@
       document.visibilityState === "visible" && ws && ws.readyState === WebSocket.OPEN;
     var want = {
       stats: !!(live && ((view === "stats" && statsPage === 0) || (view === "home" && miniEls && miniPage === 0))),
-      claude: !!(live && view === "home" && claudeEls && miniPage === 1),
+      claude: !!(live && ((view === "home" && claudeEls && miniPage === 1) || (view === "dev" && (prefs.agent || prefs.usage)) || (prefs.agent && !tabHidden("dev")))),
       media: !!(live && view === "home" && np),
       mixer: !!(live && (view === "stats" || view === "watch"))
     };
     Object.keys(want).forEach(function (k) {
       if (want[k] !== !!streaming[k] && send({ type: k, on: want[k] })) streaming[k] = want[k];
     });
+    // The busy dot on the Claude tab is only true while its numbers stream.
+    if (!want.claude) {
+      devPrev = "";
+      var busyTab = document.querySelector(".tab.busy");
+      if (busyTab) busyTab.classList.remove("busy");
+    }
     clearInterval(progressTimer);
     progressTimer = want.media ? setInterval(function () { tickProgress(false); }, 1000) : null;
     // The plan counts down on the phone's own clock, so it needs no stream.
@@ -421,8 +539,24 @@
     touchY = e.touches[0].clientY;
     touchDragging = e.touches.length > 1;
   }, { passive: true });
+  // A list inside the page may scroll, but only while it has somewhere to go:
+  // at its top or bottom the drag would otherwise pull the whole page with it.
+  function canScrollThere(el, y) {
+    var dy = y - touchY;
+    if (el.scrollHeight <= el.clientHeight + 1) return false;
+    if (dy > 0 && el.scrollTop <= 0) return false;
+    if (dy < 0 && el.scrollTop + el.clientHeight >= el.scrollHeight - 1) return false;
+    return true;
+  }
   document.addEventListener("touchmove", function (e) {
-    if (e.target.closest && e.target.closest(".game-list, .ps-items")) return;
+    if (e.target.closest && e.target.closest(".dev-text")) return; // editing text: selection handles and caret
+    // Settings and the window picker scroll by code and every control there
+    // acts on touchend (onTap), so no click has to survive: stop the very first
+    // move. Once iOS has started panning the page it can no longer be stopped,
+    // and the page slid down with the finger.
+    if (e.target.closest && e.target.closest(".settings-view, .dev-sheet")) { if (e.cancelable) e.preventDefault(); return; }
+    var scroller = e.target.closest && e.target.closest(".game-list, .ps-items");
+    if (scroller && canScrollThere(scroller, e.touches[0].clientY)) return;
     if (!touchDragging) {
       var t = e.touches[0];
       if (Math.abs(t.clientX - touchX) < TAP_SLOP && Math.abs(t.clientY - touchY) < TAP_SLOP) return;
@@ -619,6 +753,7 @@
       np.lock.addEventListener("click", toggleLock);
       body.appendChild(np.lock);
       bindSwipe(card);
+      body.querySelector(".np-art").addEventListener("click", openFull);
       if (mediaState) renderMedia();
     },
     // list: one row per button; consecutive game buttons share one row as tiles.
@@ -820,6 +955,636 @@
     }).join("");
     e.note.textContent = t("clHint");
   }
+
+  // ---- Developer mode ----------------------------------------------------
+
+  // Write or dictate a prompt on the phone and have it typed into the window
+  // in front on the PC: Claude Code, Codex or any other tool in a terminal or
+  // editor. Optionally the header shows whether Claude Code is busy and how
+  // much of the plan is used; both come from Claude Code's own logs on the PC
+  // and are off until switched on in Settings.
+  var devEls = null, devPrev = "", devRec = null, devGotFinal = false, devHelpTimer = null;
+  var devTarget = { id: 0, name: "" }; // the program to send to; id 0 is the window in front
+  var devLast = "";                    // the last text sent, to put back if it could not be delivered
+  var DRAFT_KEY = "desklink.draft";
+  var SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  function mk(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  // Taps that always arrive. iOS sometimes loses the click of a quick tap, so
+  // the end of a touch that did not move counts as the tap too (never both).
+  function onTap(el, fn) {
+    var sx = 0, sy = 0, tap = false, last = 0;
+    function fire(e) {
+      if (el.disabled) return;
+      var now = Date.now();
+      if (now - last < 350) return;
+      last = now;
+      fn(e);
+    }
+    el.addEventListener("click", fire);
+    el.addEventListener("touchstart", function (e) {
+      var p = e.touches && e.touches[0];
+      sx = p ? p.clientX : 0;
+      sy = p ? p.clientY : 0;
+      tap = !!p && e.touches.length === 1;
+    }, { passive: true });
+    el.addEventListener("touchmove", function (e) {
+      if (Math.abs(e.touches[0].clientX - sx) > 12 || Math.abs(e.touches[0].clientY - sy) > 12) tap = false;
+    }, { passive: true });
+    // The tap is used at touchend, and the click iOS makes from it is cancelled:
+    // the tap often redraws the screen, and that click would land on the new
+    // thing under the finger (and, say, switch a setting straight back).
+    el.addEventListener("touchend", function (e) {
+      if (!tap) return;
+      tap = false;
+      if (e.cancelable) e.preventDefault();
+      fire(e);
+    }, { passive: false });
+  }
+
+  // Scrolling a list by hand. Native scrolling inside the sideways frame pulls
+  // the whole page along, so the lists that matter are moved by code instead
+  // (with a little glide at the end).
+  function dragScroll(el, inner) {
+    if (!el) return;
+    var y0 = 0, top0 = 0, lastY = 0, lastT = 0, speed = 0, active = false, moved = false, raf = 0;
+    // With an inner layer the content is slid by transform: the phone moves a
+    // picture it already has instead of painting the list again every frame.
+    var pos = 0;
+    function getTop() { return inner ? pos : el.scrollTop; }
+    function setTop(v) {
+      if (!inner) { el.scrollTop = v; return; }
+      var maxTop = Math.max(0, inner.offsetHeight - el.clientHeight);
+      pos = Math.max(0, Math.min(maxTop, v));
+      inner.style.transform = "translate3d(0," + (-pos) + "px,0)";
+    }
+    if (inner) el.dragScrollTo = function (v) { setTop(v == null ? pos : v); };
+    el.addEventListener("touchstart", function (e) {
+      cancelAnimationFrame(raf);
+      if (!e.touches || e.touches.length !== 1) { active = false; return; }
+      y0 = lastY = e.touches[0].clientY;
+      top0 = getTop();
+      lastT = Date.now();
+      speed = 0;
+      active = true;
+      moved = false;
+    }, { passive: true });
+    el.addEventListener("touchmove", function (e) {
+      if (!active || !e.touches || !e.touches[0]) return;
+      var y = e.touches[0].clientY;
+      if (!moved && Math.abs(y - y0) < 10) return;
+      moved = true;
+      setTop(top0 - (y - y0));
+      var now = Date.now();
+      if (now > lastT) speed = (lastY - y) / (now - lastT);
+      lastY = y;
+      lastT = now;
+    }, { passive: true });
+    el.addEventListener("touchend", function () {
+      if (!active) return;
+      active = false;
+      if (!moved) return;
+      var v = speed * 16;
+      (function glide() {
+        if (Math.abs(v) < 0.4) return;
+        var before = getTop();
+        setTop(before + v);
+        if (getTop() === before) return; // reached an end
+
+        v *= 0.94;
+        raf = requestAnimationFrame(glide);
+      })();
+    }, { passive: true });
+  }
+
+  function initDevMode() {
+    var text = $("dev-text");
+    if (!text) return;
+    devEls = { text: text, clear: $("dev-clear"), help: $("dev-help"), mic: $("dev-mic"), chips: $("dev-chips"), live: $("dev-live"), usage: $("dev-usage") };
+    text.placeholder = t("devPlaceholder");
+    text.maxLength = 2000;
+    text.value = load(DRAFT_KEY) || "";
+    devSyncClear();
+    text.addEventListener("input", function () {
+      save(DRAFT_KEY, text.value);
+      devSyncClear();
+      devHideHelp();
+      if (!text.value) devLivePaused = false;
+      devLiveSync();
+    });
+    // The keyboard covers half of a sideways phone: the card moves to the top.
+    function keyboard(on) {
+      document.body.classList.toggle("kb-open", on);
+      if (framed) { try { window.parent.postMessage({ type: "kb", on: on }, location.origin); } catch (err) { /* no parent */ } }
+    }
+    text.addEventListener("focus", function () { keyboard(true); });
+    text.addEventListener("blur", function () {
+      setTimeout(function () { keyboard(false); window.scrollTo(0, 0); }, 60);
+    });
+    // iOS pans the page to show the text box; the page never scrolls, so put it back.
+    window.addEventListener("scroll", function () { if (window.scrollX || window.scrollY) window.scrollTo(0, 0); }, { passive: true });
+    trackKeyboard();
+    onTap(devEls.clear, function () { text.value = ""; save(DRAFT_KEY, null); devSyncClear(); devLivePaused = false; devLiveSync(); text.focus(); });
+    onTap($("dev-send"), function () { devSubmit(true); });
+    onTap($("dev-type"), function () { devSubmit(false); });
+    onTap(devEls.mic, devDictate);
+    onTap($("dev-target"), devOpenSheet);
+    onTap($("dev-sheet-refresh"), function () { send({ type: "windows" }); });
+    onTap($("dev-sheet"), function (ev) { if (ev && ev.target === $("dev-sheet")) $("dev-sheet").hidden = true; });
+    Array.prototype.forEach.call(document.querySelectorAll(".dev-key"), function (b) {
+      onTap(b, function () {
+        var live = devLiveHandOff();
+        if (!send({ type: "key", action: b.dataset.key, window: devTarget.id || undefined })) { toast(t("devOffline")); return; }
+        if (live) devClearBox(); // the text is in the window now; the key ended the live session
+        b.classList.add("pressed");
+        setTimeout(function () { b.classList.remove("pressed"); }, 140);
+      });
+    });
+    devApplyPrefs();
+  }
+
+  // The panel (outside the sideways frame) is pinned to the visible part of the
+  // window: with the keyboard up, that part is shorter and iOS pans it.
+  function trackKeyboard() {
+    var vv = window.visualViewport;
+    if (!vv || framed) return;
+    function fit() {
+      var up = window.innerHeight - vv.height > 90;
+      document.documentElement.style.setProperty("--vh", (up ? vv.height : window.innerHeight) / 100 + "px");
+      document.body.style.position = up ? "relative" : "";
+      document.body.style.top = up ? vv.offsetTop + "px" : "";
+    }
+    vv.addEventListener("resize", fit);
+    vv.addEventListener("scroll", fit);
+  }
+
+  function devSyncClear() { devEls.clear.hidden = !devEls.text.value; }
+
+  function devShowHelp(msg) {
+    devEls.help.textContent = msg;
+    devEls.help.hidden = false;
+    clearTimeout(devHelpTimer);
+    devHelpTimer = setTimeout(devHideHelp, 15000);
+  }
+  function devHideHelp() { if (devEls) devEls.help.hidden = true; }
+
+  // Types the prompt on the PC; with andEnter, presses Enter after it.
+  function devSubmit(andEnter) {
+    var e = devEls;
+    if (!e) return;
+    var txt = e.text.value.replace(/\s+$/, "");
+    if (!txt.trim()) { toast(t("devEmpty")); return; }
+    var win = devTarget.id || undefined;
+    if (prefs.live && !devLivePaused) {
+      // The text is on the PC already (or about to be): finish it, then Enter.
+      clearTimeout(devLiveTimer);
+      if (!send({ type: "live", text: txt, window: win })) { toast(t("devOffline")); return; }
+      send({ type: "liveend", send: andEnter });
+      devLiveOn = false;
+      devLast = e.text.value;
+    } else {
+      if (!send({ type: "type", text: txt, send: andEnter, window: win })) { toast(t("devOffline")); return; }
+      devLast = e.text.value;
+    }
+    devLivePaused = false;
+    // Still listening? Stop, so late words do not fill the box again and the
+    // auto-send does not send the same prompt twice.
+    if (devRec) {
+      devGotFinal = false;
+      devRec.onresult = null;
+      try { devRec.abort(); } catch (err) { /* already over */ }
+    }
+    e.text.value = "";
+    save(DRAFT_KEY, null);
+    devSyncClear();
+    devHideHelp();
+    toast(t(andEnter ? "devSent" : "devTyped"));
+  }
+
+  function speechLang() {
+    var l = prefs.speech || LANG;
+    return l === "tr" ? "tr-TR" : "en-US";
+  }
+
+  function devListening(on) {
+    var e = devEls;
+    e.mic.classList.toggle("on", on);
+    e.text.classList.toggle("listening", on);
+    e.text.placeholder = t(on ? "devListening" : "devPlaceholder");
+  }
+
+  // Safari's own speech recognition, where the page may use it. Both it and
+  // the keyboard's mic key need Dictation switched on in the iPhone's
+  // settings, so a failure says how to do that instead of just failing.
+  function devDictate() {
+    var e = devEls;
+    if (devRec) { devRec.stop(); return; }
+    devHideHelp();
+    if (!SpeechRec) { devShowHelp(t("devMicHelp")); return; }
+    var r;
+    try { r = new SpeechRec(); } catch (err) { devShowHelp(t("devMicHelp")); return; }
+    var base = e.text.value, gap = base && !/\s$/.test(base) ? " " : "";
+    var started = false;
+    devGotFinal = false;
+    r.lang = speechLang();
+    r.interimResults = true;
+    r.continuous = false;
+    r.onstart = function () { started = true; };
+    r.onresult = function (ev) {
+      var heard = "";
+      for (var i = 0; i < ev.results.length; i++) {
+        heard += ev.results[i][0].transcript;
+        if (ev.results[i].isFinal) devGotFinal = true;
+      }
+      e.text.value = base + gap + heard;
+      save(DRAFT_KEY, e.text.value);
+      devSyncClear();
+      devLiveSync();
+    };
+    r.onerror = function (ev) {
+      if (ev.error === "aborted") return;
+      if (ev.error === "no-speech") { devShowHelp(t("devMicQuiet")); return; }
+      if (ev.error === "network") { devShowHelp(t("devMicNet")); return; }
+      devShowHelp(t("devMicHelp"));
+    };
+    r.onend = function () {
+      devRec = null;
+      devListening(false);
+      if (devGotFinal && prefs.autosend) devSubmit(true);
+    };
+    try {
+      r.start();
+    } catch (err) { devShowHelp(t("devMicHelp")); return; }
+    devRec = r;
+    devListening(true);
+    // Some phones never start listening and never say why.
+    setTimeout(function () {
+      if (devRec === r && !started) {
+        try { r.abort(); } catch (err) { /* already over */ }
+        devShowHelp(t("devMicHelp"));
+      }
+    }, 6000);
+  }
+
+  // The program the text goes to. The list comes from the PC; a window that
+  // has closed since is dropped when it is next used.
+  function devSetTarget(id, name) {
+    var moved = devTarget.id !== id;
+    if (moved) devLiveStop();
+    devTarget = { id: id, name: name };
+    $("dev-target-name").textContent = id ? name : t("devFront");
+    $("dev-target").classList.toggle("set", !!id);
+    if (moved && devEls && devEls.text.value) devLiveSync(); // the whole text goes to the new program
+  }
+
+  function devOpenSheet() {
+    var list = $("dev-sheet-list");
+    list.innerHTML = "";
+    list.appendChild(mk("div", "dev-none", t("devLoading")));
+    $("dev-sheet").hidden = false;
+    if (!send({ type: "windows" })) { $("dev-sheet").hidden = true; toast(t("devOffline")); }
+  }
+
+  var KIND_ICON = {
+    front: '<rect x="3" y="4" width="18" height="13" rx="2.5"/><path d="M8 21h8"/>',
+    ai: '<path d="M11 3l1.9 5.1L18 10l-5.1 1.9L11 17l-1.9-5.1L4 10l5.1-1.9z"/><path d="M18.5 15.5v4M16.5 17.5h4"/>',
+    term: '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="m7 9 3 3-3 3M13 15h4"/>',
+    editor: '<path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/>'
+  };
+
+  function devOption(id, name, sub, kind) {
+    var b = mk("button", "dev-opt" + (devTarget.id === id ? " on" : ""));
+    b.type = "button";
+    b.setAttribute("role", "option");
+    var ic = mk("span", "ic");
+    ic.innerHTML = '<svg viewBox="0 0 24 24">' + (KIND_ICON[kind] || KIND_ICON.front) + "</svg>";
+    b.appendChild(ic);
+    var tx = mk("span", "tx");
+    tx.appendChild(mk("b", "", name));
+    if (sub) tx.appendChild(mk("small", "", sub));
+    b.appendChild(tx);
+    if (devTarget.id === id) b.insertAdjacentHTML("beforeend", '<svg viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></svg>');
+    onTap(b, function () { devSetTarget(id, name); $("dev-sheet").hidden = true; });
+    return b;
+  }
+
+  function devWindows(items) {
+    var list = $("dev-sheet-list");
+    if (!list || $("dev-sheet").hidden) return;
+    list.innerHTML = "";
+    list.appendChild(devOption(0, t("devFront"), "", "front"));
+    items.forEach(function (w) {
+      list.appendChild(devOption(w.id, w.app, w.title && w.title !== w.app ? w.title : "", w.kind));
+    });
+    if (!items.length) list.appendChild(mk("div", "dev-none", t("devNoWindows")));
+  }
+
+  // Live typing: the PC shows the text as it is written or dictated. The whole
+  // text is sent a moment after each change; the PC works out what changed.
+  var devLiveOn = false, devLivePaused = false, devLiveTimer = null;
+
+  function devLiveSync() {
+    if (!prefs.live || devLivePaused) return;
+    clearTimeout(devLiveTimer);
+    devLiveTimer = setTimeout(devLivePush, 250);
+  }
+
+  function devLivePush() {
+    var e = devEls;
+    if (!e || !prefs.live || devLivePaused) return;
+    var txt = e.text.value;
+    if (!txt && !devLiveOn) return;
+    if (!send({ type: "live", text: txt, window: devTarget.id || undefined })) return;
+    if (txt) devLiveOn = true;
+  }
+
+  // Before a key: the last words are typed live, so the key lands after them.
+  // True if a live text was on its way (the box is then emptied after the key).
+  function devLiveHandOff() {
+    var e = devEls;
+    if (!e || !prefs.live || devLivePaused || !e.text.value) return false;
+    clearTimeout(devLiveTimer);
+    if (!send({ type: "live", text: e.text.value, window: devTarget.id || undefined })) return false;
+    devLiveOn = false;
+    return true;
+  }
+  function devClearBox() {
+    devEls.text.value = "";
+    save(DRAFT_KEY, null);
+    devSyncClear();
+  }
+
+  // Ends the PC's live session; the text stays in the box.
+  function devLiveStop() {
+    clearTimeout(devLiveTimer);
+    if (devLiveOn) send({ type: "liveend", send: false });
+    devLiveOn = false;
+  }
+
+  // The PC could not deliver: say why, and give the text back.
+  function devTypeResult(code) {
+    if (!code || !devEls) return;
+    clearTimeout(devLiveTimer);
+    devLiveOn = false;
+    if (prefs.live) devLivePaused = true; // do not type the same text again behind the person's back
+    if (code === "gone") devSetTarget(0, "");
+    toast(t(code === "gone" ? "devGone" : code === "focus" ? "devNoFocus" : code === "lost" ? "devLost" : code === "notdev" ? "devNotDev" : "devRefused"));
+    if (!devEls.text.value && devLast) {
+      devEls.text.value = devLast;
+      save(DRAFT_KEY, devLast);
+      devSyncClear();
+    }
+  }
+
+  // Which of the header's two optional pieces show.
+  function devApplyPrefs() {
+    var e = devEls;
+    if (!e) return;
+    $("view-dev").classList.toggle("live", prefs.live);
+    if (!prefs.live) devLiveStop();
+    if (!prefs.agent) devLive("");
+    if (!prefs.usage) e.usage.hidden = true;
+    e.chips.hidden = e.live.hidden && e.usage.hidden;
+    if (claudeLast) devRender(claudeLast);
+  }
+
+  // What a tool call means, in words: "Bash" -> "running a command".
+  var DO_WORDS = { bash: "doShell", shell: "doShell", powershell: "doShell", exec_command: "doShell", local_shell: "doShell", bashoutput: "doShell",
+    edit: "doEdit", write: "doEdit", multiedit: "doEdit", notebookedit: "doEdit", apply_patch: "doEdit",
+    read: "doRead", grep: "doRead", glob: "doRead", ls: "doRead", view_image: "doRead",
+    websearch: "doWeb", webfetch: "doWeb", web_search: "doWeb",
+    agent: "doAgent", task: "doAgent", todowrite: "doPlan", update_plan: "doPlan", exitplanmode: "doPlan",
+    askuserquestion: "doAsk", request_user_input: "doAsk" };
+  function doingWords(tool) {
+    if (!tool) return t("devWorking");
+    var k = DO_WORDS[tool.toLowerCase()];
+    return k ? t(k) : tool;
+  }
+
+  // The agent's state: who ("Claude", "Codex"), and what it is doing; anything else hides it.
+  function devLive(s, c) {
+    var e = devEls;
+    if (!e) return;
+    var show = prefs.agent && (s === "working" || s === "idle");
+    e.live.hidden = !show;
+    if (show) {
+      var who = c && c.agent === "codex" ? "Codex" : "Claude";
+      var what = s === "working" ? doingWords(c && c.doing) : t(c && c.state_s < 600 ? "devIdle" : "devReady");
+      e.live.className = "dev-live " + s + (s === "working" && c && c.doing ? " tool" : "");
+      e.live.querySelector("b").textContent = who;
+      e.live.querySelector("em").textContent = what;
+    }
+    var tab = document.querySelector('.tab[data-view="dev"]');
+    if (tab) tab.classList.toggle("busy", show && s === "working");
+    e.chips.hidden = e.live.hidden && e.usage.hidden;
+  }
+
+  function devOffline() {
+    devPrev = "";
+    devLive("");
+    // The PC forgot what it typed live: typing on after reconnecting would
+    // write the whole text a second time. Wait until the box is emptied.
+    if (devLiveOn) {
+      clearTimeout(devLiveTimer);
+      devLiveOn = false;
+      devLivePaused = true;
+    }
+  }
+
+  // The numbers from Claude Code's logs: activity light and plan usage.
+  function devRender(c) {
+    var e = devEls;
+    if (!e) return;
+    var s = c.state || "none";
+    var finished = devPrev === "working" && s === "idle";
+    devPrev = s;
+    devLive(s, c);
+    if (finished && prefs.agent && view !== "dev") toast(t("devDone"));
+    var lim = c.limits;
+    var parts = [];
+    var pcts = true;
+    if (prefs.usage && lim && (lim.five_hour || lim.seven_day)) {
+      if (lim.five_hour) parts.push([t("devFive"), lim.five_hour.pct]);
+      if (lim.seven_day) parts.push([t("devSeven"), lim.seven_day.pct]);
+    } else if (prefs.usage && c.found) {
+      // No plan percentages yet: the token counts from the logs.
+      pcts = false;
+      if (c.active && c.block) parts.push([t("devFive"), c.block.tokens]);
+      parts.push([t("devSeven"), c.week]);
+    }
+    e.usage.innerHTML = "";
+    parts.forEach(function (p) {
+      var pct = Math.round(p[1]);
+      var s2 = mk("span", pcts && pct >= 90 ? "hot" : pcts && pct >= 70 ? "warn" : "");
+      s2.appendChild(document.createTextNode(p[0]));
+      s2.appendChild(mk("b", "", pcts ? pct + "%" : short(p[1])));
+      e.usage.appendChild(s2);
+    });
+    e.usage.hidden = !parts.length;
+    e.chips.hidden = e.live.hidden && e.usage.hidden;
+  }
+
+  // Opening the screen: show the last numbers at once.
+  function devShown() {
+    if (devEls && claudeLast) devRender(claudeLast);
+  }
+
+  // ---- Settings ----------------------------------------------------------
+
+  var SET_LABEL = { home: "tabHome", games: "tabGames", stats: "tabStats", watch: "tabWatch", dev: "tabDev", pad: "tabPad", clock: "tabClock" };
+
+  // Puts the tabs in the saved order and hides the ones switched off.
+  function applyTabs() {
+    var rail = $("rail"), settingsTab = rail.querySelector(".settings-tab");
+    var by = {};
+    tabs.forEach(function (tb) { by[tb.dataset.view] = tb; });
+    prefs.order.forEach(function (n) { if (by[n]) rail.insertBefore(by[n], settingsTab); });
+    tabs = prefs.order.filter(function (n) { return by[n]; }).map(function (n) { return by[n]; }).concat([settingsTab]);
+    tabs.forEach(function (tb) { tb.hidden = tabHidden(tb.dataset.view); });
+    document.body.classList.toggle("calm", prefs.calm);
+    devApplyPrefs();
+    if (tabHidden(view)) showView("home", false); else placePill();
+    syncStreams();
+  }
+
+  // A switch is only its look; the whole row is the button.
+  function swtch(on, locked) {
+    var b = mk("span", "sw" + (on ? " on" : "") + (locked ? " locked" : ""));
+    b.appendChild(mk("i"));
+    return b;
+  }
+
+  // A row with a switch passes onRow (and the switch's state, for screen
+  // readers); taps on its arrows or buttons stay theirs.
+  function setRow(label, control, icon, onRow, on) {
+    var row = mk("div", "set-row");
+    if (icon) {
+      var ic = mk("span", "set-ic");
+      ic.innerHTML = icon;
+      row.appendChild(ic);
+    }
+    row.appendChild(mk("span", "set-tx", label));
+    [].concat(control || []).forEach(function (c) { row.appendChild(c); });
+    if (onRow) {
+      row.classList.add("tap");
+      row.tabIndex = 0;
+      row.setAttribute("role", "switch");
+      row.setAttribute("aria-checked", on ? "true" : "false");
+      onTap(row, function (e) {
+        if (e && e.target && e.target.closest && e.target.closest(".set-mv, .seg")) return;
+        onRow();
+      });
+    }
+    return row;
+  }
+
+  function arrow(dir, label, disabled, go) {
+    var b = mk("button", "set-mv");
+    b.type = "button";
+    b.setAttribute("aria-label", label);
+    b.disabled = disabled;
+    b.innerHTML = '<svg viewBox="0 0 24 24"><path d="' + (dir < 0 ? "m6 15 6-6 6 6" : "m6 9 6 6 6-6") + '"/></svg>';
+    onTap(b, go);
+    return b;
+  }
+
+  function changed() {
+    if (window.DeskSettingsNote) window.DeskSettingsNote("changed");
+    savePrefs();
+    applyTabs();
+    renderSettings();
+  }
+
+  // One preference that is a plain on/off.
+  function flag(key, label) {
+    return setRow(label, swtch(prefs[key]), null, function () { prefs[key] = !prefs[key]; changed(); }, prefs[key]);
+  }
+
+  function renderSettings() {
+    var box = $("set-scroll");
+    if (!box) return;
+    var top = box.scrollTop;
+    var tabsBox = $("set-tabs"), devBox = $("set-dev"), general = $("set-general");
+    [tabsBox, devBox, general].forEach(function (b) { b.innerHTML = ""; });
+
+    prefs.order.forEach(function (n, i) {
+      var tabEl = document.querySelector('.tab[data-view="' + n + '"]');
+      var icon = tabEl ? tabEl.querySelector("svg").outerHTML : "";
+      var locked = n === "home";
+      var controls = [
+        arrow(-1, t("setUp"), i === 0, function () { prefs.order.splice(i, 1); prefs.order.splice(i - 1, 0, n); changed(); }),
+        arrow(1, t("setDown"), i === prefs.order.length - 1, function () { prefs.order.splice(i, 1); prefs.order.splice(i + 1, 0, n); changed(); }),
+        swtch(!prefs.hidden[n], locked)
+      ];
+      tabsBox.appendChild(setRow(t(SET_LABEL[n]), controls, icon, locked ? null : function () {
+        if (prefs.hidden[n]) delete prefs.hidden[n]; else prefs.hidden[n] = true;
+        changed();
+      }, !prefs.hidden[n]));
+    });
+
+    devBox.appendChild(flag("live", t("setLive")));
+    devBox.appendChild(flag("usage", t("setUsage")));
+    devBox.appendChild(flag("agent", t("setActivity")));
+    if (SpeechRec) {
+      devBox.appendChild(flag("autosend", t("setAutosend")));
+      var seg = mk("div", "seg");
+      [["", "Auto"], ["tr", "TR"], ["en", "EN"]].forEach(function (o) {
+        var b = mk("button", prefs.speech === o[0] ? "on" : "", o[1]);
+        b.type = "button";
+        onTap(b, function () { prefs.speech = o[0]; changed(); });
+        seg.appendChild(b);
+      });
+      devBox.appendChild(setRow(t("setLang"), seg));
+    }
+
+    general.appendChild(flag("calm", t("setCalm")));
+    var reset = mk("button", "set-reset", t("setReset"));
+    reset.type = "button";
+    onTap(reset, function () {
+      save(PREFS_KEY, null);
+      prefs = loadPrefs();
+      changed();
+      toast(t("setResetDone"));
+    });
+    general.appendChild(reset);
+    if (box.dragScrollTo) box.dragScrollTo(); else box.scrollTop = top;
+  }
+
+  (function watchSettingsTaps() {
+    var box = $("view-settings"), notes = [], sent = 0, timer = null;
+    if (!box || !window.DeskReport) return;
+    function note(s) {
+      if (sent >= 4 || notes.length > 12) return;
+      notes.push(s);
+      clearTimeout(timer);
+      timer = setTimeout(function () { sent++; window.DeskReport("settings taps: " + notes.join(" | "), "settings"); notes = []; }, 2500);
+    }
+    function where(e) {
+      var el = e.target, p = e.changedTouches && e.changedTouches[0];
+      var name = el && el.className && typeof el.className === "string" ? el.className.split(" ")[0] : el && el.nodeName;
+      var row = el && el.closest && el.closest(".set-row");
+      return name + (row ? "@row" : "") + (p ? " " + Math.round(p.clientX) + "," + Math.round(p.clientY) : "");
+    }
+    ["touchstart", "touchend", "click"].forEach(function (type) {
+      box.addEventListener(type, function (e) { note(type + " " + where(e) + (e.defaultPrevented ? " prevented" : "")); }, true);
+    });
+    window.DeskSettingsNote = note;
+  })();
+  initDevMode();
+  dragScroll($("set-scroll"), $("set-inner"));
+  dragScroll($("dev-sheet-list"));
+  renderSettings();
+  applyTabs();
+  // The settings tab sits at the bottom, so its place depends on the screen's
+  // height: measure again once the page has its size, and when it changes.
+  requestAnimationFrame(placePill);
+  window.addEventListener("resize", placePill);
 
   // ---- Day plan ----------------------------------------------------------
 
@@ -1341,6 +2106,9 @@
     var list = mediaState && mediaState.sources || [];
     var by = function (f) { for (var i = 0; i < list.length; i++) if (f(list[i])) return list[i]; return null; };
     var cur = mediaState && mediaState.current;
+    // The full screen player stays on the source it was opened on.
+    var held = fullHold && by(function (s) { return s.id === fullHold; });
+    if (held) return held;
     // A locked source stays until the user swipes. A picked one is only kept
     // while it plays (or was just picked): once it is paused, whatever else
     // is playing takes over instead of a stale paused tab staying on screen.
@@ -1456,12 +2224,18 @@
     var app = has ? (m.app || t("media")) + (m.playing ? "" : " · " + t("paused")) : t("notPlaying");
     var title = has ? m.title : t("nothingPlaying");
     var artist = has ? (m.artist || m.album || "") : t("startMusic");
+    // Compare with the text the card is heading for, not the one on screen: a
+    // swap may be waiting, and a reading that goes back to the old track must
+    // cancel it instead of leaving the wrong track up.
+    var wanted = title + " " + artist;
     if (instant) {
       clearTimeout(np.textTimer);
+      np.wanted = wanted;
       np.meta.classList.remove("out", "in");
       np.title.textContent = title;
       np.artist.textContent = artist;
-    } else if (title !== np.title.textContent || artist !== np.artist.textContent) {
+    } else if (np.wanted !== wanted) {
+      np.wanted = wanted;
       // New track: the old text lifts away, then the new text rises into place.
       var meta = np.meta, first = !np.title.textContent;
       clearTimeout(np.textTimer);
@@ -1488,6 +2262,7 @@
     np.slider.classList.toggle("app", !!own);
     var v = own ? m.volume : mediaState.volume, muted = own ? m.muted : mediaState.muted;
     if (v >= 0 && Date.now() > volumeLockUntil) setVolume(v, muted);
+    if (full) fillFull();
   }
 
   function renderDots(list, id) {
@@ -1536,6 +2311,105 @@
     el.addEventListener("touchcancel", end);
   }
 
+  // ---- Full screen player --------------------------------------------------
+  // Tapping the cover opens a big player; a tap anywhere but the volume
+  // slider and the buttons closes it again.
+
+  var full = null;
+  var fullTimer = null;
+  var fullHold = null;      // ID of the source the full screen player is showing
+
+  function buildFull() {
+    var el = document.createElement("div");
+    el.className = "np-full";
+    el.innerHTML = '<div class="nf-bg"><i></i><i></i><i></i></div>' +
+      '<div class="nf-art">' + svg('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>') + '<img alt=""></div>' +
+      '<div class="nf-side"><div class="nf-meta"><span class="nf-app"></span><span class="nf-title"></span><span class="nf-artist"></span></div>' +
+      '<div class="np-progress"><div class="track"><i></i></div><div class="times"><span class="pos">0:00</span><span class="dur">0:00</span></div></div>' +
+      '<div class="transport"></div>' +
+      '<div class="vol">' + svg('<path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/>', "nf-spk") +
+      '<div class="slider" role="slider" aria-label="Volume" aria-valuemin="0" aria-valuemax="100"><i></i><span class="pct"></span></div></div></div>';
+    var transport = el.querySelector(".transport");
+    var glyphs = [GLYPH.prev, GLYPH.play, GLYPH.next], acts = ["prev", "toggle", "next"];
+    glyphs.forEach(function (g, i) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "tbtn" + (i === 1 ? " main" : "");
+      b.innerHTML = svg(g);
+      b.addEventListener("click", function () { mediaControl(acts[i]); });
+      transport.appendChild(b);
+    });
+    var slider = el.querySelector(".slider");
+    bindSlider(slider);
+    el.addEventListener("click", function (e) {
+      if (e.target.closest && e.target.closest(".slider, .tbtn")) return;
+      closeFull();
+    });
+    document.body.appendChild(el);
+    full = {
+      root: el, bg: el.querySelector(".nf-bg"), art: el.querySelector(".nf-art"), img: el.querySelector(".nf-art img"),
+      app: el.querySelector(".nf-app"), title: el.querySelector(".nf-title"), artist: el.querySelector(".nf-artist"),
+      pos: el.querySelector(".pos"), dur: el.querySelector(".dur"), bar: el.querySelector(".track i"),
+      play: transport.children[1], slider: slider, level: slider.querySelector("i"), spk: el.querySelector(".nf-spk"),
+      pct: el.querySelector(".pct"), vol: el.querySelector(".vol"), src: "", bgCss: "", glyphPlaying: null
+    };
+  }
+
+  function openFull() {
+    if (!np || !mediaState || !shownSource() || !shownSource().title) return;
+    if (!full) buildFull();
+    clearTimeout(fullTimer);
+    fullHold = shownSource().id;
+    fillFull();
+    if (np.state) setVolume(np.state.volume, np.state.muted);
+    tickProgress(true);
+    void full.root.offsetWidth;
+    full.root.classList.add("on");
+  }
+
+  function closeFull() {
+    if (!full) return;
+    var was = full.root.classList.contains("on");
+    full.root.classList.remove("on");
+    fullHold = null;
+    if (was && np && mediaState) renderMedia(true);
+  }
+
+  // Copies what the card shows onto the full screen player.
+  function fillFull() {
+    if (!full || !np) return;
+    var m = shownSource() || {};
+    if (!m.title) { closeFull(); return; }
+    if (np.lastArt && full.src !== np.lastArt) {
+      full.src = np.lastArt;
+      full.img.src = np.lastArt;
+    }
+    full.art.classList.toggle("has-art", !!np.lastArt);
+    // The backdrop drifts in the cover's two colors; on a new cover it fades out, takes the new colors and fades back.
+    var pal = np.pals && np.pals[np.front];
+    var key = pal ? pal[0] + "|" + pal[1] : "";
+    if (pal && key !== full.bgCss) {
+      var first = !full.bgCss;
+      full.bgCss = key;
+      clearTimeout(full.bgTimer);
+      var paint = function () {
+        full.bg.style.setProperty("--c1", pal[0]);
+        full.bg.style.setProperty("--c2", pal[1]);
+        full.bg.style.opacity = "1";
+      };
+      if (first) paint();
+      else { full.bg.style.opacity = "0"; full.bgTimer = setTimeout(paint, 450); }
+    }
+    var app = (m.app || t("media")) + (m.playing ? "" : " · " + t("paused"));
+    planText(full.app, app);
+    planText(full.title, m.title);
+    planText(full.artist, m.artist || m.album || "");
+    var playing = !!m.playing;
+    if (full.glyphPlaying !== playing) { full.glyphPlaying = playing; full.play.innerHTML = svg(playing ? GLYPH.pause : GLYPH.play); }
+    var own = m.id && m.volume >= 0;
+    full.vol.classList.toggle("app", !!own);
+  }
+
   // Moves the progress bar on the phone between server updates.
   function tickProgress(jump) {
     if (!np) return;
@@ -1550,6 +2424,12 @@
     np.bar.style.transition = jump || !playback || !playback.playing ? "none" : "transform 1s linear";
     // Slide the fill (not scale it) so its rounded end keeps its shape.
     np.bar.style.transform = "translateX(" + (d > 0 ? (p / d * 100 - 100).toFixed(2) : -100) + "%)";
+    if (full) {
+      full.pos.textContent = np.pos.textContent;
+      full.dur.textContent = np.dur.textContent;
+      full.bar.style.transition = np.bar.style.transition;
+      full.bar.style.transform = np.bar.style.transform;
+    }
   }
 
   // Speaker glyph for a volume level: muted, then 0, 1 or 2 sound waves.
@@ -1570,6 +2450,12 @@
     np.slider.setAttribute("aria-valuenow", v);
     np.vol.classList.toggle("muted", muted);
     if (np.mute) np.mute.classList.toggle("on", muted);
+    if (full) {
+      full.level.style.transform = np.level.style.transform;
+      if (full.spk.innerHTML !== glyph) full.spk.innerHTML = glyph;
+      full.pct.textContent = v;
+      full.vol.classList.toggle("muted", muted);
+    }
   }
 
   function toggleMuteLocally() {
@@ -1881,8 +2767,7 @@
   // bottom are the left and right buttons; they can be held with one finger
   // while another moves the pointer.
 
-  (function trackpad() {
-    var el = $("view-pad"), hint = $("pad-hint");
+  function makeTrackpad(el, hint) {
     var TAP_MS = 300, DOUBLE_MS = 320, DEAD = 4, TAP_MOVE = 10;
     var touches = {};   // surface touch id -> { x, y, sx, sy, t, armed }
     var zones = {};     // zone touch id -> zone element
@@ -1919,10 +2804,10 @@
     }
 
     el.addEventListener("touchstart", function (e) {
-      if (!hint.classList.contains("gone")) hint.classList.add("gone");
+      if (hint && !hint.classList.contains("gone")) hint.classList.add("gone");
       for (var i = 0; i < e.changedTouches.length; i++) {
         var t = e.changedTouches[i];
-        var zone = t.target.closest && t.target.closest(".pad-zone");
+        var zone = t.target.closest && t.target.closest(".pad-zone, .dev-zone");
         if (zone) {
           zones[t.identifier] = zone;
           zone.classList.add("down");
@@ -2002,7 +2887,7 @@
     el.addEventListener("touchcancel", function (e) { lift(e, true); }, { passive: true });
 
     // Let go of everything: leaving the screen, locking the phone, losing the PC.
-    padReset = function () {
+    function reset() {
       Object.keys(zones).forEach(function (id) {
         zones[id].classList.remove("down");
         pad({ action: "up", button: zones[id].dataset.btn });
@@ -2012,9 +2897,14 @@
       touches = {};
       g = null;
       pend.x = pend.y = pend.sx = pend.sy = 0;
-    };
-    document.addEventListener("visibilitychange", function () { if (document.visibilityState !== "visible") padReset(); });
-  })();
+    }
+    document.addEventListener("visibilitychange", function () { if (document.visibilityState !== "visible") reset(); });
+    return reset;
+  }
+  // The trackpad screen, and the small one beside the prompt in developer mode.
+  var bigPadReset = makeTrackpad($("view-pad"), $("pad-hint"));
+  var miniPadReset = $("dev-pad") ? makeTrackpad($("dev-pad"), null) : function () {};
+  padReset = function () { bigPadReset(); miniPadReset(); };
 
   // ---- Clock -------------------------------------------------------------
 
@@ -2082,6 +2972,8 @@
   function paintGlow(layer, img) {
     var c = palette(img);
     if (!c) return;
+    np.pals = np.pals || [];
+    np.pals[layer] = c;
     np.bgs[layer].style.background =
       "radial-gradient(90% 85% at 0% 0%, rgba(" + c[0] + ",.55), transparent 62%)," +
       "radial-gradient(80% 90% at 100% 100%, rgba(" + c[1] + ",.42), transparent 60%)," +

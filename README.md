@@ -20,6 +20,7 @@ Media controls with cover art, a game launcher, per-app volume, screen brightnes
 - 🪶 **Featherweight.** One small `.exe`, roughly 20–50 MB of RAM and almost no CPU.
 - 🎮 **Made for gaming.** Launch a game and the phone turns into a live hardware monitor.
 - 🍿 **Watch mode.** PC volume, play/pause, jump back and forward, screen brightness and a shut down button, made for the couch.
+- 🧑‍💻 **Developer mode.** Dictate or write a prompt on the phone and it is typed into Claude Code, Codex or any tool on your PC, with quick keys (Esc, Tab, arrows, Ctrl+C, Enter).
 - ⭐ **Six home screen tiles.** Each opens a game, Netflix, YouTube, any website or any program.
 - 🎚️ **More than buttons.** A volume mixer for each program, one-tap mic mute and a trackpad for your PC.
 - 🔒 **Private.** Stays on your Wi-Fi. No cloud, no account. Pair by scanning a QR code.

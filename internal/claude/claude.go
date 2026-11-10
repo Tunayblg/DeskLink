@@ -42,6 +42,10 @@ type Usage struct {
 	Models []Model `json:"models,omitempty"` // the window's tokens by model family, biggest first
 	IdleS  int64   `json:"idle_s"`           // seconds since the last reply, -1 if none
 	Limits *Limits `json:"limits,omitempty"` // the plan limits in percent; absent until Claude Code has reported them
+	State  string  `json:"state,omitempty"`  // "working": Claude is on a prompt; "idle": it has answered; absent: no recent session
+	StateS int64   `json:"state_s"`          // seconds since the newest session wrote anything
+	Agent  string  `json:"agent,omitempty"`  // whose state that is: "claude" or "codex" (the one used last)
+	Doing  string  `json:"doing,omitempty"`  // while working: the tool being run; empty while it thinks
 }
 
 // Block is one five-hour window.
@@ -76,6 +80,9 @@ type Reader struct {
 	// Dir is the folder with the project logs; empty means ~/.claude/projects
 	// (or $CLAUDE_CONFIG_DIR/projects).
 	Dir string
+	// CodexDir is Codex CLI's sessions folder; empty means ~/.codex/sessions
+	// (or $CODEX_HOME/sessions), and none at all when Dir is set.
+	CodexDir string
 	// Now is the clock; nil means time.Now. Tests set it.
 	Now func() time.Time
 
@@ -84,6 +91,11 @@ type Reader struct {
 	files   map[string]*fileState
 	replies map[string]reply // message ID -> reply
 	seen    int              // files found on the last look
+
+	newest    string    // the session log written most recently
+	newestMod time.Time // when it was written
+	act       activity  // what the end of that log says, kept until the log changes
+	cx        activity  // the same for Codex's newest session
 }
 
 func (r *Reader) now() time.Time {
@@ -130,6 +142,7 @@ func (r *Reader) scan(now time.Time) {
 	}
 	root := r.dir()
 	r.seen = 0
+	r.newest, r.newestMod = "", time.Time{}
 	present := map[string]bool{}
 	filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".jsonl") {
@@ -141,6 +154,9 @@ func (r *Reader) scan(now time.Time) {
 		}
 		r.seen++
 		present[path] = true
+		if !isSubagentLog(path) && info.ModTime().After(r.newestMod) {
+			r.newest, r.newestMod = path, info.ModTime()
+		}
 		st := r.files[path]
 		if st == nil {
 			st = &fileState{}
@@ -248,6 +264,14 @@ func family(model string) string {
 // sum adds up the replies kept so far.
 func (r *Reader) sum(now time.Time) Usage {
 	u := Usage{Found: r.seen > 0, IdleS: -1, Limits: r.limits(now)}
+	u.State, u.Doing, u.StateS = r.state(now)
+	if u.State != "" {
+		u.Agent = "claude"
+	}
+	// Codex too: the one that wrote last is the one being used.
+	if st, doing, secs := r.codexState(now); st != "" && (u.State == "" || secs < u.StateS) {
+		u.State, u.Doing, u.StateS, u.Agent = st, doing, secs, "codex"
+	}
 	if len(r.replies) == 0 {
 		return u
 	}
