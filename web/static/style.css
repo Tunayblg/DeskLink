@@ -2312,3 +2312,48 @@ body.kb-open .dev-note { display: none; }
   .dev-beta { display: none; } /* the note under the prompt says it */
   .dev-chips { flex: none; }
 }
+
+/* Sliding along the rail: the highlight follows the finger quickly. */
+.rail.scrubbing .tab-pill { transition-duration: .14s; }
+.rail.scrubbing .tab.active:not(.scrub) { color: var(--muted); }
+.rail.scrubbing .tab.scrub { color: #fff; }
+.rail.scrubbing .tab:active { transform: none; }
+
+/* ---------- Sound output: under the PC's volume, and its picker ---------- */
+.mix-out {
+  display: inline-flex; align-items: center; gap: 4px; max-width: 100%; min-width: 0;
+  margin-top: -2px; padding: 3px 7px; border: 1px solid rgba(125, 211, 252, .2); border-radius: 999px;
+  background: rgba(125, 211, 252, .07); color: rgba(186, 230, 253, .85);
+  font: inherit; font-size: 9.5px; font-weight: 600;
+}
+.mix-out[hidden] { display: none; }
+.mix-out svg { flex: none; width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.mix-out span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mix-out:active { background: rgba(125, 211, 252, .16); }
+.out-sheet {
+  position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 60;
+  display: flex; align-items: center; justify-content: center; padding: 10px;
+  background: rgba(4, 5, 8, .78);
+}
+.out-sheet[hidden] { display: none; }
+.out-sheet, .out-sheet * { touch-action: none; }
+.out-box {
+  display: flex; flex-direction: column; width: 100%; max-width: 420px; max-height: 100%; overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .1); border-radius: 18px;
+  background: linear-gradient(150deg, rgba(44, 54, 80, .95), rgba(18, 22, 34, .97));
+  box-shadow: 0 20px 50px rgba(0, 0, 0, .5);
+}
+.out-head { padding: 14px 16px 10px; font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: rgba(226, 232, 240, .55); }
+.out-list { overflow: hidden; }
+.out-opt {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 54px; padding: 8px 16px;
+  border: 0; border-top: 1px solid rgba(255, 255, 255, .06); background: none; color: #e2e8f0; font: inherit; text-align: left;
+}
+.out-opt.on { background: rgba(125, 211, 252, .08); }
+.out-opt:active { background: rgba(255, 255, 255, .06); }
+.out-opt .ic { flex: none; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 10px; background: rgba(255, 255, 255, .07); color: #cfeeff; }
+.out-opt .ic svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.out-opt .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.out-opt b { overflow: hidden; font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.out-opt small { overflow: hidden; font-size: 11px; color: rgba(203, 213, 225, .55); text-overflow: ellipsis; white-space: nowrap; }
+.out-opt .ck { flex: none; width: 18px; height: 18px; fill: none; stroke: #7dd3fc; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }

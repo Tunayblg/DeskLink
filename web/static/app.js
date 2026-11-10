@@ -144,7 +144,7 @@
       watchMode: "WATCH MODE", brightness: "BRIGHTNESS", shutdownQ: "Shut down the PC?",
       gameMode: "GAME MODE", gpuFan: "GPU FAN", gpuFanIdle: "GPU FAN · IDLE",
       coreClock: "CORE CLOCK", noGpu: "No NVIDIA GPU found. GPU stats are only available for NVIDIA cards for now.",
-      mic: "MIC", noMic: "NO MIC", padHint: "Slide to move · tap to click · two fingers: right click · three: middle click", sound: "SOUND", soundHint: "Swipe back for stats", master: "PC", game: "GAME", noApps: "Programs that play sound show up here."
+      mic: "MIC", noMic: "NO MIC", padHint: "Slide to move · tap to click · two fingers: right click · three: middle click", sound: "SOUND", soundHint: "Swipe back for stats", master: "PC", outTitle: "Sound output", outPick: "Output", outDone: "Sound now plays on", game: "GAME", noApps: "Programs that play sound show up here."
     },
     tr: {
       connecting: "Bağlanıyor…", offline: "Bilgisayar kapalı · {} sn sonra tekrar", notPaired: "Eşleşmedi",
@@ -176,7 +176,7 @@
       watchMode: "DİZİ MODU", brightness: "PARLAKLIK", shutdownQ: "Bilgisayar kapatılsın mı?",
       gameMode: "OYUN MODU", gpuFan: "GPU FANI", gpuFanIdle: "GPU FANI · DURDU",
       coreClock: "ÇEKİRDEK HIZI", noGpu: "NVIDIA ekran kartı bulunamadı. GPU verileri şimdilik sadece NVIDIA kartlarda var.",
-      mic: "MİKROFON", noMic: "MİKROFON YOK", padHint: "Kaydırarak hareket ettir · dokun: tıkla · iki parmak: sağ tık · üç parmak: orta tık", sound: "SES", soundHint: "İstatistikler için geri kaydır", master: "ANA SES", game: "OYUN", noApps: "Ses çalan programlar burada görünür."
+      mic: "MİKROFON", noMic: "MİKROFON YOK", padHint: "Kaydırarak hareket ettir · dokun: tıkla · iki parmak: sağ tık · üç parmak: orta tık", sound: "SES", soundHint: "İstatistikler için geri kaydır", master: "ANA SES", outTitle: "Ses çıkışı", outPick: "Çıkış", outDone: "Ses artık burada:", game: "OYUN", noApps: "Ses çalan programlar burada görünür."
     }
   };
   var LANG = /^tr\b/i.test(navigator.language || "") ? "tr" : "en";
@@ -277,6 +277,58 @@
     }, { passive: true });
     t.addEventListener("touchend", function () { if (tap) showView(t.dataset.view); tap = false; }, { passive: true });
   });
+
+  // Sliding a finger along the rail drags the highlight with it; letting go
+  // opens the tab under the finger. A plain tap works as before.
+  (function railScrub() {
+    var rail = $("rail"), pill = $("tab-pill");
+    if (!rail || !pill) return;
+    var startY = 0, scrubbing = false, over = null;
+    function tabAt(y) {
+      var best = null, dist = Infinity;
+      tabs.forEach(function (t) {
+        if (t.hidden || !t.offsetHeight) return;
+        var r = t.getBoundingClientRect();
+        var d = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0;
+        if (d < dist) { dist = d; best = t; }
+      });
+      return best;
+    }
+    function hover(t) {
+      if (!t || t === over) return;
+      if (over) over.classList.remove("scrub");
+      over = t;
+      t.classList.add("scrub");
+      var base = parseFloat(getComputedStyle(pill).top) || 0;
+      pill.style.visibility = "";
+      pill.style.transform = "translateY(" + (t.offsetTop - base) + "px)";
+      pill.classList.toggle("soft", t.classList.contains("settings-tab"));
+    }
+    function finish(open) {
+      if (!scrubbing) return;
+      scrubbing = false;
+      rail.classList.remove("scrubbing");
+      var t = over;
+      if (over) over.classList.remove("scrub");
+      over = null;
+      if (open && t) showView(t.dataset.view); else placePill();
+    }
+    rail.addEventListener("touchstart", function (e) {
+      scrubbing = false;
+      over = null;
+      startY = e.touches && e.touches.length === 1 ? e.touches[0].clientY : NaN;
+    }, { passive: true });
+    rail.addEventListener("touchmove", function (e) {
+      var p = e.touches && e.touches[0];
+      if (!p || isNaN(startY) || document.body.classList.contains("pairing")) return;
+      if (!scrubbing && Math.abs(p.clientY - startY) < 12) return;
+      scrubbing = true;
+      rail.classList.add("scrubbing");
+      hover(tabAt(p.clientY));
+    }, { passive: true });
+    rail.addEventListener("touchend", function () { finish(true); });
+    rail.addEventListener("touchcancel", function () { finish(false); });
+  })();
 
   var padReset = null; // lets go of trackpad buttons (set by the trackpad code)
 
@@ -554,7 +606,7 @@
     // acts on touchend (onTap), so no click has to survive: stop the very first
     // move. Once iOS has started panning the page it can no longer be stopped,
     // and the page slid down with the finger.
-    if (e.target.closest && e.target.closest(".settings-view, .dev-sheet")) { if (e.cancelable) e.preventDefault(); return; }
+    if (e.target.closest && e.target.closest(".settings-view, .dev-sheet, .out-sheet")) { if (e.cancelable) e.preventDefault(); return; }
     var scroller = e.target.closest && e.target.closest(".game-list, .ps-items");
     if (scroller && canScrollThere(scroller, e.touches[0].clientY)) return;
     if (!touchDragging) {
@@ -2645,9 +2697,75 @@
     var apps = [{ id: "", name: t("master"), volume: m.volume, muted: m.muted, active: true, master: true }].concat(m.apps || []);
     lastMixerApps = apps;
     mixPanels.forEach(function (p) { renderMixPanel(p, apps.slice(0, p.limit)); });
+    renderOutputs(m.outputs || []);
     // A mixer update may have been sent before our last tap reached the PC; wait for the answer (but not forever).
     if (micPending && Date.now() - micPendingAt > 4000) micPending = 0;
     if (!micPending) renderMic(m.mic ? m.mic.muted : null);
+  }
+
+  // ---- Sound output: which of the PC's playback devices is the default ----
+
+  var outputs = [], outLock = 0, outSheet = null;
+
+  // A short name that tells the devices apart: "Speakers (Realtek(R) Audio)"
+  // -> "Realtek(R) Audio", but "U2720Q (NVIDIA High Definition Audio)" ->
+  // "U2720Q". The bracket is used when the name before it is a generic word.
+  var GENERIC_OUT = /^(speakers?|headphones?|headset|earphones?|digital audio.*|line out|hoparlör|kulaklık|mikrofonlu kulaklık|dijital ses.*|hat çıkışı)$/i;
+  function outputShort(name) {
+    var m = /^(.*?)\s*\((.+)\)\s*$/.exec(name || "");
+    if (!m) return name || "";
+    return !m[1] || GENERIC_OUT.test(m[1]) ? m[2] : m[1];
+  }
+
+  function renderOutputs(list) {
+    if (outLock > Date.now()) return; // just switched: wait for the PC to catch up
+    outputs = list;
+    var cur = null;
+    list.forEach(function (o) { if (o.default) cur = o; });
+    mixPanels.forEach(function (p) {
+      var col = p.cols[""];
+      if (!col || !col.out) return;
+      col.out.hidden = list.length < 2;
+      col.out.querySelector("span").textContent = cur ? outputShort(cur.name) : t("outPick");
+      col.out.setAttribute("aria-label", t("outTitle"));
+    });
+    if (outSheet && !outSheet.hidden) fillOutputs();
+  }
+
+  function openOutputs() {
+    if (!outSheet) {
+      outSheet = mk("div", "out-sheet");
+      outSheet.hidden = true;
+      outSheet.innerHTML = '<div class="out-box" role="listbox"><div class="out-head"><span></span></div><div class="out-list"></div></div>';
+      document.body.appendChild(outSheet);
+      onTap(outSheet, function (ev) { if (ev && ev.target === outSheet) outSheet.hidden = true; });
+      dragScroll(outSheet.querySelector(".out-list"));
+    }
+    outSheet.querySelector(".out-head span").textContent = t("outTitle");
+    fillOutputs();
+    outSheet.hidden = false;
+  }
+
+  function fillOutputs() {
+    var list = outSheet.querySelector(".out-list");
+    list.innerHTML = "";
+    outputs.forEach(function (o) {
+      var b = mk("button", "out-opt" + (o.default ? " on" : ""));
+      b.type = "button";
+      b.innerHTML = '<span class="ic">' + svg(/headphone|kulakl|headset|airpods|buds|earphone/i.test(o.name) ? '<path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="5" height="7" rx="2"/><rect x="16" y="14" width="5" height="7" rx="2"/>' : '<rect x="6" y="3" width="12" height="18" rx="3"/><circle cx="12" cy="14" r="3"/><circle cx="12" cy="7.5" r="1"/>') + '</span><span class="tx"><b></b><small></small></span>' + (o.default ? svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>', "ck") : "");
+      b.querySelector("b").textContent = outputShort(o.name);
+      b.querySelector("small").textContent = o.name;
+      onTap(b, function () {
+        if (!send({ type: "output", id: o.id })) { toast(t("notConnected")); return; }
+        outputs.forEach(function (x) { x.default = x.id === o.id; });
+        outLock = 0;
+        renderOutputs(outputs); // show the choice at once...
+        outLock = Date.now() + 2500; // ...and keep it until the PC has switched
+        outSheet.hidden = true;
+        toast(t("outDone") + " " + outputShort(o.name));
+      });
+      list.appendChild(b);
+    });
   }
 
   function renderMixPanel(p, apps) {
@@ -2682,6 +2800,7 @@
     root.innerHTML =
       '<div class="mix-icon"></div>' +
       '<span class="mix-name"></span>' +
+      (a.master && !panel.mini ? '<button type="button" class="mix-out" hidden><svg viewBox="0 0 24 24"><path d="M7 4v16M7 20l-3-3M7 20l3-3M17 20V4M17 4l-3 3M17 4l3 3"/></svg><span></span></button>' : "") +
       (a.game && !panel.mini ? '<span class="mix-tag">' + t("game") + "</span>" : "") +
       '<div class="vslider" role="slider" aria-valuemin="0" aria-valuemax="100"><i></i><span class="pct"></span></div>' +
       (panel.mini ? "" : '<button type="button" class="mix-mute" aria-label="Mute"></button>');
@@ -2693,11 +2812,13 @@
       fill: root.querySelector(".vslider i"),
       pct: root.querySelector(".vslider .pct"),
       mute: root.querySelector(".mix-mute"),
+      out: root.querySelector(".mix-out"),
       level: 0,
       muted: false
     };
     if (a.master) col.icon.innerHTML = svg('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>');
     col.slider.setAttribute("aria-label", a.name);
+    if (col.out) onTap(col.out, openOutputs);
     panel.cols[a.id] = col;
     bindVSlider(col.slider, function (v) {
       mixLock[a.id] = Date.now() + 1500;

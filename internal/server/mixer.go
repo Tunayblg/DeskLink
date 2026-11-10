@@ -36,6 +36,8 @@ type mixerView struct {
 	Muted  bool       `json:"muted"`
 	Apps   []mixerApp `json:"apps"`
 	Mic    *media.Mic `json:"mic,omitempty"`
+	// Outputs are the PC's playback devices; the phone can make one the default.
+	Outputs []media.Output `json:"outputs,omitempty"`
 }
 
 // gameRef is how the mixer recognizes a configured game: by its executable
@@ -86,7 +88,7 @@ func (s *Server) mixerView() mixerView {
 	s.cfgMu.RLock()
 	games := s.gameExes
 	s.cfgMu.RUnlock()
-	v := mixerView{Volume: m.Volume, Muted: m.Muted, Apps: []mixerApp{}, Mic: m.Mic}
+	v := mixerView{Volume: m.Volume, Muted: m.Muted, Apps: []mixerApp{}, Mic: m.Mic, Outputs: m.Outputs}
 	for _, a := range m.Apps {
 		if len(v.Apps) == mixerApps {
 			break

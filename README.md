@@ -20,6 +20,7 @@ Media controls with cover art, a game launcher, per-app volume, screen brightnes
 - 🪶 **Featherweight.** One small `.exe`, roughly 20–50 MB of RAM and almost no CPU.
 - 🎮 **Made for gaming.** Launch a game and the phone turns into a live hardware monitor.
 - 🍿 **Watch mode.** PC volume, play/pause, jump back and forward, screen brightness and a shut down button, made for the couch.
+- 🎧 **Switch the sound output.** Move the PC's sound between speakers, headphones and your monitor from the phone.
 - 🧑‍💻 **Developer mode (beta).** Dictate or write a prompt on the phone and it is typed into Claude, Codex, ChatGPT, a terminal or your editor, live as you speak. See what the agent is doing (thinking, running a command, editing files, done), plus quick keys and a mini trackpad.
 - 🎛️ **Make it yours.** Hide or reorder any tab and switch features on or off right on the phone. Calm mode turns every animation off.
 - ⭐ **Six home screen tiles.** Each opens a game, Netflix, YouTube, any website or any program.
@@ -63,7 +64,7 @@ Prompt your AI coding agent from across the desk. DeskLink only types into devel
     <td width="50%"><img src="docs/images/settings.png" alt="Settings"><br><b>Settings on the phone</b>: show, hide and reorder tabs, and turn live typing, usage, agent status and dictation options on or off</td>
     <td width="50%">
 
-- **Tabs:** hide the ones you never use (Watch mode, Games...) and move the rest into your order.
+- **Tabs:** hide the ones you never use (Watch mode, Games...) and move the rest into your order. Slide a finger along the tab bar to jump between them.
 - **Developer mode:** live typing, usage, agent status, send after dictation, dictation language.
 - **Calm mode:** no animations at all.
 - Saved on each phone, so every device can have its own layout.

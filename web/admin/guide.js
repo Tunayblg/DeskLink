@@ -96,6 +96,7 @@
         { art: "watch", h: "Watch mode", ul: [
             "Open the fourth tab, the screen with a play button.",
             "<b>Left:</b> the PC's volume. <b>Right:</b> screen brightness.",
+            "The small button under the volume switches the sound between speakers, headphones and your monitor.",
             "<b>Middle:</b> rewind, play or pause and fast forward. They press keys, so the player window must be in front.",
             "The red power button shuts the PC down, after you confirm."],
           tip: "Brightness uses your monitor when it allows it (<b>DDC/CI</b>), a laptop's own panel, or otherwise dims the picture in software, so the bar works on any screen. Software dimming never goes fully black." },
@@ -178,6 +179,7 @@
         { art: "watch", h: "Dizi modu", ul: [
             "Dördüncü sekmeyi aç, oynat işaretli ekran.",
             "<b>Solda:</b> bilgisayarın sesi. <b>Sağda:</b> ekran parlaklığı.",
+            "Sesin altındaki küçük düğme sesi hoparlör, kulaklık ve monitör arasında değiştirir.",
             "<b>Ortada:</b> geri sar, oynat veya durdur ve ileri sar. Tuş bastıkları için oynatıcı penceresi önde olmalı.",
             "Kırmızı güç düğmesi, onayladıktan sonra bilgisayarı kapatır."],
           tip: "Parlaklık, monitör izin veriyorsa monitörün kendisini (<b>DDC/CI</b>), laptopta panelini, olmazsa görüntüyü yazılımla karartır. Böylece çubuk her ekranda çalışır. Yazılımla karartma ekranı hiçbir zaman tamamen karartmaz." },
@@ -262,6 +264,7 @@
         { art: "watch", h: "Watch mode", ul: [
             "Open the fourth tab, the screen with a play button.",
             "<b>Left:</b> the PC's volume. <b>Right:</b> screen brightness.",
+            "The small button under the volume switches the sound between speakers, headphones and your monitor.",
             "<b>Middle:</b> rewind, play or pause and fast forward. They press keys, so the player window must be in front.",
             "The red power button shuts the PC down, after you confirm."],
           tip: "Brightness uses your monitor when it allows it (<b>DDC/CI</b>), a laptop's own panel, or otherwise dims the picture in software, so the bar works on any screen. Software dimming never goes fully black." },
@@ -343,6 +346,7 @@
         { art: "watch", h: "Dizi modu", ul: [
             "Dördüncü sekmeyi aç, oynat işaretli ekran.",
             "<b>Solda:</b> bilgisayarın sesi. <b>Sağda:</b> ekran parlaklığı.",
+            "Sesin altındaki küçük düğme sesi hoparlör, kulaklık ve monitör arasında değiştirir.",
             "<b>Ortada:</b> geri sar, oynat veya durdur ve ileri sar. Tuş bastıkları için oynatıcı penceresi önde olmalı.",
             "Kırmızı güç düğmesi, onayladıktan sonra bilgisayarı kapatır."],
           tip: "Parlaklık, monitör izin veriyorsa monitörün kendisini (<b>DDC/CI</b>), laptopta panelini, olmazsa görüntüyü yazılımla karartır. Böylece çubuk her ekranda çalışır. Yazılımla karartma ekranı hiçbir zaman tamamen karartmaz." },

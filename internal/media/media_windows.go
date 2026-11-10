@@ -242,6 +242,8 @@ func (w *worker) do(c command) {
 		w.appSessions(c.exes, func(_ bool, vol appVolume) {
 			vol.setLevel(float32(c.level) / 100)
 		})
+	case "output":
+		w.setOutput(c.source)
 	case "micset":
 		w.mics(func(ep *com) {
 			ep.call(14, uintptr(c.level), 0) // SetMute
@@ -700,6 +702,7 @@ func (w *worker) readMixer() Mixer {
 	m := Mixer{}
 	m.Volume, m.Muted = w.volume()
 	m.Mic = w.mic()
+	m.Outputs = w.outputs()
 	at := map[string]int{}
 	w.mixerSessions(func(p proc, active bool, vol appVolume) {
 		if p.id == self {

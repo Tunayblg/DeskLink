@@ -109,6 +109,7 @@ type Server struct {
 	setMixerVolume func(app string, level int)
 	toggleMute     func(app string) // "" mutes the whole PC
 	setMic         func(muted bool)
+	setOutput      func(id string) // makes a playback device the default
 	// Screen brightness (see package brightness).
 	getBrightness func() (int, bool)
 	setBrightness func(level int)
@@ -153,7 +154,7 @@ func New(cfg *config.Config, store *auth.Store, web fs.FS, pictures map[string]a
 	bright := brightness.NewSetter()
 	return &Server{cfg: cfg, auth: store, web: web, assetVersion: AssetVersion(web), games: publicGames(cfg, pictures), shortcuts: buildShortcuts(cfg), run: actions.Run, typer: keyboard.Type, windows: winlist.List, focus: winlist.Focus, foreground: winlist.Foreground, liveTyper: keyboard.TypeLive, backspace: keyboard.Backspace, sample: c.Sample, system: c.System, claudeUse: (&claude.Reader{}).Sample,
 		media: w, nowPlaying: w.Sample, setVolume: setVolume(w), control: w.Control,
-		readMixer: w.Mixer, setMixerVolume: w.SetMixerVolume, toggleMute: w.ToggleMute, setMic: w.SetMic, getBrightness: brightness.Get, setBrightness: bright.Set, newPad: func() padder { return pointer.NewPad() }, gameExes: gameExes(cfg.Games), running: running.Names, icons: map[string]string{},
+		readMixer: w.Mixer, setMixerVolume: w.SetMixerVolume, toggleMute: w.ToggleMute, setMic: w.SetMic, setOutput: w.SetOutput, getBrightness: brightness.Get, setBrightness: bright.Set, newPad: func() padder { return pointer.NewPad() }, gameExes: gameExes(cfg.Games), running: running.Names, icons: map[string]string{},
 		adminToken: newAdminToken(), started: time.Now(), sessions: map[*session]struct{}{}}
 }
 
@@ -303,11 +304,12 @@ func (s *Server) handlePair(w http.ResponseWriter, r *http.Request) {
 // "volume" (set the level of the PC, a media source or a program in the
 // mixer), "mute" (toggle the PC's or a program's mute), "micmute" (set the microphone's mute to "on", answered with "micack"), "mouse", "mediactl"
 // (play/pause, skip or mute one media source), and "stats"/"media" (turn a
-// live stream on or off), "mixer" (the same, for the volume mixer).
+// live stream on or off), "mixer" (the same, for the volume mixer), "output"
+// (make one of the PC's playback devices, by ID, the default).
 type clientMsg struct {
 	Type   string `json:"type"`
 	Token  string `json:"token,omitempty"`
-	ID     string `json:"id,omitempty"`
+	ID     string `json:"id,omitempty"` // "press": a button; "output": a playback device
 	On     bool   `json:"on,omitempty"`
 	Level  *int   `json:"level,omitempty"`  // "volume": 0-100
 	Source string `json:"source,omitempty"` // "volume", "mediactl": a media source ID
@@ -476,6 +478,13 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		}
 		if msg.Type == "mouse" {
 			pad.Do(pointer.Event{Action: msg.Action, Button: msg.Button, DX: msg.DX, DY: msg.DY})
+			continue
+		}
+		if msg.Type == "output" {
+			// Only a device from the PC's own list is used (see media.SetOutput).
+			if s.setOutput != nil {
+				s.setOutput(msg.ID)
+			}
 			continue
 		}
 		if msg.Type == "micmute" {

@@ -181,6 +181,15 @@ type Mixer struct {
 	Muted  bool       `json:"muted"`
 	Apps   []MixerApp `json:"apps"`
 	Mic    *Mic       `json:"mic,omitempty"` // nil without a microphone
+	// Outputs are the playback devices (speakers, headphones, a monitor), the default one marked.
+	Outputs []Output `json:"outputs,omitempty"`
+}
+
+// Output is a playback device.
+type Output struct {
+	ID      string `json:"id"`   // Windows' device ID
+	Name    string `json:"name"` // as the sound settings show it
+	Default bool   `json:"default,omitempty"`
 }
 
 // Mic is the default microphone.
@@ -221,6 +230,19 @@ func (w *Watcher) SetMixerVolume(app string, level int) {
 
 // SetMic mutes or unmutes the microphone. It sets a state rather than
 // flipping the current one, so a repeated or delayed request cannot undo itself.
+// SetOutput makes a playback device (an ID from Mixer().Outputs) the default.
+// Anything else is ignored.
+func (w *Watcher) SetOutput(id string) {
+	if id == "" || len(id) > 512 {
+		return
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.init()
+	w.src.do(command{kind: "output", source: id})
+	w.at, w.mixerAt = time.Time{}, time.Time{}
+}
+
 func (w *Watcher) SetMic(muted bool) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -254,8 +276,8 @@ func (w *Watcher) Art(id string) []byte {
 }
 
 type command struct {
-	kind   string   // volume, appvolume, toggle, next, prev, mute, mastermute, micset
-	source string   // media source, for toggle/next/prev
+	kind   string   // volume, appvolume, toggle, next, prev, mute, mastermute, micset, output
+	source string   // media source, for toggle/next/prev; the device ID for output
 	exes   []string // mixer IDs, for appvolume/mute
 	level  int
 }
