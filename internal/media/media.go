@@ -240,6 +240,10 @@ func (w *Watcher) SetOutput(id string) {
 	defer w.mu.Unlock()
 	w.init()
 	w.src.do(command{kind: "output", source: id})
+	// Windows rebuilds every program's audio on the new device; a reading
+	// taken in the middle of that comes back half empty. Give it a moment
+	// (readings wait for the lock meanwhile).
+	time.Sleep(400 * time.Millisecond)
 	w.at, w.mixerAt = time.Time{}, time.Time{}
 }
 

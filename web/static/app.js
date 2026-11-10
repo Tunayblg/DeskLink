@@ -144,7 +144,7 @@
       watchMode: "WATCH MODE", brightness: "BRIGHTNESS", shutdownQ: "Shut down the PC?",
       gameMode: "GAME MODE", gpuFan: "GPU FAN", gpuFanIdle: "GPU FAN · IDLE",
       coreClock: "CORE CLOCK", noGpu: "No NVIDIA GPU found. GPU stats are only available for NVIDIA cards for now.",
-      mic: "MIC", noMic: "NO MIC", padHint: "Slide to move · tap to click · two fingers: right click · three: middle click", sound: "SOUND", soundHint: "Swipe back for stats", master: "PC", outTitle: "Sound output", outPick: "Output", outDone: "Sound now plays on", game: "GAME", noApps: "Programs that play sound show up here."
+      mic: "MIC", noMic: "NO MIC", padHint: "Slide to move · tap to click · two fingers: right click · three: middle click", sound: "SOUND", soundHint: "Swipe back for stats", master: "PC", brightBeta: "May not work on every monitor", brightBetaLong: "Brightness is in beta: it may not work properly with every monitor yet.", outTitle: "Sound output", outPick: "Output", outDone: "Sound now plays on", game: "GAME", noApps: "Programs that play sound show up here."
     },
     tr: {
       connecting: "Bağlanıyor…", offline: "Bilgisayar kapalı · {} sn sonra tekrar", notPaired: "Eşleşmedi",
@@ -176,7 +176,7 @@
       watchMode: "DİZİ MODU", brightness: "PARLAKLIK", shutdownQ: "Bilgisayar kapatılsın mı?",
       gameMode: "OYUN MODU", gpuFan: "GPU FANI", gpuFanIdle: "GPU FANI · DURDU",
       coreClock: "ÇEKİRDEK HIZI", noGpu: "NVIDIA ekran kartı bulunamadı. GPU verileri şimdilik sadece NVIDIA kartlarda var.",
-      mic: "MİKROFON", noMic: "MİKROFON YOK", padHint: "Kaydırarak hareket ettir · dokun: tıkla · iki parmak: sağ tık · üç parmak: orta tık", sound: "SES", soundHint: "İstatistikler için geri kaydır", master: "ANA SES", outTitle: "Ses çıkışı", outPick: "Çıkış", outDone: "Ses artık burada:", game: "OYUN", noApps: "Ses çalan programlar burada görünür."
+      mic: "MİKROFON", noMic: "MİKROFON YOK", padHint: "Kaydırarak hareket ettir · dokun: tıkla · iki parmak: sağ tık · üç parmak: orta tık", sound: "SES", soundHint: "İstatistikler için geri kaydır", master: "ANA SES", brightBeta: "Her monitörde çalışmayabilir", brightBetaLong: "Parlaklık beta aşamasında: henüz her monitörle düzgün çalışmayabilir.", outTitle: "Ses çıkışı", outPick: "Çıkış", outDone: "Ses artık burada:", game: "OYUN", noApps: "Ses çalan programlar burada görünür."
     }
   };
   var LANG = /^tr\b/i.test(navigator.language || "") ? "tr" : "en";
@@ -2670,8 +2670,12 @@
       root.innerHTML =
         '<div class="mix-icon">' + svg('<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/>') + "</div>" +
         '<span class="mix-name"></span>' +
-        '<div class="vslider" role="slider" aria-valuemin="0" aria-valuemax="100"><i></i><span class="pct"></span></div>';
+        '<div class="vslider" role="slider" aria-valuemin="0" aria-valuemax="100"><i></i><span class="pct"></span></div>' +
+        '<button type="button" class="mix-beta"><b>Beta</b><span></span></button>';
       root.querySelector(".mix-name").textContent = t("brightness");
+      // Brightness depends on the monitor (DDC/CI): say that it may not work everywhere.
+      root.querySelector(".mix-beta span").textContent = t("brightBeta");
+      onTap(root.querySelector(".mix-beta"), function () { toast(t("brightBetaLong")); });
       brightCol = { fill: root.querySelector(".vslider i"), pct: root.querySelector(".pct"), slider: root.querySelector(".vslider") };
       brightCol.slider.setAttribute("aria-label", t("brightness"));
       bindVSlider(brightCol.slider, function (v) {
@@ -2740,15 +2744,20 @@
     return !m[1] || GENERIC_OUT.test(m[1]) ? m[2] : m[1];
   }
 
+  // While Windows switches devices it rebuilds every program's audio, so the
+  // mixer is redrawn and, for a moment, may list no devices at all. The
+  // button keeps showing the choice through that (outLock), and an empty list
+  // shortly after a switch is not believed (outKeep).
+  var outKeep = 0;
   function renderOutputs(list) {
-    if (outLock > Date.now()) return; // just switched: wait for the PC to catch up
-    outputs = list;
+    var now = Date.now();
+    if (outLock <= now && !(list.length < 2 && outputs.length >= 2 && outKeep > now)) outputs = list;
     var cur = null;
-    list.forEach(function (o) { if (o.default) cur = o; });
+    outputs.forEach(function (o) { if (o.default) cur = o; });
     mixPanels.forEach(function (p) {
       var col = p.cols[""];
       if (!col || !col.out) return;
-      col.out.hidden = list.length < 2;
+      col.out.hidden = outputs.length < 2;
       col.out.querySelector("span").textContent = cur ? outputShort(cur.name) : t("outPick");
       col.out.setAttribute("aria-label", t("outTitle"));
     });
@@ -2781,9 +2790,10 @@
       onTap(b, function () {
         if (!send({ type: "output", id: o.id })) { toast(t("notConnected")); return; }
         outputs.forEach(function (x) { x.default = x.id === o.id; });
-        outLock = 0;
-        renderOutputs(outputs); // show the choice at once...
-        outLock = Date.now() + 2500; // ...and keep it until the PC has switched
+        // Show the choice at once and keep it until the PC has switched.
+        outLock = Date.now() + 2500;
+        outKeep = Date.now() + 8000;
+        renderOutputs(outputs);
         outSheet.hidden = true;
         toast(t("outDone") + " " + outputShort(o.name));
       });

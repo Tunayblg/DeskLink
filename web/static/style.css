@@ -2357,3 +2357,12 @@ body.kb-open .dev-note { display: none; }
 .out-opt b { overflow: hidden; font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .out-opt small { overflow: hidden; font-size: 11px; color: rgba(203, 213, 225, .55); text-overflow: ellipsis; white-space: nowrap; }
 .out-opt .ck { flex: none; width: 18px; height: 18px; fill: none; stroke: #7dd3fc; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Brightness is in beta: a quiet note under its slider. */
+.mix-beta {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; max-width: 100%;
+  padding: 4px 6px; border: 0; border-radius: 10px; background: rgba(251, 191, 36, .07);
+  color: rgba(243, 220, 156, .78); font: inherit; font-size: 9px; font-weight: 500; line-height: 1.2; text-align: center;
+}
+.mix-beta b { font-size: 8px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: rgba(252, 211, 77, .9); }
+.mix-beta:active { background: rgba(251, 191, 36, .14); }

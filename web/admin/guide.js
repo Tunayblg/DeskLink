@@ -99,7 +99,7 @@
             "The small button under the volume switches the sound between speakers, headphones and your monitor.",
             "<b>Middle:</b> rewind, play or pause and fast forward. They press keys, so the player window must be in front.",
             "The red power button shuts the PC down, after you confirm."],
-          tip: "Brightness uses your monitor when it allows it (<b>DDC/CI</b>), a laptop's own panel, or otherwise dims the picture in software, so the bar works on any screen. Software dimming never goes fully black." },
+          tip: "Brightness uses your monitor when it allows it (<b>DDC/CI</b>), a laptop's own panel, or otherwise dims the picture in software, so the bar works on any screen. Software dimming never goes fully black. Brightness is still in beta and may not work properly with every monitor." },
         { art: "dev", h: "Developer mode", ul: [
             "The <b>&lt;/&gt;</b> tab sends prompts to Claude, Codex, ChatGPT, a terminal or your editor on the PC.",
             "Type, or tap the <b>microphone</b> and speak. With <b>live typing</b> the words appear on the PC while you talk.",
@@ -182,7 +182,7 @@
             "Sesin altındaki küçük düğme sesi hoparlör, kulaklık ve monitör arasında değiştirir.",
             "<b>Ortada:</b> geri sar, oynat veya durdur ve ileri sar. Tuş bastıkları için oynatıcı penceresi önde olmalı.",
             "Kırmızı güç düğmesi, onayladıktan sonra bilgisayarı kapatır."],
-          tip: "Parlaklık, monitör izin veriyorsa monitörün kendisini (<b>DDC/CI</b>), laptopta panelini, olmazsa görüntüyü yazılımla karartır. Böylece çubuk her ekranda çalışır. Yazılımla karartma ekranı hiçbir zaman tamamen karartmaz." },
+          tip: "Parlaklık, monitör izin veriyorsa monitörün kendisini (<b>DDC/CI</b>), laptopta panelini, olmazsa görüntüyü yazılımla karartır. Böylece çubuk her ekranda çalışır. Yazılımla karartma ekranı hiçbir zaman tamamen karartmaz. Parlaklık henüz beta aşamasında, her monitörle düzgün çalışmayabilir." },
         { art: "dev", h: "Geliştirici modu", ul: [
             "<b>&lt;/&gt;</b> sekmesi bilgisayardaki Claude, Codex, ChatGPT, terminal ya da kod editörüne prompt gönderir.",
             "Yaz ya da <b>mikrofona</b> dokunup konuş. <b>Canlı yazma</b> açıksa sen konuşurken yazı bilgisayarda belirir.",
@@ -267,7 +267,7 @@
             "The small button under the volume switches the sound between speakers, headphones and your monitor.",
             "<b>Middle:</b> rewind, play or pause and fast forward. They press keys, so the player window must be in front.",
             "The red power button shuts the PC down, after you confirm."],
-          tip: "Brightness uses your monitor when it allows it (<b>DDC/CI</b>), a laptop's own panel, or otherwise dims the picture in software, so the bar works on any screen. Software dimming never goes fully black." },
+          tip: "Brightness uses your monitor when it allows it (<b>DDC/CI</b>), a laptop's own panel, or otherwise dims the picture in software, so the bar works on any screen. Software dimming never goes fully black. Brightness is still in beta and may not work properly with every monitor." },
         { art: "dev", h: "Developer mode", ul: [
             "The <b>&lt;/&gt;</b> tab sends prompts to Claude, Codex, ChatGPT, a terminal or your editor on the PC.",
             "Type, or tap the <b>microphone</b> and speak. With <b>live typing</b> the words appear on the PC while you talk.",
@@ -349,7 +349,7 @@
             "Sesin altındaki küçük düğme sesi hoparlör, kulaklık ve monitör arasında değiştirir.",
             "<b>Ortada:</b> geri sar, oynat veya durdur ve ileri sar. Tuş bastıkları için oynatıcı penceresi önde olmalı.",
             "Kırmızı güç düğmesi, onayladıktan sonra bilgisayarı kapatır."],
-          tip: "Parlaklık, monitör izin veriyorsa monitörün kendisini (<b>DDC/CI</b>), laptopta panelini, olmazsa görüntüyü yazılımla karartır. Böylece çubuk her ekranda çalışır. Yazılımla karartma ekranı hiçbir zaman tamamen karartmaz." },
+          tip: "Parlaklık, monitör izin veriyorsa monitörün kendisini (<b>DDC/CI</b>), laptopta panelini, olmazsa görüntüyü yazılımla karartır. Böylece çubuk her ekranda çalışır. Yazılımla karartma ekranı hiçbir zaman tamamen karartmaz. Parlaklık henüz beta aşamasında, her monitörle düzgün çalışmayabilir." },
         { art: "dev", h: "Geliştirici modu", ul: [
             "<b>&lt;/&gt;</b> sekmesi bilgisayardaki Claude, Codex, ChatGPT, terminal ya da kod editörüne prompt gönderir.",
             "Yaz ya da <b>mikrofona</b> dokunup konuş. <b>Canlı yazma</b> açıksa sen konuşurken yazı bilgisayarda belirir.",
