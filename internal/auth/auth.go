@@ -40,7 +40,11 @@ const (
 	MaxAttempts = 5
 	// MaxAttemptsAll caps wrong codes from all devices together per window, so
 	// guessing from many addresses at once still has a ceiling.
-	MaxAttemptsAll = 30
+	MaxAttemptsAll = 20
+	// BanFor is how long a device that used up its tries is refused. Without
+	// it the limit would start over every 30 seconds, which still allows
+	// thousands of guesses a day. "New code" on the PC lifts every ban.
+	BanFor = 10 * time.Minute
 	// HandoffTTL is how long a handoff code can be redeemed: long enough to add
 	// the page to the home screen later in the day.
 	HandoffTTL = 24 * time.Hour
@@ -80,13 +84,14 @@ type Store struct {
 	failWindow int64
 	fails      map[string]int // wrong codes this window, by source address
 	failsAll   int
+	banned     map[string]time.Time // source address -> when its ban ends
 	handoffs   map[string]handoff
 	now        func() time.Time // for tests
 }
 
 // Open loads paired devices from path (a missing file means none).
 func Open(path string) (*Store, error) {
-	s := &Store{path: path, handoffs: map[string]handoff{}, now: time.Now}
+	s := &Store{path: path, handoffs: map[string]handoff{}, banned: map[string]time.Time{}, now: time.Now}
 	data, err := os.ReadFile(path)
 	if err == nil {
 		if err := json.Unmarshal(data, &s.devices); err != nil {
@@ -124,11 +129,14 @@ func (s *Store) Current() Code {
 	return Code{Digits: d, Long: l, Expires: time.Unix((w+1)*int64(Window/time.Second), 0)}
 }
 
-// Rotate replaces the secret, so every code shown so far stops working.
+// Rotate replaces the secret, so every code shown so far stops working. It
+// also lifts every ban: whoever sits at the PC can start over.
 func (s *Store) Rotate() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.secret = randomBytes(32)
+	s.banned = map[string]time.Time{}
+	s.fails, s.failsAll = nil, 0
 }
 
 // Pair exchanges a valid code (6 digits or the QR code's long form) for a new
@@ -145,7 +153,12 @@ func (s *Store) Pair(code, name, from string) (token, handoffCode string, err er
 	if s.failWindow != w || s.fails == nil {
 		s.failWindow, s.fails, s.failsAll = w, map[string]int{}, 0
 	}
-	if s.fails[from] >= MaxAttempts || s.failsAll >= MaxAttemptsAll {
+	for k, until := range s.banned {
+		if !now.Before(until) {
+			delete(s.banned, k)
+		}
+	}
+	if _, banned := s.banned[from]; banned || s.failsAll >= MaxAttemptsAll {
 		return "", "", ErrTooMany
 	}
 	code = strings.ToLower(strings.TrimSpace(code))
@@ -159,6 +172,9 @@ func (s *Store) Pair(code, name, from string) (token, handoffCode string, err er
 	if !ok {
 		s.fails[from]++
 		s.failsAll++
+		if s.fails[from] >= MaxAttempts {
+			s.banned[from] = now.Add(BanFor)
+		}
 		return "", "", ErrBadCode
 	}
 

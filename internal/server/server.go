@@ -14,6 +14,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -266,6 +267,10 @@ type pairRequest struct {
 
 // Pairing errors are sent as codes; the phone shows them in its own language.
 func (s *Server) handlePair(w http.ResponseWriter, r *http.Request) {
+	if !sameOrigin(r) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
 	var req pairRequest
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&req); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
@@ -282,11 +287,7 @@ func (s *Server) handlePair(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"token": token})
 		return
 	}
-	from, _, splitErr := net.SplitHostPort(r.RemoteAddr)
-	if splitErr != nil {
-		from = r.RemoteAddr
-	}
-	token, handoff, err := s.auth.Pair(req.Code, req.Name, from)
+	token, handoff, err := s.auth.Pair(req.Code, req.Name, sourceKey(r.RemoteAddr))
 	switch {
 	case errors.Is(err, auth.ErrBadCode):
 		log.Printf("pairing: wrong code from %s", r.RemoteAddr)
@@ -840,6 +841,10 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 // handleSession lets an already paired phone (from before the cookie
 // existed) store its token in the cookie as well.
 func (s *Server) handleSession(w http.ResponseWriter, r *http.Request) {
+	if !sameOrigin(r) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
 	var req struct {
 		Token string `json:"token"`
 	}
@@ -954,6 +959,40 @@ func hostAllowed(hostport string) bool {
 // IsLocal reports whether ip is loopback, private (RFC 1918 / ULA) or link-local.
 func IsLocal(ip net.IP) bool {
 	return ip != nil && (ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast())
+}
+
+// sourceKey names the device behind an address, for counting wrong pairing
+// codes. One IPv6 device can use countless addresses inside its /64, so those
+// count together.
+func sourceKey(remoteAddr string) string {
+	host, _, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		host = remoteAddr
+	}
+	if i := strings.IndexByte(host, '%'); i >= 0 {
+		host = host[:i]
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return host
+	}
+	if v4 := ip.To4(); v4 != nil {
+		return v4.String()
+	}
+	return ip.Mask(net.CIDRMask(64, 128)).String() + "/64"
+}
+
+// sameOrigin rejects a request that a web page on another site sent from the
+// browser. A browser always names the page it came from in Origin on a POST;
+// clients that are not browsers send none and are let through (they still
+// need the pairing code).
+func sameOrigin(r *http.Request) bool {
+	o := r.Header.Get("Origin")
+	if o == "" {
+		return true
+	}
+	u, err := url.Parse(o)
+	return err == nil && strings.EqualFold(u.Host, r.Host)
 }
 
 func securityHeaders(next http.Handler) http.Handler {

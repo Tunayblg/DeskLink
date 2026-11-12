@@ -74,13 +74,18 @@ func TestTooManyWrongCodes(t *testing.T) {
 			t.Fatalf("attempt %d: %v", i, err)
 		}
 	}
-	// Locked for the rest of the window, even with the right code.
+	// Banned, even with the right code, and the next code does not help.
 	if _, _, err := s.Pair(s.Current().Digits, "x", "10.0.0.2"); err != ErrTooMany {
 		t.Fatalf("got %v, want ErrTooMany", err)
 	}
 	*now = now.Add(Window)
+	if _, _, err := s.Pair(s.Current().Digits, "x", "10.0.0.2"); err != ErrTooMany {
+		t.Fatalf("ban ended with the window: %v", err)
+	}
+	// It ends after BanFor.
+	*now = now.Add(BanFor)
 	if _, _, err := s.Pair(s.Current().Digits, "x", "10.0.0.2"); err != nil {
-		t.Fatalf("next window: %v", err)
+		t.Fatalf("after the ban: %v", err)
 	}
 }
 
@@ -96,6 +101,18 @@ func TestWrongCodesAreCountedPerDevice(t *testing.T) {
 	// ...but the owner's tablet can still pair.
 	if _, _, err := s.Pair(s.Current().Digits, "iPad", "10.0.0.2"); err != nil {
 		t.Fatalf("owner locked out by a stranger: %v", err)
+	}
+}
+
+// "New code" on the PC lifts bans, so the owner is never stuck.
+func TestRotateLiftsBans(t *testing.T) {
+	s, _ := newStore(t)
+	for i := 0; i < MaxAttempts; i++ {
+		s.Pair("abcdef", "x", "10.0.0.2")
+	}
+	s.Rotate()
+	if _, _, err := s.Pair(s.Current().Digits, "x", "10.0.0.2"); err != nil {
+		t.Fatalf("still banned after Rotate: %v", err)
 	}
 }
 

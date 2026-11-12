@@ -618,3 +618,42 @@ func TestGameNotStartedTwice(t *testing.T) {
 		t.Errorf("game with an unknown program: err %v, launched %d", err, launched)
 	}
 }
+
+func TestSourceKeyGroupsAnIPv6Prefix(t *testing.T) {
+	if got := sourceKey("192.168.1.20:5000"); got != "192.168.1.20" {
+		t.Errorf("IPv4: %q", got)
+	}
+	a := sourceKey("[fd00:1:2:3:aaaa::1]:5000")
+	b := sourceKey("[fd00:1:2:3:bbbb::9]:6000")
+	if a != b {
+		t.Errorf("one /64 counted as two devices: %q, %q", a, b)
+	}
+	if c := sourceKey("[fd00:1:2:4::1]:5000"); c == a {
+		t.Errorf("two different /64s counted as one: %q", c)
+	}
+	if got := sourceKey("[fe80::1%eth0]:5000"); got != sourceKey("[fe80::1]:5000") {
+		t.Errorf("zone changes the key: %q", got)
+	}
+}
+
+func TestSameOrigin(t *testing.T) {
+	for _, tc := range []struct {
+		origin, host string
+		want         bool
+	}{
+		{"", "192.168.1.5:8765", true},
+		{"http://192.168.1.5:8765", "192.168.1.5:8765", true},
+		{"http://evil.example", "192.168.1.5:8765", false},
+		{"http://192.168.1.5:9999", "192.168.1.5:8765", false},
+		{"null", "192.168.1.5:8765", false},
+	} {
+		r := httptest.NewRequest("POST", "/api/pair", nil)
+		r.Host = tc.host
+		if tc.origin != "" {
+			r.Header.Set("Origin", tc.origin)
+		}
+		if got := sameOrigin(r); got != tc.want {
+			t.Errorf("origin %q host %q: got %v", tc.origin, tc.host, got)
+		}
+	}
+}
