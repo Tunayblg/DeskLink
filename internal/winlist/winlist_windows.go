@@ -23,6 +23,8 @@ var (
 	procGetWindowLongW      = user32.NewProc("GetWindowLongW")
 	procGetWindowThreadPID  = user32.NewProc("GetWindowThreadProcessId")
 	procGetForegroundWindow = user32.NewProc("GetForegroundWindow")
+	procGetClassNameW       = user32.NewProc("GetClassNameW")
+	procGetClientRect       = user32.NewProc("GetClientRect")
 	procSetForeground       = user32.NewProc("SetForegroundWindow")
 	procKeybdEvent          = user32.NewProc("keybd_event")
 
@@ -38,6 +40,7 @@ const (
 	gwlExStyle        = -20
 	wsExToolWindow    = 0x00000080
 	wsExAppWindow     = 0x00040000
+	wsExNoActivate    = 0x08000000
 	dwmaCloaked       = 14
 	swRestore         = 9
 	vkMenu            = 0x12
@@ -84,6 +87,33 @@ func exeName(pid uint32) string {
 	return strings.TrimSuffix(base, filepath.Ext(base))
 }
 
+func className(hwnd uintptr) string {
+	buf := make([]uint16, 128)
+	n, _, _ := procGetClassNameW.Call(hwnd, uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
+	return syscall.UTF16ToString(buf[:n])
+}
+
+// shellClasses are windows of Windows itself that carry a title but are no
+// program a person switches to: the desktop, the taskbar, and the invisible
+// core windows of Store apps.
+var shellClasses = map[string]bool{
+	"Progman": true, "WorkerW": true, "Shell_TrayWnd": true, "Shell_SecondaryTrayWnd": true,
+	"NotifyIconOverflowWindow": true, "Windows.UI.Core.CoreWindow": true,
+}
+
+// emptyClient reports whether a window that is not minimized has no area:
+// a titled window with nothing to show is not something to switch to.
+func emptyClient(hwnd uintptr) bool {
+	if min, _, _ := procIsIconic.Call(hwnd); min != 0 {
+		return false // a minimized window has no area, and is the point of the list
+	}
+	var r struct{ left, top, right, bottom int32 }
+	if ok, _, _ := procGetClientRect.Call(hwnd, uintptr(unsafe.Pointer(&r))); ok == 0 {
+		return false
+	}
+	return r.right-r.left <= 0 || r.bottom-r.top <= 0
+}
+
 func cloaked(hwnd uintptr) bool {
 	var v uint32
 	r, _, _ := procDwmGetWindowAttribute.Call(hwnd, dwmaCloaked, uintptr(unsafe.Pointer(&v)), unsafe.Sizeof(v))
@@ -91,8 +121,9 @@ func cloaked(hwnd uintptr) bool {
 }
 
 // List returns the windows a person would call open programs, in front-to-back
-// order: visible, titled, not a tool window, not hidden on another virtual
-// desktop, and not DeskLink's own.
+// order (about the order of Alt+Tab): visible, titled, not a tool window or a
+// helper that never takes focus, not a piece of the desktop or taskbar, not
+// hidden on another virtual desktop, not empty, and not DeskLink's own.
 func List() []Window {
 	enumMu.Lock()
 	enumOut = enumOut[:0]
@@ -106,15 +137,18 @@ func List() []Window {
 		if vis, _, _ := procIsWindowVisible.Call(h); vis == 0 {
 			continue
 		}
-		t := title(h)
+		t := strings.TrimSpace(title(h))
 		if t == "" || t == "Program Manager" {
 			continue
 		}
-		ex, _, _ := procGetWindowLongW.Call(h, uintptr(0xFFFFFFEC)) // GWL_EXSTYLE as a 32-bit index
-		if ex&wsExToolWindow != 0 && ex&wsExAppWindow == 0 {
+		if shellClasses[className(h)] {
 			continue
 		}
-		if cloaked(h) {
+		ex, _, _ := procGetWindowLongW.Call(h, uintptr(0xFFFFFFEC)) // GWL_EXSTYLE as a 32-bit index
+		if (ex&wsExToolWindow != 0 || ex&wsExNoActivate != 0) && ex&wsExAppWindow == 0 {
+			continue
+		}
+		if cloaked(h) || emptyClient(h) {
 			continue
 		}
 		pid := processID(h)

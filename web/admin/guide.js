@@ -136,7 +136,7 @@
         { back: true, h: "Enjoy your deck", ul: [
             "<b>Games:</b> add them on the PC, tap to launch. The phone turns into a live CPU and GPU monitor.",
             "<b>Mixer:</b> set the volume for each program on its own.",
-            "<b>Trackpad:</b> use the phone as a mouse for the PC.",
+            "<b>Trackpad:</b> use the phone as a mouse for the PC. The <b>Windows</b> button lists the open programs (not background helpers) and brings one to the front.",
             "<b>Clock:</b> swipe left or right to change the face, up or down for the next or previous tab."] }
       ],
       tr: [
@@ -219,7 +219,7 @@
         { back: true, h: "İyi eğlenceler", ul: [
             "<b>Oyunlar:</b> bilgisayardan ekle, dokunup başlat. Telefon canlı CPU ve GPU monitörüne dönüşür.",
             "<b>Mikser:</b> her programın sesini ayrı ayrı ayarla.",
-            "<b>Trackpad:</b> telefonu bilgisayar için fare olarak kullan.",
+            "<b>Trackpad:</b> telefonu bilgisayar için fare olarak kullan. <b>Pencereler</b> düğmesi açık programları (arka plan yardımcıları hariç) listeler ve seçtiğini öne getirir.",
             "<b>Saat:</b> sağa sola kaydırarak yüzünü değiştir, yukarı aşağı kaydırarak sonraki ya da önceki sekmeye geç."] }
       ]
     },
@@ -304,7 +304,7 @@
         { back: true, h: "Enjoy your deck", ul: [
             "<b>Games:</b> add them on the PC, tap to launch. The phone turns into a live CPU and GPU monitor.",
             "<b>Mixer:</b> set the volume for each program on its own.",
-            "<b>Trackpad:</b> use the phone as a mouse for the PC.",
+            "<b>Trackpad:</b> use the phone as a mouse for the PC. The <b>Windows</b> button lists the open programs (not background helpers) and brings one to the front.",
             "<b>Clock:</b> swipe left or right to change the face, up or down for the next or previous tab."] }
       ],
       tr: [
@@ -386,7 +386,7 @@
         { back: true, h: "İyi eğlenceler", ul: [
             "<b>Oyunlar:</b> bilgisayardan ekle, dokunup başlat. Telefon canlı CPU ve GPU monitörüne dönüşür.",
             "<b>Mikser:</b> her programın sesini ayrı ayrı ayarla.",
-            "<b>Trackpad:</b> telefonu bilgisayar için fare olarak kullan.",
+            "<b>Trackpad:</b> telefonu bilgisayar için fare olarak kullan. <b>Pencereler</b> düğmesi açık programları (arka plan yardımcıları hariç) listeler ve seçtiğini öne getirir.",
             "<b>Saat:</b> sağa sola kaydırarak yüzünü değiştir, yukarı aşağı kaydırarak sonraki ya da önceki sekmeye geç."] }
       ]
     }

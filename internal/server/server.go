@@ -309,7 +309,8 @@ func (s *Server) handlePair(w http.ResponseWriter, r *http.Request) {
 // mixer), "mute" (toggle the PC's or a program's mute), "micmute" (set the microphone's mute to "on", answered with "micack"), "mouse", "mediactl"
 // (play/pause, skip or mute one media source), and "stats"/"media" (turn a
 // live stream on or off), "mixer" (the same, for the volume mixer), "output"
-// (make one of the PC's playback devices, by ID, the default).
+// (make one of the PC's playback devices, by ID, the default), "apps" (list the
+// open windows) and "appfocus" (bring one of them to the front).
 type clientMsg struct {
 	Type   string `json:"type"`
 	Token  string `json:"token,omitempty"`
@@ -542,6 +543,23 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			}
 			if code != "" {
 				if err := wsjson.Write(ctx, c, serverMsg{Type: "typeres", Error: code}); err != nil {
+					return
+				}
+			}
+			continue
+		}
+		if msg.Type == "apps" {
+			// Every open program window, for the window switcher on the trackpad screen.
+			go func() {
+				if err := wsjson.Write(ctx, c, serverMsg{Type: "apps", Windows: s.openWindows(msg.On)}); err != nil {
+					log.Printf("apps reply to %s: %v", name, err)
+				}
+			}()
+			continue
+		}
+		if msg.Type == "appfocus" {
+			if code := s.focusApp(msg.Window); code != "" {
+				if err := wsjson.Write(ctx, c, serverMsg{Type: "appres", Error: code}); err != nil {
 					return
 				}
 			}

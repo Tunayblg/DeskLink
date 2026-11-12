@@ -132,7 +132,7 @@
       noAnswer: "No answer from the PC", launchFailed: "Could not start the game",
       alreadyRunning: "Already running", doubleTap: "Double-tap to start",
       shortcutEmpty: "Add a shortcut from DeskLink on your PC", shortcutAdd: "Add shortcut",
-      devMode: "DEVELOPER", devLost: "Another window came to the front. Live typing stopped.", setLive: "Live typing", devFront: "In front", devSendTo: "Send to", devGone: "That window is closed", devNoFocus: "Could not bring that window forward", devRefused: "Windows blocked typing there (an administrator window?)", devNoWindows: "No Claude, Codex, terminal or editor window is open", devLoading: "Loading…", devPlaceholder: "Write or dictate a prompt for Claude, Codex or any tool", devListening: "Listening… speak now",
+      setAppsAll: "Show every window in the window list", appsWindows: "windows", appsBack: "Back to the list", appsBtn: "Windows", appsTitle: "Open windows", appsNone: "No windows are open", appsGone: "That window is closed", appsNoFocus: "Could not bring that window forward", devMode: "DEVELOPER", devLost: "Another window came to the front. Live typing stopped.", setLive: "Live typing", devFront: "In front", devSendTo: "Send to", devGone: "That window is closed", devNoFocus: "Could not bring that window forward", devRefused: "Windows blocked typing there (an administrator window?)", devNoWindows: "No Claude, Codex, terminal or editor window is open", devLoading: "Loading…", devPlaceholder: "Write or dictate a prompt for Claude, Codex or any tool", devListening: "Listening… speak now",
       devSend: "Send", devType: "Type only", devSent: "Sent to the PC", devTyped: "Typed on the PC", devEmpty: "Nothing to send", devOffline: "Not connected to the PC",
       devWorking: "thinking…", devReady: "ready", devIdle: "done", devDone: "Agent finished", devBetaNote: "Dictation and typing are still in development, so expect some bugs.", devNotDev: "The window in front is not a developer app. Pick one from the list.", doShell: "running a command", doEdit: "editing files", doRead: "reading code", doWeb: "searching the web", doAgent: "running a helper", doPlan: "planning", doAsk: "waiting for you", devFive: "5h", devSeven: "7d",
       devMicHelp: "Dictation is probably off. On iPhone: Settings › General › Keyboard › Enable Dictation. Then tap the prompt box and use the mic key on the keyboard.",
@@ -164,7 +164,7 @@
       noAnswer: "Bilgisayardan yanıt gelmedi", launchFailed: "Oyun başlatılamadı",
       alreadyRunning: "Zaten çalışıyor", doubleTap: "Açmak için çift dokun",
       shortcutEmpty: "Bilgisayardaki DeskLink'ten kısayol ekle", shortcutAdd: "Kısayol ekle",
-      devMode: "GELİŞTİRİCİ", devLost: "Başka pencere öne geçti, canlı yazma durdu", setLive: "Canlı yazma", devFront: "Öndeki pencere", devSendTo: "Gönderilecek yer", devGone: "O pencere kapanmış", devNoFocus: "O pencere öne getirilemedi", devRefused: "Windows oraya yazmayı engelledi (yönetici penceresi mi?)", devNoWindows: "Açık Claude, Codex, terminal ya da editör penceresi yok", devLoading: "Yükleniyor…", devPlaceholder: "Claude, Codex ya da herhangi bir araç için prompt yaz veya söyle", devListening: "Dinleniyor… konuşabilirsin",
+      setAppsAll: "Pencere listesinde tüm pencereleri göster", appsWindows: "pencere", appsBack: "Listeye dön", appsBtn: "Pencereler", appsTitle: "Açık pencereler", appsNone: "Açık pencere yok", appsGone: "O pencere kapanmış", appsNoFocus: "O pencere öne getirilemedi", devMode: "GELİŞTİRİCİ", devLost: "Başka pencere öne geçti, canlı yazma durdu", setLive: "Canlı yazma", devFront: "Öndeki pencere", devSendTo: "Gönderilecek yer", devGone: "O pencere kapanmış", devNoFocus: "O pencere öne getirilemedi", devRefused: "Windows oraya yazmayı engelledi (yönetici penceresi mi?)", devNoWindows: "Açık Claude, Codex, terminal ya da editör penceresi yok", devLoading: "Yükleniyor…", devPlaceholder: "Claude, Codex ya da herhangi bir araç için prompt yaz veya söyle", devListening: "Dinleniyor… konuşabilirsin",
       devSend: "Gönder", devType: "Sadece yaz", devSent: "Bilgisayara gönderildi", devTyped: "Bilgisayara yazıldı", devEmpty: "Gönderilecek bir şey yok", devOffline: "Bilgisayara bağlı değil",
       devWorking: "düşünüyor…", devReady: "hazır", devIdle: "bitti", devDone: "Ajan bitirdi", devBetaNote: "Dikte ve yazma henüz geliştirme aşamasında, hatalar olabilir.", devNotDev: "Öndeki pencere bir geliştirici uygulaması değil. Listeden seç.", doShell: "komut çalıştırıyor", doEdit: "dosya düzenliyor", doRead: "kodu okuyor", doWeb: "web'de arıyor", doAgent: "yardımcı ajan çalışıyor", doPlan: "plan yapıyor", doAsk: "senden cevap bekliyor", devFive: "5sa", devSeven: "7g",
       devMicHelp: "Dikte büyük ihtimalle kapalı. iPhone'da Ayarlar › Genel › Klavye › Dikteyi Etkinleştir'i aç. Sonra yazı kutusuna dokun ve klavyedeki mikrofon tuşunu kullan.",
@@ -239,7 +239,7 @@
   function loadPrefs() {
     var p = {};
     try { p = JSON.parse(load(PREFS_KEY) || "{}") || {}; } catch (e) { p = {}; }
-    var out = { hidden: {}, order: DEFAULT_ORDER.slice(), agent: p.agent !== false, usage: p.usage !== false, live: p.live !== false, autosend: p.autosend === true, calm: p.calm === true, speech: p.speech === "tr" || p.speech === "en" ? p.speech : "" };
+    var out = { hidden: {}, order: DEFAULT_ORDER.slice(), agent: p.agent !== false, usage: p.usage !== false, live: p.live !== false, autosend: p.autosend === true, calm: p.calm === true, appsAll: p.appsAll === true, speech: p.speech === "tr" || p.speech === "en" ? p.speech : "" };
     if (p.hidden && typeof p.hidden === "object") {
       DEFAULT_ORDER.forEach(function (n) { if (n !== "home" && p.hidden[n] === true) out.hidden[n] = true; });
     }
@@ -513,6 +513,12 @@
         break;
       case "windows":
         devWindows(msg.windows || []);
+        break;
+      case "apps":
+        appsList(msg.windows || []);
+        break;
+      case "appres":
+        toast(t(msg.error === "gone" ? "appsGone" : "appsNoFocus"));
         break;
       case "typeres":
         devTypeResult(msg.error);
@@ -1138,6 +1144,82 @@
     }, { passive: true });
   }
 
+  // ---- Window switcher: every open program, on the trackpad screen ----
+
+  var appsSheet = null;
+
+  function initApps() {
+    var btn = $("pad-apps");
+    if (!btn) return;
+    // The button sits on the trackpad: its touches must not move the pointer.
+    ["touchstart", "touchmove", "touchend"].forEach(function (ev) {
+      btn.addEventListener(ev, function (e) { e.stopPropagation(); });
+    });
+    onTap(btn, function () {
+      if (!appsSheet) {
+        appsSheet = mk("div", "out-sheet apps-sheet");
+        appsSheet.hidden = true;
+        appsSheet.innerHTML = '<div class="out-box" role="listbox"><div class="out-head"><span></span></div><div class="out-list"></div></div>';
+        document.body.appendChild(appsSheet);
+        onTap(appsSheet, function (ev) { if (ev && ev.target === appsSheet) appsSheet.hidden = true; });
+        dragScroll(appsSheet.querySelector(".out-list"));
+      }
+      appsSheet.querySelector(".out-head span").textContent = t("appsTitle");
+      var list = appsSheet.querySelector(".out-list");
+      list.innerHTML = "";
+      list.appendChild(mk("div", "out-none", t("devLoading")));
+      appsSheet.hidden = false;
+      if (!send({ type: "apps", on: prefs.appsAll })) { appsSheet.hidden = true; toast(t("notConnected")); }
+    });
+  }
+
+  var appsItems = [];
+
+  function appsList(items) {
+    appsItems = items;
+    appsRender(null);
+  }
+
+  function appsRow(title, sub, badge, fn) {
+    var b = mk("button", "out-opt");
+    b.type = "button";
+    b.innerHTML = '<span class="ic">' + svg('<rect x="3" y="5" width="13" height="10" rx="2"/><path d="M8 19h13V9"/>') + '</span><span class="tx"><b></b><small></small></span>' + (badge ? '<span class="out-badge"></span>' : "");
+    b.querySelector("b").textContent = title;
+    b.querySelector("small").textContent = sub;
+    if (badge) b.querySelector(".out-badge").textContent = badge;
+    onTap(b, fn);
+    return b;
+  }
+
+  // One row per program; a program with several windows opens its own list.
+  function appsRender(group) {
+    if (!appsSheet || appsSheet.hidden) return;
+    var list = appsSheet.querySelector(".out-list");
+    list.innerHTML = "";
+    function open(w) {
+      if (!send({ type: "appfocus", window: w.id })) { toast(t("notConnected")); return; }
+      appsSheet.hidden = true;
+    }
+    function label(w) { return w.title && w.title !== w.app ? w.title : w.app; }
+    var order = [], by = {};
+    appsItems.forEach(function (w) {
+      if (!by[w.app]) { by[w.app] = []; order.push(w.app); }
+      by[w.app].push(w);
+    });
+    if (group && by[group]) {
+      list.appendChild(appsRow("‹ " + group, t("appsBack"), "", function () { appsRender(null); }));
+      by[group].forEach(function (w) { list.appendChild(appsRow(label(w), w.app, "", function () { open(w); })); });
+      list.scrollTop = 0;
+      return;
+    }
+    order.forEach(function (app) {
+      var ws = by[app];
+      if (ws.length === 1) list.appendChild(appsRow(label(ws[0]), app, "", function () { open(ws[0]); }));
+      else list.appendChild(appsRow(app, ws.length + " " + t("appsWindows"), "›", function () { appsRender(app); }));
+    });
+    if (!order.length) list.appendChild(mk("div", "out-none", t("appsNone")));
+  }
+
   function initDevMode() {
     var text = $("dev-text");
     if (!text) return;
@@ -1624,6 +1706,7 @@
       devBox.appendChild(setRow(t("setLang"), seg));
     }
 
+    general.appendChild(flag("appsAll", t("setAppsAll")));
     general.appendChild(flag("calm", t("setCalm")));
     var reset = mk("button", "set-reset", t("setReset"));
     reset.type = "button";
@@ -1657,6 +1740,7 @@
     });
     window.DeskSettingsNote = note;
   })();
+  initApps();
   initDevMode();
   dragScroll($("set-scroll"), $("set-inner"));
   dragScroll($("dev-sheet-list"));
@@ -2406,7 +2490,8 @@
   function buildFull() {
     var el = document.createElement("div");
     el.className = "np-full";
-    el.innerHTML = '<div class="nf-bg"><i></i><i></i><i></i></div>' +
+    var layer = '<i></i><i></i><i></i><div class="nf-photo"></div></div>'; // the photo is behind the glows (z-index in css)
+    el.innerHTML = '<div class="nf-bg"><div class="nf-layer">' + layer + '<div class="nf-layer idle">' + layer + '</div>' +
       '<div class="nf-art">' + svg('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>') + '<img alt=""></div>' +
       '<div class="nf-side"><div class="nf-meta"><span class="nf-app"></span><span class="nf-title"></span><span class="nf-artist"></span></div>' +
       '<div class="np-progress"><div class="track"><i></i></div><div class="times"><span class="pos">0:00</span><span class="dur">0:00</span></div></div>' +
@@ -2431,7 +2516,7 @@
     });
     document.body.appendChild(el);
     full = {
-      root: el, bg: el.querySelector(".nf-bg"), art: el.querySelector(".nf-art"), img: el.querySelector(".nf-art img"),
+      root: el, bg: el.querySelector(".nf-bg"), layers: el.querySelectorAll(".nf-layer"), cur: 0, art: el.querySelector(".nf-art"), img: el.querySelector(".nf-art img"),
       app: el.querySelector(".nf-app"), title: el.querySelector(".nf-title"), artist: el.querySelector(".nf-artist"),
       pos: el.querySelector(".pos"), dur: el.querySelector(".dur"), bar: el.querySelector(".track i"),
       play: transport.children[1], slider: slider, level: slider.querySelector("i"), spk: el.querySelector(".nf-spk"),
@@ -2469,20 +2554,29 @@
       full.img.src = np.lastArt;
     }
     full.art.classList.toggle("has-art", !!np.lastArt);
-    // The backdrop drifts in the cover's two colors; on a new cover it fades out, takes the new colors and fades back.
+    // The backdrop is the cover itself, blurred, with two drifting glows in its
+    // colors. A new cover is set up on the layer that is out of sight and the
+    // two layers cross-fade, so the old colors melt into the new ones.
     var pal = np.pals && np.pals[np.front];
-    var key = pal ? pal[0] + "|" + pal[1] : "";
+    var tiny = np.tinys && np.tinys[np.front] || "";
+    var key = pal ? pal[0] + "|" + pal[1] + "|" + tiny.length + tiny.slice(-16) : "";
     if (pal && key !== full.bgCss) {
       var first = !full.bgCss;
       full.bgCss = key;
+      var from = full.layers[full.cur], to = full.layers[first ? full.cur : 1 - full.cur];
+      to.style.setProperty("--c1", pal[0]);
+      to.style.setProperty("--c2", pal[1]);
+      to.querySelector(".nf-photo").style.backgroundImage = tiny ? 'url("' + tiny + '")' : "none";
       clearTimeout(full.bgTimer);
-      var paint = function () {
-        full.bg.style.setProperty("--c1", pal[0]);
-        full.bg.style.setProperty("--c2", pal[1]);
-        full.bg.style.opacity = "1";
-      };
-      if (first) paint();
-      else { full.bg.style.opacity = "0"; full.bgTimer = setTimeout(paint, 450); }
+      to.classList.remove("idle");
+      to.classList.add("show");
+      if (to !== from) {
+        from.classList.remove("show");
+        full.cur = 1 - full.cur;
+        // The layer that faded out stands still once it can no longer be seen.
+        full.bgTimer = setTimeout(function () { from.classList.add("idle"); }, 1900);
+      }
+      full.bg.style.opacity = "1";
     }
     var app = (m.app || t("media")) + (m.playing ? "" : " · " + t("paused"));
     planText(full.app, app);
@@ -3126,6 +3220,8 @@
       paintGlow(back, img);
       np.front = back;
       revealArt(true);
+      // The full screen player takes the new cover's colors as soon as they are known.
+      if (full && full.root.classList.contains("on")) fillFull();
     };
     img.src = src;
   }
@@ -3137,10 +3233,31 @@
     if (!c) return;
     np.pals = np.pals || [];
     np.pals[layer] = c;
+    np.tinys = np.tinys || [];
+    np.tinys[layer] = tinyCover(img);
     np.bgs[layer].style.background =
       "radial-gradient(90% 85% at 0% 0%, rgba(" + c[0] + ",.55), transparent 62%)," +
       "radial-gradient(80% 90% at 100% 100%, rgba(" + c[1] + ",.42), transparent 60%)," +
       "linear-gradient(160deg, rgba(" + c[0] + ",.14), rgba(" + c[1] + ",.06))";
+  }
+
+  // The cover squeezed to a few pixels and stretched back: a blur that costs the
+  // phone nothing while it moves (no blur filter on a moving layer).
+  function tinyCover(img) {
+    try {
+      var a = document.createElement("canvas");
+      a.width = a.height = 24;
+      a.getContext("2d").drawImage(img, 0, 0, 24, 24);
+      var b = document.createElement("canvas");
+      b.width = b.height = 96;
+      var x = b.getContext("2d");
+      x.imageSmoothingEnabled = true;
+      if (x.imageSmoothingQuality) x.imageSmoothingQuality = "high";
+      x.drawImage(a, 0, 0, 96, 96);
+      return b.toDataURL("image/jpeg", 0.7);
+    } catch (e) {
+      return "";
+    }
   }
 
   function revealArt(on) {

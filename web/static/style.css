@@ -2366,3 +2366,61 @@ body.kb-open .dev-note { display: none; }
 }
 .mix-beta b { font-size: 8px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: rgba(252, 211, 77, .9); }
 .mix-beta:active { background: rgba(251, 191, 36, .14); }
+
+/* ---------- Window switcher: a button on the trackpad and the list it opens ---------- */
+.pad-apps {
+  position: absolute; top: 12px; right: 14px; z-index: 2;
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, .1); border-radius: 999px;
+  background: rgba(255, 255, 255, .06); color: rgba(226, 232, 240, .8);
+  font: inherit; font-size: 12px; font-weight: 600;
+}
+.pad-apps svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.pad-apps:active { background: rgba(255, 255, 255, .16); }
+.out-none { padding: 18px 16px; font-size: 13px; color: rgba(203, 213, 225, .55); }
+.out-list { flex: 1; min-height: 0; }
+
+.out-badge { flex: none; font-size: 18px; line-height: 1; color: rgba(203, 213, 225, .5); }
+
+/* ---------- Full screen player: softer play buttons ----------
+   No ring or bright edge around the discs (they are only a faint tint now),
+   and the glyphs have rounded corners instead of sharp points. */
+.nf-side .tbtn {
+  background: rgba(255, 255, 255, .06);
+  box-shadow: none;
+  opacity: 1;
+}
+.nf-side .tbtn.main {
+  background: rgba(255, 255, 255, .11);
+  box-shadow: none;
+}
+.nf-side .tbtn:active { background: rgba(255, 255, 255, .13); }
+.nf-side .tbtn.main:active { background: rgba(255, 255, 255, .19); }
+.nf-side .tbtn svg {
+  fill: #e9ecf1;
+  stroke: #e9ecf1; /* the same solid colour: a see-through fill and line would show their overlap */
+  stroke-width: 1.7;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.nf-side .tbtn.main svg { fill: #f6f7fa; stroke: #f6f7fa; }
+
+/* ---------- Full screen backdrop: faster, with the cover in it, colours that melt ---------- */
+.nf-layer { position: absolute; top: 0; right: 0; bottom: 0; left: 0; overflow: hidden; isolation: isolate; opacity: 0; transition: opacity 1.8s ease-in-out; --c1: 70, 76, 110; --c2: 40, 44, 70; }
+.nf-layer.show { opacity: 1; }
+/* A hidden layer stands still; while it fades out it keeps moving. */
+.nf-layer i, .nf-photo { animation-play-state: paused; }
+.np-full.on .nf-layer:not(.idle) i, .np-full.on .nf-layer:not(.idle) .nf-photo { animation-play-state: running; }
+.nf-photo {
+  position: absolute; left: -30%; top: -30%; width: 160%; height: 160%;
+  z-index: -1; background: center / cover no-repeat; opacity: .55; will-change: transform;
+  animation: nfp 15s ease-in-out infinite alternate;
+}
+@keyframes nfp {
+  from { transform: translate3d(-5%, -4%, 0) scale(1) rotate(-4deg); }
+  to { transform: translate3d(5%, 4%, 0) scale(1.2) rotate(5deg); }
+}
+.nf-layer i:nth-child(1) { animation-duration: 11s; }
+.nf-layer i:nth-child(2) { animation-duration: 14s; }
+.nf-layer i:nth-child(3) { animation-duration: 17s; }
+.np-full.on .nf-layer.idle i, .np-full.on .nf-layer.idle .nf-photo { animation-play-state: paused; }

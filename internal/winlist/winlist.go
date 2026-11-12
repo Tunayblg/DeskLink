@@ -20,7 +20,7 @@ type Window struct {
 var ErrNotFocused = errors.New("window did not come to the front")
 
 // MaxWindows is the most windows listed.
-const MaxWindows = 40
+const MaxWindows = 60
 
 // maxTitle is the longest title kept, in characters.
 const maxTitle = 80
