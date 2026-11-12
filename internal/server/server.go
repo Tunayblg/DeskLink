@@ -282,7 +282,11 @@ func (s *Server) handlePair(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"token": token})
 		return
 	}
-	token, handoff, err := s.auth.Pair(req.Code, req.Name)
+	from, _, splitErr := net.SplitHostPort(r.RemoteAddr)
+	if splitErr != nil {
+		from = r.RemoteAddr
+	}
+	token, handoff, err := s.auth.Pair(req.Code, req.Name, from)
 	switch {
 	case errors.Is(err, auth.ErrBadCode):
 		log.Printf("pairing: wrong code from %s", r.RemoteAddr)

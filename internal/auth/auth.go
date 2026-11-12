@@ -33,9 +33,14 @@ const (
 	// Window is how long a pairing code is shown. The previous window's code
 	// is accepted too, so a code typed just as it changes still works.
 	Window = 30 * time.Second
-	// MaxAttempts is how many wrong codes are accepted per window; after that,
-	// pairing is refused until the next code appears.
+	// MaxAttempts is how many wrong codes one device (by address) may try per
+	// window; after that, that device is refused until the next code appears.
+	// Counting per device means a stranger on the network cannot lock the
+	// owner's tablet out by burning a shared limit.
 	MaxAttempts = 5
+	// MaxAttemptsAll caps wrong codes from all devices together per window, so
+	// guessing from many addresses at once still has a ceiling.
+	MaxAttemptsAll = 30
 	// HandoffTTL is how long a handoff code can be redeemed: long enough to add
 	// the page to the home screen later in the day.
 	HandoffTTL = 24 * time.Hour
@@ -73,7 +78,8 @@ type Store struct {
 	secret     []byte
 	devices    []Device
 	failWindow int64
-	fails      int
+	fails      map[string]int // wrong codes this window, by source address
+	failsAll   int
 	handoffs   map[string]handoff
 	now        func() time.Time // for tests
 }
@@ -127,16 +133,19 @@ func (s *Store) Rotate() {
 
 // Pair exchanges a valid code (6 digits or the QR code's long form) for a new
 // device token. It also returns a handoff code for the home screen app.
-func (s *Store) Pair(code, name string) (token, handoffCode string, err error) {
+//
+// from identifies the caller (its IP address, without the port), so wrong
+// codes are counted per device.
+func (s *Store) Pair(code, name, from string) (token, handoffCode string, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	now := s.now()
 	w := s.window(now)
-	if s.failWindow != w {
-		s.failWindow, s.fails = w, 0
+	if s.failWindow != w || s.fails == nil {
+		s.failWindow, s.fails, s.failsAll = w, map[string]int{}, 0
 	}
-	if s.fails >= MaxAttempts {
+	if s.fails[from] >= MaxAttempts || s.failsAll >= MaxAttemptsAll {
 		return "", "", ErrTooMany
 	}
 	code = strings.ToLower(strings.TrimSpace(code))
@@ -148,7 +157,8 @@ func (s *Store) Pair(code, name string) (token, handoffCode string, err error) {
 		}
 	}
 	if !ok {
-		s.fails++
+		s.fails[from]++
+		s.failsAll++
 		return "", "", ErrBadCode
 	}
 

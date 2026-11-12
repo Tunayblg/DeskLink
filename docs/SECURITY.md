@@ -8,7 +8,7 @@ DeskLink runs actions on your PC, so it assumes the local network is **not** ful
 |---|---|
 | A device on the internet reaches the port (e.g. through port forwarding) | Requests from non-private, non-loopback IPs are rejected with 403. Do not port-forward DeskLink. |
 | Another device on the same Wi-Fi sends commands | Commands require a device token, which you only get with the pairing code shown on the PC (typed, or scanned as a QR code). |
-| Guessing the pairing code | The code changes every 30 seconds and is derived from a random secret that exists only in memory. After 5 wrong codes, pairing is refused until the next code appears. "New code" in the dashboard invalidates the code on screen at once. |
+| Guessing the pairing code | The code changes every 30 seconds and is derived from a random secret that exists only in memory. Wrong codes are counted per device (by IP address): after 5, that device is refused until the next code appears, so another device on the network cannot lock your phone out by guessing. All devices together are capped at 30 wrong codes per window. "New code" in the dashboard invalidates the code on screen at once. |
 | Reusing a pairing link | The QR code carries the code in the URL fragment, which is never sent to a server and expires with the code. The handoff code that lets a new iOS home screen app reuse a Safari pairing works once and expires after 24 hours. |
 | A website open on your phone talks to DeskLink (cross-site WebSocket hijacking) | The WebSocket handshake rejects any `Origin` that does not match the host. |
 | A website open in the PC's browser uses the dashboard | `/admin` only answers loopback requests addressed to `localhost` or `127.0.0.1` (this also defeats DNS rebinding), and its API needs a random per-run token that exists only inside the dashboard page. Other sites cannot read that page, and its Content Security Policy only runs scripts carrying a per-request nonce. |
@@ -20,7 +20,7 @@ DeskLink runs actions on your PC, so it assumes the local network is **not** ful
 
 ## Limitations
 
-- Traffic is plain HTTP and WebSocket on your local network. Someone who can capture traffic on your Wi-Fi could see button presses and a device token and replay it. Use DeskLink on networks you trust, such as your home Wi-Fi.
+- Traffic is plain HTTP and WebSocket on your local network, not encrypted. The pairing code or QR protects the first pairing only; after that, someone who can read traffic on your Wi-Fi can take the device token and connect as that phone, which means sending keys, mouse moves and app launches to the PC. Only use DeskLink on a network you trust, such as your home Wi-Fi, and never on shared or public Wi-Fi. If you suspect someone saw the traffic, remove the phone in the dashboard.
 - If a phone is lost, remove it in the dashboard. Its token stops working immediately.
 - Releases are not code-signed, so Windows SmartScreen or Smart App Control may warn about them, and the Android app is installed from outside the Play Store.
 
