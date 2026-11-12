@@ -4,7 +4,7 @@
 
 # DeskLink
 
-**Your old phone, reborn as a Stream Deck for your PC.**
+**Your spare phone. Your PC's new control center.**
 
 [![CI](https://github.com/Tunayblg/DeskLink/actions/workflows/ci.yml/badge.svg)](https://github.com/Tunayblg/DeskLink/actions/workflows/ci.yml)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4)
