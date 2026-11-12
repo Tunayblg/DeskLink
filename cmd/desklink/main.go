@@ -33,7 +33,7 @@ import (
 	"github.com/Tunayblg/DeskLink/web"
 )
 
-var version = "1.3.0"
+var version = "1.3.1"
 
 const maxLog = 1 << 20
 
