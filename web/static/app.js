@@ -613,7 +613,7 @@
     // move. Once iOS has started panning the page it can no longer be stopped,
     // and the page slid down with the finger.
     if (e.target.closest && e.target.closest(".settings-view, .dev-sheet, .out-sheet")) { if (e.cancelable) e.preventDefault(); return; }
-    var scroller = e.target.closest && e.target.closest(".game-list, .ps-items");
+    var scroller = e.target.closest && e.target.closest(".ps-items");
     if (scroller && canScrollThere(scroller, e.touches[0].clientY)) return;
     if (!touchDragging) {
       var t = e.touches[0];
@@ -1142,6 +1142,59 @@
         raf = requestAnimationFrame(glide);
       })();
     }, { passive: true });
+  }
+
+  // The games list scrolls sideways by code too: the tiles are moved with a
+  // transform (one custom property on the list), which the phone does on the
+  // graphics chip without laying out or painting the big tiles again each frame.
+  function dragScrollX(el) {
+    if (!el) return;
+    var x0 = 0, y0 = 0, pos0 = 0, lastX = 0, lastT = 0, speed = 0, active = false, moved = false, locked = false, raf = 0, pos = 0;
+    function maxPos() { return Math.max(0, el.scrollWidth - el.clientWidth); }
+    function setPos(v) {
+      pos = Math.max(0, Math.min(maxPos(), v));
+      el.style.setProperty("--sx", (-pos).toFixed(1) + "px");
+    }
+    el.resetScroll = function () { setPos(0); };
+    el.addEventListener("touchstart", function (e) {
+      cancelAnimationFrame(raf);
+      if (!e.touches || e.touches.length !== 1) { active = false; return; }
+      x0 = lastX = e.touches[0].clientX;
+      y0 = e.touches[0].clientY;
+      pos = Math.min(pos, maxPos());
+      pos0 = pos;
+      lastT = Date.now();
+      speed = 0;
+      active = true;
+      moved = false;
+    }, { passive: true });
+    el.addEventListener("touchmove", function (e) {
+      if (!active || !e.touches || !e.touches[0]) return;
+      var x = e.touches[0].clientX;
+      if (!moved && Math.abs(x - x0) < 10) return;
+      moved = true;
+      setPos(pos0 - (x - x0));
+      var now = Date.now();
+      if (now > lastT) speed = (lastX - x) / (now - lastT);
+      lastX = x;
+      lastT = now;
+    }, { passive: true });
+    el.addEventListener("touchend", function () {
+      if (!active) return;
+      active = false;
+      if (!moved) return;
+      // A finger that rested before lifting does not throw the list.
+      var v = Date.now() - lastT > 90 ? 0 : speed * 16;
+      (function glide() {
+        if (Math.abs(v) < 0.4) return;
+        var before = pos;
+        setPos(before + v);
+        if (pos === before) return; // reached an end
+        v *= 0.95;
+        raf = requestAnimationFrame(glide);
+      })();
+    }, { passive: true });
+    el.addEventListener("touchcancel", function () { active = false; }, { passive: true });
   }
 
   // ---- Window switcher: every open program, on the trackpad screen ----
@@ -2492,7 +2545,7 @@
     el.className = "np-full";
     var layer = '<i></i><i></i><i></i><div class="nf-photo"></div></div>'; // the photo is behind the glows (z-index in css)
     el.innerHTML = '<div class="nf-bg"><div class="nf-layer">' + layer + '<div class="nf-layer idle">' + layer + '</div>' +
-      '<div class="nf-art">' + svg('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>') + '<img alt=""></div>' +
+      '<div class="nf-art">' + svg('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>') + '<img alt=""><img alt=""></div>' +
       '<div class="nf-side"><div class="nf-meta"><span class="nf-app"></span><span class="nf-title"></span><span class="nf-artist"></span></div>' +
       '<div class="np-progress"><div class="track"><i></i></div><div class="times"><span class="pos">0:00</span><span class="dur">0:00</span></div></div>' +
       '<div class="transport"></div>' +
@@ -2516,7 +2569,7 @@
     });
     document.body.appendChild(el);
     full = {
-      root: el, bg: el.querySelector(".nf-bg"), layers: el.querySelectorAll(".nf-layer"), cur: 0, art: el.querySelector(".nf-art"), img: el.querySelector(".nf-art img"),
+      root: el, bg: el.querySelector(".nf-bg"), layers: el.querySelectorAll(".nf-layer"), cur: 0, art: el.querySelector(".nf-art"), imgs: el.querySelectorAll(".nf-art img"), front: 0, meta: el.querySelector(".nf-meta"),
       app: el.querySelector(".nf-app"), title: el.querySelector(".nf-title"), artist: el.querySelector(".nf-artist"),
       pos: el.querySelector(".pos"), dur: el.querySelector(".dur"), bar: el.querySelector(".track i"),
       play: transport.children[1], slider: slider, level: slider.querySelector("i"), spk: el.querySelector(".nf-spk"),
@@ -2550,8 +2603,28 @@
     var m = shownSource() || {};
     if (!m.title) { closeFull(); return; }
     if (np.lastArt && full.src !== np.lastArt) {
-      full.src = np.lastArt;
-      full.img.src = np.lastArt;
+      var first = !full.src, src = np.lastArt;
+      full.src = src;
+      var back = full.imgs[1 - full.front], old = full.imgs[full.front];
+      if (first) {
+        old.classList.add("instant");
+        old.src = src;
+        old.classList.add("shown");
+        void old.offsetWidth;
+        old.classList.remove("instant");
+      } else {
+        // The new cover melts in over the old one, slowly; the old one fades
+        // out underneath once the new one is fully there.
+        back.onload = function () {
+          if (full.src !== src) return;
+          back.classList.remove("gone");
+          back.classList.add("shown");
+          old.classList.remove("shown");
+          old.classList.add("gone");
+          full.front = 1 - full.front;
+        };
+        back.src = src;
+      }
     }
     full.art.classList.toggle("has-art", !!np.lastArt);
     // The backdrop is the cover itself, blurred, with two drifting glows in its
@@ -2580,8 +2653,24 @@
     }
     var app = (m.app || t("media")) + (m.playing ? "" : " · " + t("paused"));
     planText(full.app, app);
-    planText(full.title, m.title);
-    planText(full.artist, m.artist || m.album || "");
+    // A new track: the old title and artist fade away, then the new ones fade in.
+    var wantTitle = m.title, wantArtist = m.artist || m.album || "";
+    if (full.title.textContent !== wantTitle || full.artist.textContent !== wantArtist) {
+      var firstText = !full.title.textContent;
+      clearTimeout(full.textTimer);
+      if (firstText || !full.root.classList.contains("on")) {
+        full.title.textContent = wantTitle;
+        full.artist.textContent = wantArtist;
+        full.meta.classList.remove("out");
+      } else {
+        full.meta.classList.add("out");
+        full.textTimer = setTimeout(function () {
+          full.title.textContent = wantTitle;
+          full.artist.textContent = wantArtist;
+          full.meta.classList.remove("out");
+        }, 380);
+      }
+    }
     var playing = !!m.playing;
     if (full.glyphPlaying !== playing) { full.glyphPlaying = playing; full.play.innerHTML = svg(playing ? GLYPH.pause : GLYPH.play); }
     var own = m.id && m.volume >= 0;
@@ -3312,6 +3401,7 @@
   function renderGames(games) {
     var list = $("game-list");
     list.innerHTML = "";
+    if (list.resetScroll) list.resetScroll();
     $("games-empty").hidden = games.length > 0;
     games.forEach(function (g, i) {
       gameIDs[g.id] = true;
@@ -3338,6 +3428,8 @@
       list.appendChild(el);
     });
   }
+
+  dragScrollX($("game-list"));
 
   // ---- Launch animation --------------------------------------------------
   //
