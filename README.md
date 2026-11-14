@@ -16,7 +16,9 @@
 
 Media controls with cover art, a game launcher, per-app volume, screen brightness, mic mute and live CPU/GPU stats, on the phone that is already in your drawer.
 
-- 📱 **No app to install on iPhone.** Open it in Safari and add it to the home screen. Android gets a small app for true full screen.
+> **No iPhone app required.** DeskLink runs directly in Safari — no App Store download or iOS app installation. Only your Windows PC needs DeskLink.
+
+- 📱 **Works directly in Safari on iPhone.** Scan the QR code on the same Wi-Fi and open the panel in Safari. Add it to your home screen for quick access — no iOS app to install. Android gets a small app for true full screen.
 - 🪶 **Featherweight.** One small `.exe`, roughly 20–50 MB of RAM and almost no CPU.
 - 🎮 **Made for gaming.** Launch a game and the phone turns into a live hardware monitor.
 - 🍿 **Watch mode.** PC volume, play/pause, jump back and forward, screen brightness and a shut down button, made for the couch.
