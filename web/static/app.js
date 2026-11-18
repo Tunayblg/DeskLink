@@ -126,7 +126,7 @@
       notPlaying: "Not playing", nothingPlaying: "Nothing playing", startMusic: "Start music on your PC",
       paused: "Paused", media: "Media", play: "PLAY", pinMedia: "Pin this player", unpinMedia: "Unpin player",
       plan: "PLAN", planNext: "NEXT", planDone: "All done", planAfter: "Then {}", planTapAdd: "Tap to set an alarm", planLate: "Overdue",
-      planTitle: "Alarms", planName: "Name (optional)", planTime: "Remind at", planDate: "Date", planToday: "Today", planTomorrow: "Tomorrow", planEvery: "Every day", planAdd: "Add", planNextAlarm: "NEXT ALARM", sec: "s", planSet: "Set alarm", planSetDone: "Set", planActive: "{} active", planDoneTag: "Done", planClose: "Close", planEmpty: "No alarms yet. Set one on the left.", planDel: "Delete", planNow: "Now!", planNeed: "Set a time or write a name", planToggle: "Complete / undo",
+      planTitle: "Alarms", batTitle: "DEVICES", batNone: "No connected devices", favPage: "Open on this page", planName: "Name (optional)", planTime: "Remind at", planDate: "Date", planToday: "Today", planTomorrow: "Tomorrow", planEvery: "Every day", planAdd: "Add", planNextAlarm: "NEXT ALARM", sec: "s", planSet: "Set alarm", planSetDone: "Set", planActive: "{} active", planDoneTag: "Done", planClose: "Close", planEmpty: "No alarms yet. Set one on the left.", planDel: "Delete", planNow: "Now!", planNeed: "Set a time or write a name", planToggle: "Complete / undo",
       clFive: "5 HOURS", clSeven: "7 DAYS", clLeft: "{} left", d: "d", h: "h", m: "m", clWindow: "5 HOURS", clToday: "TODAY", clWeek: "7 DAYS", clNone: "Claude Code not found on this PC", clHint: "Open Claude Code to see limits",
       launching: "Launching…", toGameMode: "Switching to game mode",
       noAnswer: "No answer from the PC", launchFailed: "Could not start the game",
@@ -158,7 +158,7 @@
       notPlaying: "Çalmıyor", nothingPlaying: "Şu an bir şey çalmıyor", startMusic: "Bilgisayarda müzik başlat",
       paused: "Duraklatıldı", media: "Medya", play: "OYNA", pinMedia: "Bu oynatıcıyı sabitle", unpinMedia: "Sabitlemeyi kaldır",
       plan: "PLAN", planNext: "SIRADA", planDone: "Hepsi tamam", planAfter: "Sonra {}", planTapAdd: "Alarm kurmak için dokun", planLate: "Gecikti",
-      planTitle: "Alarmlar", planName: "İsim (isteğe bağlı)", planTime: "Hatırlat", planDate: "Tarih", planToday: "Bugün", planTomorrow: "Yarın", planEvery: "Her gün", planAdd: "Ekle", planNextAlarm: "SIRADAKİ ALARM", sec: "sn", planSet: "Alarm kur", planSetDone: "Kuruldu", planActive: "{} aktif", planDoneTag: "Tamamlandı", planClose: "Kapat", planEmpty: "Henüz alarm yok. Soldan kur.", planDel: "Sil", planNow: "Şimdi!", planNeed: "Bir saat seç ya da isim yaz", planToggle: "Tamamla / geri al",
+      planTitle: "Alarmlar", batTitle: "CİHAZLAR", batNone: "Bağlı cihaz yok", favPage: "Açılışta bu sayfa", planName: "İsim (isteğe bağlı)", planTime: "Hatırlat", planDate: "Tarih", planToday: "Bugün", planTomorrow: "Yarın", planEvery: "Her gün", planAdd: "Ekle", planNextAlarm: "SIRADAKİ ALARM", sec: "sn", planSet: "Alarm kur", planSetDone: "Kuruldu", planActive: "{} aktif", planDoneTag: "Tamamlandı", planClose: "Kapat", planEmpty: "Henüz alarm yok. Soldan kur.", planDel: "Sil", planNow: "Şimdi!", planNeed: "Bir saat seç ya da isim yaz", planToggle: "Tamamla / geri al",
       clFive: "5 SAAT", clSeven: "7 GÜN", clLeft: "{} kaldı", d: "g", h: "sa", m: "dk", clWindow: "5 SAAT", clToday: "BUGÜN", clWeek: "7 GÜN", clNone: "Bu PC'de Claude Code bulunamadı", clHint: "Limitler için Claude Code'u aç",
       launching: "Başlatılıyor…", toGameMode: "Oyun moduna geçiliyor",
       noAnswer: "Bilgisayardan yanıt gelmedi", launchFailed: "Oyun başlatılamadı",
@@ -514,6 +514,9 @@
       case "windows":
         devWindows(msg.windows || []);
         break;
+      case "batteries":
+        renderBatteries(msg.batteries);
+        break;
       case "apps":
         appsList(msg.windows || []);
         break;
@@ -573,6 +576,14 @@
     }
     clearInterval(progressTimer);
     progressTimer = want.media ? setInterval(function () { tickProgress(false); }, 1000) : null;
+    // Batteries change slowly: ask when the home screen shows, then once a minute.
+    clearInterval(batTimer);
+    batTimer = null;
+    if (live && view === "home" && batPage) {
+      askBatteries();
+      // Faster on the devices page, so a device that is switched on shows up soon.
+      batTimer = setInterval(askBatteries, miniPage === 3 ? 15000 : 30000);
+    }
     // The plan counts down on the phone's own clock, so it needs no stream.
     clearInterval(planTimer);
     planTimer = null;
@@ -899,8 +910,9 @@
       track.appendChild(mini);
       track.appendChild(claudePage());
       track.appendChild(planPage());
+      track.appendChild(devicesPage());
       pager.appendChild(track);
-      pager.insertAdjacentHTML("beforeend", '<div class="mini-dots"><i></i><i></i><i></i></div>');
+      pager.insertAdjacentHTML("beforeend", '<div class="mini-dots"><i></i><i></i><i></i><i></i></div>');
       body.appendChild(pager);
       miniEls = {};
       ["cpu", "gpu"].forEach(function (k) {
@@ -911,6 +923,7 @@
       setMiniPage(miniPage, true);
       if (claudeLast) renderClaude(claudeLast);
       renderPlan();
+      if (batLast) renderBatteries(batLast);
     },
     grid: function (body, buttons) {
       body.classList.add("grid-body");
@@ -958,7 +971,18 @@
 
   // ---- Claude Code -------------------------------------------------------
 
-  var miniPage = 0;       // 0: CPU and GPU, 1: Claude
+  // The pager opens on the page the user starred (the star in the card's corner), else on the first.
+  var FAV_KEY = "desklink.favpage";
+  var favPage = (function () { var v = parseInt(load(FAV_KEY), 10); return v >= 0 && v <= 3 ? v : -1; })();
+  var favEl = null;       // the star button, once the home screen is drawn
+  var miniPage = favPage >= 0 ? favPage : 0; // 0: CPU and GPU, 1: Claude, 2: plan, 3: devices
+
+  // Stars the page showing now, or takes the star off it.
+  function toggleFav() {
+    favPage = favPage === miniPage ? -1 : miniPage;
+    save(FAV_KEY, favPage >= 0 ? String(favPage) : null);
+    if (favEl) favEl.classList.toggle("on", favPage === miniPage);
+  }
   var claudeEls = null;   // the Claude page's elements, once the home screen is drawn
   var claudeLast = null;  // the last "claude" message
 
@@ -1809,7 +1833,7 @@
 
   // ---- Day plan ----------------------------------------------------------
 
-  var PAGES = 3;          // pager pages: CPU and GPU, Claude, plan
+  var PAGES = 4;          // pager pages: CPU and GPU, Claude, plan, devices
   var planItems = [];     // the plan from the PC
   var planEls = null;     // the plan page's elements, once the home screen is drawn
   var planTimer = null;
@@ -2146,13 +2170,54 @@
     box.scrollTop = scroll;
   }
 
-  // Moves the pager to a page (0, 1 or 2). instant skips the animation.
-  function setMiniPage(p, instant) {
+  // The pager goes round: past the last page comes the first, and before the
+  // first comes the last. To slide on round, the page that comes next is put
+  // just past the end of the track (dir 1: the first page after the last one,
+  // -1: the last page before the first one) and put back once the slide is over.
+  var wrapFix = null;     // puts the track right again after a slide that went round
+
+  function placeWrap(track, dir) {
+    track.children[dir > 0 ? 0 : PAGES - 1].style.transform = "translateX(" + (dir * PAGES * 100) + "%)";
+  }
+
+  function clearWrap(track) {
+    track.children[0].style.transform = "";
+    track.children[PAGES - 1].style.transform = "";
+  }
+
+  function finishWrap() {
+    if (!wrapFix) return;
+    clearTimeout(wrapFix.t);
+    var run = wrapFix.run;
+    wrapFix = null;
+    run();
+  }
+
+  // Moves the pager to a page (0 to PAGES - 1). instant skips the animation;
+  // wrap (1 or -1) says the slide goes on round past the last or the first page.
+  function setMiniPage(p, instant, wrap) {
+    finishWrap();
     miniPage = p;
+    if (favEl) favEl.classList.toggle("on", favPage === p);
     var track = document.querySelector(".mini-track");
     if (track) {
+      var rest = p ? "translateX(-" + (p * 100 / PAGES).toFixed(3) + "%)" : "";
       track.style.transition = instant ? "none" : "";
-      track.style.transform = p ? "translateX(-" + (p * 100 / PAGES).toFixed(3) + "%)" : "";
+      if (wrap && !instant) {
+        placeWrap(track, wrap);
+        track.style.transform = wrap > 0 ? "translateX(-100%)" : "translateX(" + (100 / PAGES).toFixed(3) + "%)";
+        wrapFix = { run: function () {
+          clearWrap(track);
+          track.style.transition = "none";
+          track.style.transform = rest;
+          void track.offsetWidth;
+        } };
+      } else {
+        track.style.transform = rest;
+        if (instant) clearWrap(track);
+        else wrapFix = { run: function () { clearWrap(track); } }; // a drag may have put a page past an end
+      }
+      if (wrapFix) wrapFix.t = setTimeout(finishWrap, 450);
       var dots = track.parentNode.querySelectorAll(".mini-dots i");
       for (var i = 0; i < dots.length; i++) dots[i].classList.toggle("on", i === p);
     }
@@ -2161,8 +2226,10 @@
 
   // A horizontal swipe on the card follows the finger and switches page.
   function bindPager(el, track) {
-    var x0 = null, y0 = 0, axis = null, dx = 0, w = 1;
+    var x0 = null, y0 = 0, axis = null, dx = 0, w = 1, wrapDir = 0;
     el.addEventListener("touchstart", function (e) {
+      finishWrap();
+      wrapDir = 0;
       x0 = e.touches[0].clientX;
       y0 = e.touches[0].clientY;
       axis = null;
@@ -2176,12 +2243,14 @@
       if (!axis && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
       if (axis !== "x") return;
       e.preventDefault();
-      // Pulling past the first or last page gives a little, then resists.
-      var base = -miniPage * w;
-      var pos = base + dx;
-      var low = -(PAGES - 1) * w;
-      if (pos > 0) pos *= 0.3;
-      if (pos < low) pos = low + (pos - low) * 0.3;
+      // Past the last page the first one follows the finger, and past the first the last.
+      var pos = Math.max(-PAGES * w, Math.min(w, -miniPage * w + dx));
+      var dir = pos < -(PAGES - 1) * w ? 1 : pos > 0 ? -1 : 0;
+      if (dir !== wrapDir) {
+        clearWrap(track);
+        wrapDir = dir;
+        if (dir) placeWrap(track, dir);
+      }
       track.style.transition = "none";
       track.style.transform = "translateX(" + pos.toFixed(1) + "px)";
     }, { passive: false });
@@ -2189,9 +2258,10 @@
       if (x0 === null) return;
       x0 = null;
       if (axis !== "x") return;
-      var next = miniPage;
-      if (dx < -40) next = Math.min(PAGES - 1, miniPage + 1); else if (dx > 40) next = Math.max(0, miniPage - 1);
-      setMiniPage(next);
+      var next = miniPage, wrap = 0;
+      if (dx < -40) next = miniPage + 1; else if (dx > 40) next = miniPage - 1;
+      if (next >= PAGES) { next = 0; wrap = 1; } else if (next < 0) { next = PAGES - 1; wrap = -1; }
+      setMiniPage(next, false, wrap);
     }
     el.addEventListener("touchend", end);
     el.addEventListener("touchcancel", end);
@@ -2252,6 +2322,8 @@
     home.innerHTML = "";
     np = null;
     clockEl = null;
+    favEl = null;
+    batPage = null;
     miniEls = null;
     claudeEls = null;
     planEls = null;
@@ -2269,6 +2341,14 @@
         clockEl.innerHTML = '<span class="time"></span><span class="date"></span>';
         card.appendChild(clockEl);
         updateClock();
+        // A small star in the card's bottom right corner marks the page the pager opens on.
+        favEl = document.createElement("button");
+        favEl.type = "button";
+        favEl.className = "home-fav";
+        favEl.setAttribute("aria-label", t("favPage"));
+        favEl.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 16.9 6.8 19.7l1-5.9-4.3-4.1 5.9-.8z"/></svg>';
+        onTap(favEl, toggleFav);
+        card.appendChild(favEl);
       } else if (g.title) {
         card.appendChild(textNode("group-title", g.title));
       }
@@ -2280,9 +2360,64 @@
     });
   }
 
+  // ---- Bluetooth batteries -------------------------------------------------
+
+  var batTimer = null;
+  var batAsked = 0;       // when the PC was last asked
+
+  function askBatteries() {
+    if (Date.now() - batAsked < 10000) return;
+    if (send({ type: "batteries" })) batAsked = Date.now();
+  }
+
+  var batPage = null;     // the pager's devices page, if the home screen is drawn
+  var batLast = null;     // the last list from the PC
+  var BAT_ICONS = {
+    headset: '<path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/>',
+    mouse: '<rect x="6" y="3" width="12" height="18" rx="6"/><path d="M12 3v6"/>',
+    keyboard: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/>',
+    gamepad: '<path d="M7 8h10a4 4 0 0 1 4 4v1a3 3 0 0 1-5.2 2L14.5 14h-5l-1.3 1A3 3 0 0 1 3 13v-1a4 4 0 0 1 4-4z"/><path d="M8 10.5v2M7 11.5h2M16 11h.01M18 12.5h.01"/>',
+    device: '<rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/>'
+  };
+
+  function devicesPage() {
+    batPage = document.createElement("div");
+    batPage.className = "bat-page";
+    return batPage;
+  }
+
+  // A short name for a device: without the maker's "Razer", at most one or two words.
+  function batShort(name) {
+    return String(name || "").replace(/^razer\s+/i, "").split(" ").slice(0, 2).join(" ");
+  }
+
+  // Draws the batteries: a ring per device on the pager's devices page.
+  // 20% and under is red, 40% and under amber.
+  function renderBatteries(list) {
+    batLast = list || [];
+    if (!batPage) return;
+    batPage.innerHTML = "";
+    if (!batLast.length) {
+      batPage.appendChild(textNode("bat-none", t("batNone")));
+      return;
+    }
+    batLast.slice(0, 5).forEach(function (d) {
+      var pct = Math.max(0, Math.min(100, Math.round(+d.percent || 0)));
+      var item = document.createElement("div");
+      item.className = "bat-item" + (pct <= 20 ? " low" : pct <= 40 ? " mid" : "");
+      item.setAttribute("aria-label", String(d.name || "") + " " + pct + "%");
+      item.innerHTML = '<div class="donut"><svg viewBox="0 0 44 44"><circle class="track" cx="22" cy="22" r="19"/>' +
+        '<circle class="value" cx="22" cy="22" r="19" stroke-dasharray="119.4" stroke-dashoffset="' + (119.4 * (1 - pct / 100)).toFixed(1) + '"/></svg>' +
+        '<span class="bat-ico"><svg viewBox="0 0 24 24">' + (BAT_ICONS[d.kind] || BAT_ICONS.device) + '</svg></span></div>' +
+        '<b class="bat-pct">' + pct + '%</b>';
+      item.appendChild(textNode("bat-name", batShort(d.name)));
+      batPage.appendChild(item);
+    });
+  }
+
   // ---- Now playing -------------------------------------------------------
 
-  var playback = null;      // { pos, dur, playing, t } from the last media message
+  var playback = null;     // { pos, dur, playing, t } from the last media message
   var progressTimer = null;
   var volumeLockUntil = 0;  // ignore server volume briefly after a local change
 
@@ -2385,20 +2520,20 @@
   function slideSource(step) {
     var r = np.root;
     r.classList.add("sliding");
-    r.style.transition = "transform .2s cubic-bezier(.4,0,1,1), opacity .2s ease-in";
-    r.style.transform = "translateX(" + (-step * 70) + "px)";
+    r.style.transition = "transform .3s cubic-bezier(.4,0,.6,1), opacity .3s ease-in-out";
+    r.style.transform = "translateX(" + (-step * 44) + "px)";
     r.style.opacity = "0";
     setTimeout(function () {
       if (!np || np.root !== r) return;
       swipeSource(step);
       r.style.transition = "none";
-      r.style.transform = "translateX(" + (step * 70) + "px)";
+      r.style.transform = "translateX(" + (step * 44) + "px)";
       void r.offsetWidth;
-      r.style.transition = "transform .55s cubic-bezier(.22,1,.36,1), opacity .4s ease-out";
+      r.style.transition = "transform .8s cubic-bezier(.22,1,.36,1), opacity .6s ease-out";
       r.style.transform = "";
       r.style.opacity = "";
-      setTimeout(function () { r.classList.remove("sliding"); }, 600);
-    }, 200);
+      setTimeout(function () { r.classList.remove("sliding"); }, 850);
+    }, 300);
   }
 
   // Transport and mute act on the source shown; without one they fall back to
@@ -3280,13 +3415,13 @@
       img.onload = function () {
         paintGlow(back, img);
         np.front = back;
-        old.classList.add("instant");
-        img.classList.add("instant");
+        // No slide here (the card itself is sliding), but the covers melt into
+        // each other instead of cutting.
+        old.classList.add("fade");
+        img.classList.add("fade");
         img.classList.remove("gone");
         revealArt(true);
-        void img.offsetWidth;
-        old.classList.remove("instant");
-        img.classList.remove("instant");
+        setTimeout(function () { old.classList.remove("fade"); img.classList.remove("fade"); }, 900);
       };
       img.src = src;
       return;
@@ -3324,6 +3459,8 @@
     np.pals[layer] = c;
     np.tinys = np.tinys || [];
     np.tinys[layer] = tinyCover(img);
+    // The card next to this one picks up the cover's main color along its near edge (see the join in style.css).
+    $("view-home").style.setProperty("--glow", c[0]);
     np.bgs[layer].style.background =
       "radial-gradient(90% 85% at 0% 0%, rgba(" + c[0] + ",.55), transparent 62%)," +
       "radial-gradient(80% 90% at 100% 100%, rgba(" + c[1] + ",.42), transparent 60%)," +

@@ -264,6 +264,41 @@ body.pairing .rail .tab, body.pairing .tab-pill { visibility: hidden; }
 .group.media .group-title { display: none; }
 .group.media .group-body { position: relative; z-index: 1; gap: 12px; }
 
+/* The card next to the media card is not a separate box: it slides out from
+   under it, like a card pulled from a stack. It starts 28px behind the media
+   card's edge, a little shorter so it reads as a layer behind. Its near edge is
+   lit by the cover's glow (painted in the card's own background, so it sits
+   under the buttons) and darkened by the media card's shadow; the media card
+   may set --glow ("r,g,b") on .home, otherwise a calm blue-grey is used.
+   Gradients only: no blur, nothing animated. */
+.group.media { z-index: 2; }
+.group.media + .group {
+  margin: 8px 0 8px -38px;
+  padding-left: 44px;
+  /* Color and shadow are painted in the card's own background, so they stay
+     under the buttons and icons and never lie on top of them. */
+  background:
+    linear-gradient(90deg, rgba(var(--glow, 110, 130, 190), 0) 20px, rgba(var(--glow, 110, 130, 190), .06) 30px, rgba(var(--glow, 110, 130, 190), .025) 60px, rgba(var(--glow, 110, 130, 190), 0) 100px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0) 28px, rgba(0, 0, 0, .5) 28px, rgba(0, 0, 0, .34) 33px, rgba(0, 0, 0, .19) 40px, rgba(0, 0, 0, .08) 50px, rgba(0, 0, 0, .02) 60px, rgba(0, 0, 0, 0) 68px),
+    linear-gradient(90deg, rgba(0, 0, 0, .2), rgba(0, 0, 0, .07) 50px, rgba(0, 0, 0, 0) 110px),
+    linear-gradient(165deg, var(--panel-2), var(--panel));
+  border-color: rgba(255, 255, 255, .05);
+}
+/* A very faint hairline of light along the top and bottom of the exposed part,
+   fading out well before the card's far end. */
+.group.media + .group::after {
+  content: "";
+  position: absolute;
+  top: 0; bottom: 0; left: 28px;
+  width: 140px;
+  border-radius: 0 24px 24px 0;
+  border-top: 1px solid rgba(255, 255, 255, .08);
+  border-bottom: 1px solid rgba(255, 255, 255, .03);
+  -webkit-mask-image: linear-gradient(90deg, #000, rgba(0, 0, 0, .5) 40%, transparent 85%);
+  mask-image: linear-gradient(90deg, #000, rgba(0, 0, 0, .5) 40%, transparent 85%);
+  pointer-events: none;
+}
+
 .np-bg { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 0; overflow: hidden; border-radius: 24px; -webkit-clip-path: inset(0 round 24px); clip-path: inset(0 round 24px); }
 .np-bg i {
   position: absolute;
@@ -596,6 +631,30 @@ body.pairing .rail .tab, body.pairing .tab-pill { visibility: hidden; }
 .home-clock .date { overflow: hidden; text-overflow: ellipsis; }
 .home-clock .date::before { content: "·"; margin-right: 6px; }
 
+
+/* Devices: the pager's fourth page. One ring per connected device, its icon in
+   the middle, the charge and the name underneath. */
+.bat-page { display: flex; align-items: center; justify-content: space-around; gap: 6px; padding: 6px 8px; border-radius: 16px; border: 1px solid var(--edge); background: rgba(255, 255, 255, .03); overflow: hidden; }
+.bat-item { --c: var(--green); flex: 1 1 0; min-width: 0; max-width: 84px; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.bat-item.mid { --c: var(--amber); }
+.bat-item.low { --c: var(--red); }
+.bat-item .donut { width: 46px; height: 46px; }
+.bat-item .donut circle { stroke-width: 4; }
+.bat-ico { position: absolute; left: 0; top: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; color: #d4d8e2; }
+.donut .bat-ico svg { width: 20px; height: 20px; transform: none; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.bat-pct { font-size: 12px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; color: #e8ebf2; }
+.bat-item.low .bat-pct { color: var(--red); }
+.bat-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 9px; line-height: 1; color: var(--muted); }
+.bat-none { font-size: 11px; color: var(--muted); }
+
+/* Favorite star: tiny, in the card's bottom right corner. A lit star marks the
+   page the pager opens on. */
+.home-fav { position: absolute; right: 8px; bottom: 0; width: 24px; height: 22px; padding: 0; border: 0; background: none; display: flex; align-items: center; justify-content: center; color: var(--muted); opacity: .45; -webkit-tap-highlight-color: transparent; transition: color .25s, opacity .25s; }
+.home-fav svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; transition: fill .25s; }
+.home-fav.on { color: #fff; opacity: .9; }
+.home-fav.on svg { fill: currentColor; }
+
+
 /* Game tiles inside a list: one row, split evenly. */
 .game-row { flex: 1.15; min-height: 0; display: flex; gap: 8px; }
 .gtile {
@@ -684,8 +743,8 @@ body.pairing .rail .tab, body.pairing .tab-pill { visibility: hidden; }
 
 /* The bottom card of the home screen is a pager: CPU and GPU, Claude, then the day plan. */
 .mini-pager { position: relative; flex: 1; min-height: 0; overflow: hidden; border-radius: 16px; }
-.mini-track { display: flex; width: 300%; height: 100%; transition: transform .4s var(--ease); }
-.mini-track > * { flex: 0 0 33.3333%; min-width: 0; height: 100%; box-sizing: border-box; }
+.mini-track { display: flex; width: 400%; height: 100%; transition: transform .4s var(--ease); }
+.mini-track > * { flex: 0 0 25%; min-width: 0; height: 100%; box-sizing: border-box; }
 .mini-dots { position: absolute; left: 0; right: 0; bottom: 3px; display: flex; justify-content: center; gap: 4px; pointer-events: none; }
 .mini-dots i { width: 4px; height: 4px; border-radius: 50%; background: rgba(255, 255, 255, .22); transition: background .3s, transform .3s; }
 .mini-dots i.on { background: rgba(255, 255, 255, .75); transform: scale(1.25); }
@@ -2461,3 +2520,6 @@ body.kb-open .dev-note { display: none; }
    bottom, so they no longer sit on top of the rings and text of the pages. */
 .mini-track { height: calc(100% - 13px); }
 .mini-dots { bottom: 1px; }
+
+/* Switching source: the covers melt into each other (no slide, no cut). */
+.np-art img.fade, .np-art img.fade.gone { transform: none; transition: opacity .7s cubic-bezier(.4, 0, .2, 1); }

@@ -27,6 +27,7 @@ import (
 	"github.com/Tunayblg/DeskLink/internal/actions"
 	"github.com/Tunayblg/DeskLink/internal/art"
 	"github.com/Tunayblg/DeskLink/internal/auth"
+	"github.com/Tunayblg/DeskLink/internal/battery"
 	"github.com/Tunayblg/DeskLink/internal/brightness"
 	"github.com/Tunayblg/DeskLink/internal/claude"
 	"github.com/Tunayblg/DeskLink/internal/config"
@@ -97,9 +98,10 @@ type Server struct {
 	liveOwner   *liveSession            // the live session allowed to type (the newest); guarded by typeMu
 	backspace   func(n int) bool        // presses Backspace n times
 	sample      func() stats.Snapshot
-	system      func() stats.Snapshot // CPU and RAM only, for the dashboard
-	claudeUse   func() claude.Usage   // Claude Code token use, read from its logs
-	plan        *plan.Store           // the day plan (see plan.go); nil when it could not be opened
+	system      func() stats.Snapshot   // CPU and RAM only, for the dashboard
+	claudeUse   func() claude.Usage     // Claude Code token use, read from its logs
+	batteries   func() []battery.Device // connected Bluetooth devices and their charge
+	plan        *plan.Store             // the day plan (see plan.go); nil when it could not be opened
 
 	media      *media.Watcher
 	nowPlaying func() media.State
@@ -153,7 +155,7 @@ func New(cfg *config.Config, store *auth.Store, web fs.FS, pictures map[string]a
 	var c stats.Collector
 	w := &media.Watcher{}
 	bright := brightness.NewSetter()
-	return &Server{cfg: cfg, auth: store, web: web, assetVersion: AssetVersion(web), games: publicGames(cfg, pictures), shortcuts: buildShortcuts(cfg), run: actions.Run, typer: keyboard.Type, windows: winlist.List, focus: winlist.Focus, foreground: winlist.Foreground, liveTyper: keyboard.TypeLive, backspace: keyboard.Backspace, sample: c.Sample, system: c.System, claudeUse: (&claude.Reader{}).Sample,
+	return &Server{cfg: cfg, auth: store, web: web, assetVersion: AssetVersion(web), games: publicGames(cfg, pictures), shortcuts: buildShortcuts(cfg), run: actions.Run, typer: keyboard.Type, windows: winlist.List, focus: winlist.Focus, foreground: winlist.Foreground, liveTyper: keyboard.TypeLive, backspace: keyboard.Backspace, sample: c.Sample, system: c.System, claudeUse: (&claude.Reader{}).Sample, batteries: (&battery.Reader{}).Read,
 		media: w, nowPlaying: w.Sample, setVolume: setVolume(w), control: w.Control,
 		readMixer: w.Mixer, setMixerVolume: w.SetMixerVolume, toggleMute: w.ToggleMute, setMic: w.SetMic, setOutput: w.SetOutput, getBrightness: brightness.Get, setBrightness: bright.Set, newPad: func() padder { return pointer.NewPad() }, gameExes: gameExes(cfg.Games), running: running.Names, icons: map[string]string{},
 		adminToken: newAdminToken(), started: time.Now(), sessions: map[*session]struct{}{}}
@@ -350,6 +352,7 @@ type serverMsg struct {
 	Plan       *[]plan.Item         `json:"plan,omitempty"`       // "plan": the day plan (an empty list is still sent)
 	Brightness *int                 `json:"brightness,omitempty"` // "brightness": the screen now, in percent (absent: cannot be controlled)
 	Windows    []winlist.Window     `json:"windows,omitempty"`    // "windows": the open program windows
+	Batteries  *[]battery.Device    `json:"batteries,omitempty"`  // "batteries": connected Bluetooth devices (an empty list is still sent)
 	Version    string               `json:"version,omitempty"`    // "layout": the panel's files; a phone showing older ones reloads
 }
 
@@ -571,6 +574,19 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			go func() {
 				if err := wsjson.Write(ctx, c, serverMsg{Type: "windows", Windows: s.listWindows()}); err != nil {
 					log.Printf("windows reply to %s: %v", name, err)
+				}
+			}()
+			continue
+		}
+		if msg.Type == "batteries" {
+			// Reading the device list takes a moment (and is cached): do not hold up the phone.
+			go func() {
+				list := s.batteries()
+				if list == nil {
+					list = []battery.Device{}
+				}
+				if err := wsjson.Write(ctx, c, serverMsg{Type: "batteries", Batteries: &list}); err != nil {
+					log.Printf("batteries reply to %s: %v", name, err)
 				}
 			}()
 			continue
