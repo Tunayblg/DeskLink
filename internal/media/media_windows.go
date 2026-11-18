@@ -55,7 +55,7 @@ var (
 	iidEndpointVolume  = guid{0x5cdf2c82, 0x841e, 0x4546, [8]byte{0x97, 0x22, 0x0c, 0xf7, 0x40, 0x78, 0x22, 0x9a}}
 	iidSessionManager2 = guid{0x77aa99a0, 0x1bd6, 0x484f, [8]byte{0x8b, 0xc7, 0x2c, 0x65, 0x4c, 0x9a, 0x9b, 0x6f}}
 	iidSessionControl2 = guid{0xbfb7ff88, 0x7239, 0x4fc9, [8]byte{0x8f, 0xa2, 0x07, 0xc9, 0x50, 0xbe, 0x9c, 0x6d}}
-	iidSimpleVolume    = guid{0x87ce5498, 0x68d6, 0x44e5, [8]byte{0x92, 0x15, 0x6f, 0x9d, 0x9e, 0xb4, 0xa2, 0xf5}}
+	iidSimpleVolume    = guid{0x87ce5498, 0x68d6, 0x44e5, [8]byte{0x92, 0x15, 0x6d, 0xa4, 0x7e, 0xf8, 0x83, 0xd8}}
 	iidChannelVolume   = guid{0x1c158861, 0xb533, 0x4b30, [8]byte{0xb1, 0xcf, 0xe8, 0x53, 0xe5, 0x1c, 0x59, 0xb8}}
 )
 
@@ -597,6 +597,40 @@ type appVolume struct {
 	simple, channel *com
 }
 
+// foldChannels moves a per-channel volume below 100% into the program's normal
+// volume, the one the Windows mixer shows. Earlier versions set only the channel
+// volume, which no mixer, taskbar or program shows, so a program could be quiet
+// with every slider at the top. The sound heard stays exactly the same.
+func (v appVolume) foldChannels() {
+	if v.simple == nil || v.channel == nil {
+		return
+	}
+	var n uint32
+	v.channel.call(3, ptr(&n)) // GetChannelCount
+	if n == 0 || n > 16 {
+		return
+	}
+	var ch [16]float32
+	var top float32
+	for i := uint32(0); i < n; i++ {
+		v.channel.call(5, uintptr(i), ptr(&ch[i])) // GetChannelVolume
+		top = max(top, ch[i])
+	}
+	if top >= 0.999 {
+		return
+	}
+	var s float32
+	v.simple.call(4, ptr(&s)) // GetMasterVolume
+	v.simple.call(3, uintptr(math.Float32bits(s*top)), 0)
+	for i := uint32(0); i < n; i++ {
+		l := float32(1)
+		if top > 0 {
+			l = ch[i] / top // the balance between channels stays
+		}
+		v.channel.call(4, uintptr(i), uintptr(math.Float32bits(l)), 0) // SetChannelVolume
+	}
+}
+
 func (v appVolume) level() float32 {
 	var level float32
 	if v.simple != nil {
@@ -659,9 +693,9 @@ func (w *worker) mixerSessions(f func(p proc, active bool, vol appVolume)) {
 			ctl.call(3, ptr(&state)) // GetState: 0 inactive, 1 active, 2 expired
 			c2 := ctl.out(0, ptr(&iidSessionControl2))
 			var vol appVolume
-			if vol.simple = ctl.out(0, ptr(&iidSimpleVolume)); vol.simple == nil {
-				vol.channel = ctl.out(0, ptr(&iidChannelVolume))
-			}
+			vol.simple = ctl.out(0, ptr(&iidSimpleVolume))
+			vol.channel = ctl.out(0, ptr(&iidChannelVolume))
+			vol.foldChannels()
 			if c2 != nil && (vol.simple != nil || vol.channel != nil) && state != 2 {
 				var pid uint32
 				c2.call(14, ptr(&pid)) // GetProcessId
