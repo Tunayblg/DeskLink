@@ -167,7 +167,7 @@
       clFive: "5 HOURS", clSeven: "7 DAYS", clLeft: "{} left", d: "d", h: "h", m: "m", clWindow: "5 HOURS", clToday: "TODAY", clWeek: "7 DAYS", clNone: "Claude Code not found on this PC", clHint: "Open Claude Code to see limits",
       launching: "Launching…", toGameMode: "Switching to game mode",
       noAnswer: "No answer from the PC", launchFailed: "Could not start the game",
-      alreadyRunning: "Already running", doubleTap: "Double-tap to start",
+      alreadyRunning: "Already running", doubleTap: "Double-tap to start", favMax: "3 favorites at most, un-star one first",
       shortcutEmpty: "Add a shortcut from DeskLink on your PC", shortcutAdd: "Add shortcut",
       setAppsAll: "Show every window in the window list", appsWindows: "windows", appsBack: "Back to the list", appsBtn: "Windows", appsTitle: "Open windows", appsNone: "No windows are open", appsGone: "That window is closed", appsNoFocus: "Could not bring that window forward", devMode: "DEVELOPER", devLost: "Another window came to the front. Live typing stopped.", setLive: "Live typing", devFront: "In front", devSendTo: "Send to", devGone: "That window is closed", devNoFocus: "Could not bring that window forward", devRefused: "Windows blocked typing there (an administrator window?)", devNoWindows: "No Claude, Codex, terminal or editor window is open", devLoading: "Loading…", devPlaceholder: "Write or dictate a prompt for Claude, Codex or any tool", devListening: "Listening… speak now",
       devSend: "Send", devType: "Type only", devSent: "Sent to the PC", devTyped: "Typed on the PC", devEmpty: "Nothing to send", devOffline: "Not connected to the PC",
@@ -200,7 +200,7 @@
       clFive: "5 SAAT", clSeven: "7 GÜN", clLeft: "{} kaldı", d: "g", h: "sa", m: "dk", clWindow: "5 SAAT", clToday: "BUGÜN", clWeek: "7 GÜN", clNone: "Bu PC'de Claude Code bulunamadı", clHint: "Limitler için Claude Code'u aç",
       launching: "Başlatılıyor…", toGameMode: "Oyun moduna geçiliyor",
       noAnswer: "Bilgisayardan yanıt gelmedi", launchFailed: "Oyun başlatılamadı",
-      alreadyRunning: "Zaten çalışıyor", doubleTap: "Açmak için çift dokun",
+      alreadyRunning: "Zaten çalışıyor", doubleTap: "Açmak için çift dokun", favMax: "En fazla 3 favori olur, önce birinin yıldızını kaldır",
       shortcutEmpty: "Bilgisayardaki DeskLink'ten kısayol ekle", shortcutAdd: "Kısayol ekle",
       setAppsAll: "Pencere listesinde tüm pencereleri göster", appsWindows: "pencere", appsBack: "Listeye dön", appsBtn: "Pencereler", appsTitle: "Açık pencereler", appsNone: "Açık pencere yok", appsGone: "O pencere kapanmış", appsNoFocus: "O pencere öne getirilemedi", devMode: "GELİŞTİRİCİ", devLost: "Başka pencere öne geçti, canlı yazma durdu", setLive: "Canlı yazma", devFront: "Öndeki pencere", devSendTo: "Gönderilecek yer", devGone: "O pencere kapanmış", devNoFocus: "O pencere öne getirilemedi", devRefused: "Windows oraya yazmayı engelledi (yönetici penceresi mi?)", devNoWindows: "Açık Claude, Codex, terminal ya da editör penceresi yok", devLoading: "Yükleniyor…", devPlaceholder: "Claude, Codex ya da herhangi bir araç için prompt yaz veya söyle", devListening: "Dinleniyor… konuşabilirsin",
       devSend: "Gönder", devType: "Sadece yaz", devSent: "Bilgisayara gönderildi", devTyped: "Bilgisayara yazıldı", devEmpty: "Gönderilecek bir şey yok", devOffline: "Bilgisayara bağlı değil",
@@ -2972,6 +2972,11 @@
       if (to !== from) {
         from.classList.remove("show");
         full.cur = 1 - full.cur;
+        // While the colors and the cover melt (about 2 s) the drifting backdrop
+        // stands still, so a big screen only has the cross-fade to paint.
+        full.root.classList.add("swap");
+        clearTimeout(full.swapTimer);
+        full.swapTimer = setTimeout(function () { full.root.classList.remove("swap"); }, 2000);
         // The layer that faded out stands still once it can no longer be seen.
         full.bgTimer = setTimeout(function () { from.classList.add("idle"); }, 1900);
       }
@@ -3799,7 +3804,32 @@
 
   var PLAY = '<path d="M7 4v16l13-8z"/>';
 
-  function renderGames(games) {
+  // Up to three favorite games come first, the rest follow alphabetically.
+  // Kept on this phone, like the favorite home page.
+  var FAV_GAMES_KEY = "desklink.favgames";
+  var MAX_FAV_GAMES = 3;
+  var gamesNow = [];
+  function favGames() {
+    try {
+      var v = JSON.parse(load(FAV_GAMES_KEY) || "[]");
+      return Array.isArray(v) ? v.slice(0, MAX_FAV_GAMES) : [];
+    } catch (e) { return []; }
+  }
+  function toggleFavGame(id) {
+    var favs = favGames(), at = favs.indexOf(id);
+    if (at >= 0) favs.splice(at, 1);
+    else if (favs.length >= MAX_FAV_GAMES) { toast(t("favMax")); return; }
+    else favs.push(id);
+    save(FAV_GAMES_KEY, favs.length ? JSON.stringify(favs) : null);
+    renderGames(gamesNow);
+  }
+
+  function renderGames(all) {
+    gamesNow = all;
+    var favs = favGames();
+    var byName = function (a, b) { return a.name.localeCompare(b.name, LANG,{ sensitivity: "base" }); };
+    var games = all.filter(function (g) { return favs.indexOf(g.id) >= 0; }).sort(byName)
+      .concat(all.filter(function (g) { return favs.indexOf(g.id) < 0; }).sort(byName));
     var list = $("game-list");
     list.innerHTML = "";
     if (list.resetScroll) list.resetScroll();
@@ -3826,6 +3856,12 @@
       info.appendChild(textNode("name", g.name));
       info.insertAdjacentHTML("beforeend", '<span class="play">' + svg(PLAY) + t("play") + "</span>");
       el.appendChild(info);
+      var isFav = favs.indexOf(g.id) >= 0;
+      var star = document.createElement("span");
+      star.className = "game-star" + (isFav ? " on" : "");
+      star.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 16.9 6.8 19.7l1-5.9-4.3-4.1 5.9-.8z"/></svg>';
+      star.addEventListener("click", function (e) { e.stopPropagation(); toggleFavGame(g.id); });
+      el.appendChild(star);
       list.appendChild(el);
     });
   }

@@ -486,7 +486,7 @@ func thumbnail(props *com) ([]byte, error) {
 	if len(out) == 0 {
 		return nil, errors.New("empty thumbnail")
 	}
-	return out, nil
+	return prepareCover(out), nil
 }
 
 const clsctxAll = 0x17

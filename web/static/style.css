@@ -4196,3 +4196,37 @@ html.portrait .watch-body > .watch-deck { grid-row: 2; grid-column: 1 / -1; flex
 html.portrait .watch-deck .transport { gap: 28px; padding: 0; }
 html.portrait .watch-deck .tbtn { width: 64px; height: 56px; }
 html.portrait .watch-deck .tbtn.main { width: 96px; height: 64px; }
+
+/* Design pass 33: a smoother big player on large screens. The backdrop photo no
+   longer rotates (a turning layer is resampled every frame), it is smaller, the
+   drifting stands still while the cover and colors cross-fade, and the titles
+   change without a blur filter. */
+.nf-photo { left: -15%; top: -15%; width: 130%; height: 130%; animation-name: nfp2; }
+@keyframes nfp2 {
+  from { transform: translate3d(-4%, -3%, 0) scale(1); }
+  to { transform: translate3d(4%, 3%, 0) scale(1.12); }
+}
+.np-full.swap .nf-layer i, .np-full.swap .nf-photo { animation-play-state: paused !important; }
+.nf-title, .nf-artist { transition: opacity .38s cubic-bezier(.4, 0, .2, 1), transform .5s cubic-bezier(.22, 1, .36, 1); }
+.nf-meta.out .nf-title, .nf-meta.out .nf-artist { filter: none; }
+.nf-art img { will-change: opacity, transform; -webkit-backface-visibility: hidden; backface-visibility: hidden; }
+
+/* Design pass 34: favorite games. A quiet colorless star at the top right of each
+   card; filled and brighter when the game is a favorite. The touch area is bigger
+   than the star. */
+.game-star {
+  position: absolute; top: 0; right: 0; z-index: 4;
+  width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  color: rgba(255, 255, 255, .55);
+  -webkit-tap-highlight-color: transparent;
+  transition: color .25s, transform .25s var(--ease);
+}
+.game-star svg {
+  width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .55));
+  transition: fill .25s;
+}
+.game-star.on { color: #fff; }
+.game-star.on svg { fill: currentColor; }
+.game-star:active { transform: scale(.85); }
