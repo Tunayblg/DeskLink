@@ -167,7 +167,7 @@
       clFive: "5 HOURS", clSeven: "7 DAYS", clLeft: "{} left", d: "d", h: "h", m: "m", clWindow: "5 HOURS", clToday: "TODAY", clWeek: "7 DAYS", clNone: "Claude Code not found on this PC", clHint: "Open Claude Code to see limits",
       launching: "Launching…", toGameMode: "Switching to game mode",
       noAnswer: "No answer from the PC", launchFailed: "Could not start the game",
-      alreadyRunning: "Already running", doubleTap: "Double-tap to start", favMax: "3 favorites at most, un-star one first", slotClock: "CLOCK", slotNet: "NETWORK", slotGpuClock: "GPU CLOCK",
+      alreadyRunning: "Already running", doubleTap: "Double-tap to start", favMax: "3 favorites at most, un-star one first", slotClock: "CLOCK", slotNoDev: "No other device connected", slotNet: "NETWORK", slotGpuClock: "GPU CLOCK",
       shortcutEmpty: "Add a shortcut from DeskLink on your PC", shortcutAdd: "Add shortcut",
       setAppsAll: "Show every window in the window list", appsWindows: "windows", appsBack: "Back to the list", appsBtn: "Windows", appsTitle: "Open windows", appsNone: "No windows are open", appsGone: "That window is closed", appsNoFocus: "Could not bring that window forward", devMode: "DEVELOPER", devLost: "Another window came to the front. Live typing stopped.", setLive: "Live typing", devFront: "In front", devSendTo: "Send to", devGone: "That window is closed", devNoFocus: "Could not bring that window forward", devRefused: "Windows blocked typing there (an administrator window?)", devNoWindows: "No Claude, Codex, terminal or editor window is open", devLoading: "Loading…", devPlaceholder: "Write or dictate a prompt for Claude, Codex or any tool", devListening: "Listening… speak now",
       devSend: "Send", devType: "Type only", devSent: "Sent to the PC", devTyped: "Typed on the PC", devEmpty: "Nothing to send", devOffline: "Not connected to the PC",
@@ -200,7 +200,7 @@
       clFive: "5 SAAT", clSeven: "7 GÜN", clLeft: "{} kaldı", d: "g", h: "sa", m: "dk", clWindow: "5 SAAT", clToday: "BUGÜN", clWeek: "7 GÜN", clNone: "Bu PC'de Claude Code bulunamadı", clHint: "Limitler için Claude Code'u aç",
       launching: "Başlatılıyor…", toGameMode: "Oyun moduna geçiliyor",
       noAnswer: "Bilgisayardan yanıt gelmedi", launchFailed: "Oyun başlatılamadı",
-      alreadyRunning: "Zaten çalışıyor", doubleTap: "Açmak için çift dokun", favMax: "En fazla 3 favori olur, önce birinin yıldızını kaldır", slotClock: "SAAT", slotNet: "AĞ", slotGpuClock: "GPU HIZI",
+      alreadyRunning: "Zaten çalışıyor", doubleTap: "Açmak için çift dokun", favMax: "En fazla 3 favori olur, önce birinin yıldızını kaldır", slotClock: "SAAT", slotNoDev: "Başka cihaz bağlı değil", slotNet: "AĞ", slotGpuClock: "GPU HIZI",
       shortcutEmpty: "Bilgisayardaki DeskLink'ten kısayol ekle", shortcutAdd: "Kısayol ekle",
       setAppsAll: "Pencere listesinde tüm pencereleri göster", appsWindows: "pencere", appsBack: "Listeye dön", appsBtn: "Pencereler", appsTitle: "Açık pencereler", appsNone: "Açık pencere yok", appsGone: "O pencere kapanmış", appsNoFocus: "O pencere öne getirilemedi", devMode: "GELİŞTİRİCİ", devLost: "Başka pencere öne geçti, canlı yazma durdu", setLive: "Canlı yazma", devFront: "Öndeki pencere", devSendTo: "Gönderilecek yer", devGone: "O pencere kapanmış", devNoFocus: "O pencere öne getirilemedi", devRefused: "Windows oraya yazmayı engelledi (yönetici penceresi mi?)", devNoWindows: "Açık Claude, Codex, terminal ya da editör penceresi yok", devLoading: "Yükleniyor…", devPlaceholder: "Claude, Codex ya da herhangi bir araç için prompt yaz veya söyle", devListening: "Dinleniyor… konuşabilirsin",
       devSend: "Gönder", devType: "Sadece yaz", devSent: "Bilgisayara gönderildi", devTyped: "Bilgisayara yazıldı", devEmpty: "Gönderilecek bir şey yok", devOffline: "Bilgisayara bağlı değil",
@@ -4157,7 +4157,8 @@
   var statsLast = null;
   var slotKeys = null;     // the page of each square: "dev:<name>", "clock", "net", "gpuclk", "vram", "power"
   var slotEls = [];
-  var SLOT_FIXED = ["clock", "net", "gpuclk"];
+  var netSeen = null, netEma = null, netShown = null, netShownAt = 0;
+  var SLOT_FIXED = ["clock", "net", "gpuclk", "auto"]; // "auto": a connected wireless device no square shows yet; blank when there is none
   var SLOT_ICONS = {
     vram: '<rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 7V5M12 7V5M17 7V5M7 17v2M12 17v2M17 17v2"/>',
     power: '<path d="M13 3 5 13h6l-1 8 8-10h-6z"/>'
@@ -4206,6 +4207,11 @@
       var pct = Math.max(0, Math.min(100, Math.round(+dev.percent || 0)));
       return { ring: pct / 100, icon: BAT_ICONS[dev.kind] || BAT_ICONS.device, big: pct + "%", name: batShort(dev.name), cls: pct <= 20 ? "low" : pct <= 40 ? "mid" : "" };
     }
+    if (key === "auto") {
+      var used = slotKeys.filter(Boolean), free = null;
+      for (i = 0; i < (batLast || []).length && !free; i++) if (used.indexOf("dev:" + batLast[i].name) < 0) free = batLast[i];
+      return free ? slotView("dev:" + free.name) : { blank: true };
+    }
     if (key === "clock") {
       var now = new Date(), hh = now.getHours(), mm = now.getMinutes();
       // The ring is the minutes of the hour; the hands show the time itself.
@@ -4218,7 +4224,16 @@
     }
     if (key === "net") {
       var n = s && s.net;
-      return { html: n ? rateRow("↓", n.down) + rateRow("↑", n.up) : '<div class="slot-row"><b>–</b></div>', name: t("slotNet") };
+      if (n) {
+        // Speeds jump from reading to reading and tire the eye: they are averaged
+        // (each new reading counts 30%) and the number on screen changes every 2 s.
+        if (netSeen !== s) {
+          netSeen = s;
+          netEma = netEma ? { down: netEma.down * .7 + n.down * .3, up: netEma.up * .7 + n.up * .3 } : { down: n.down, up: n.up };
+        }
+        if (!netShown || Date.now() - netShownAt >= 2000) { netShown = { down: netEma.down, up: netEma.up }; netShownAt = Date.now(); }
+      }
+      return { html: n && netShown ? rateRow("↓", netShown.down) + rateRow("↑", netShown.up) : '<div class="slot-row"><b>–</b></div>', name: t("slotNet") };
     }
     if (!g) return { text: true, big: "–", name: key === "gpuclk" ? t("slotGpuClock") : key === "vram" ? "VRAM" : "POWER", off: true };
     if (key === "gpuclk") return { html: '<div class="slot-row"><b>' + g.clock_mhz + '</b><u>MHz</u></div>', name: t("slotGpuClock") };
@@ -4231,6 +4246,10 @@
   }
 
   function slotHTML(v) {
+    if (v.blank) {
+      // Nothing to show: a Bluetooth sign and a short note say what this square waits for.
+      return '<div class="slot-in"><svg class="bt" viewBox="0 0 24 24"><path d="M7 7l10 10-5 5V2l5 5L7 17"/></svg><span class="bat-name wrap">' + t("slotNoDev") + "</span></div>";
+    }
     if (v.html || v.text) {
       var body = v.html || '<div class="slot-row"><b>' + v.big + "</b></div>";
       return '<div class="slot-in"><div class="slot-text">' + body + "</div>" + '<span class="bat-name">' + v.name + "</span></div>";
@@ -4310,10 +4329,16 @@
     fitSlots();
     if (!slotKeys) slotKeys = loadSlotKeys();
     var pages = slotPages(), changed = false;
+    // A fresh square starts with the first device, then the clock, the network and
+    // so on; the other devices are left to the fourth square.
+    var firstDev = pages.filter(function (k) { return k.indexOf("dev:") === 0; })[0];
+    var order = (firstDev ? [firstDev] : []).concat(pages.filter(function (k) { return k.indexOf("dev:") !== 0 && k !== "auto"; }),
+      // Until the first reading is in (the network page is not known yet) a square waits rather than taking a second device.
+      statsLast ? pages.filter(function (k) { return k.indexOf("dev:") === 0 && k !== firstDev; }) : []);
     for (var i = 0; i < 3; i++) {
       if (slotKeys[i]) continue;
       var taken = slotKeys.filter(Boolean);
-      var pick = pages.filter(function (k) { return taken.indexOf(k) < 0; })[0];
+      var pick = order.filter(function (k) { return taken.indexOf(k) < 0; })[0];
       if (pick) { slotKeys[i] = pick; changed = true; }
     }
     if (changed) save(SLOTS_KEY, JSON.stringify(slotKeys));
@@ -4325,6 +4350,7 @@
       if (el._html === html) continue;
       el._html = html;
       el.classList.toggle("off", !!v.off);
+      el.classList.toggle("blank", !!v.blank);
       el.innerHTML = html;
       if (animateAll && only === j) {
         el.classList.remove("swap");
