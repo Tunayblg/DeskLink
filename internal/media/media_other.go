@@ -11,3 +11,5 @@ func (source) read(map[string]string) (State, map[string][]byte) { return State{
 func (source) readMixer() Mixer { return Mixer{Volume: -1} }
 
 func (source) do(command) {}
+
+func (source) peak() float32 { return 0 }

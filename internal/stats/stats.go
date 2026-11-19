@@ -14,6 +14,13 @@ type Snapshot struct {
 	CPU CPU  `json:"cpu"`
 	RAM RAM  `json:"ram"`
 	GPU *GPU `json:"gpu,omitempty"`
+	Net *Net `json:"net,omitempty"` // network speed, bytes per second (absent: unknown)
+}
+
+// Net is how fast data moves through the busiest network adapter.
+type Net struct {
+	DownBps int64 `json:"down"`
+	UpBps   int64 `json:"up"`
 }
 
 type CPU struct {
@@ -48,6 +55,7 @@ type Collector struct {
 	last  Snapshot
 	cpu   cpuSampler
 	gpu   gpuSampler
+	net   netSampler
 }
 
 // refresh reads CPU and RAM unless that was done very recently.
@@ -55,7 +63,7 @@ func (c *Collector) refresh() {
 	if time.Since(c.at) < cacheFor {
 		return
 	}
-	c.last.CPU, c.last.RAM = c.cpu.sample(), sampleRAM()
+	c.last.CPU, c.last.RAM, c.last.Net = c.cpu.sample(), sampleRAM(), c.net.sample()
 	c.at = time.Now()
 }
 

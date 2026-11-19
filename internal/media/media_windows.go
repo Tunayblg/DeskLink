@@ -53,6 +53,7 @@ var (
 	clsidEnumerator    = guid{0xbcde0395, 0xe52f, 0x467c, [8]byte{0x8e, 0x3d, 0xc4, 0x57, 0x92, 0x91, 0x69, 0x2e}}
 	iidEnumerator      = guid{0xa95664d2, 0x9614, 0x4f35, [8]byte{0xa7, 0x46, 0xde, 0x8d, 0xb6, 0x36, 0x17, 0xe6}}
 	iidEndpointVolume  = guid{0x5cdf2c82, 0x841e, 0x4546, [8]byte{0x97, 0x22, 0x0c, 0xf7, 0x40, 0x78, 0x22, 0x9a}}
+	iidMeter           = guid{0xc02216f6, 0x8c67, 0x4b5b, [8]byte{0x9d, 0x00, 0xd0, 0x08, 0xe7, 0x3e, 0x00, 0x64}}
 	iidSessionManager2 = guid{0x77aa99a0, 0x1bd6, 0x484f, [8]byte{0x8b, 0xc7, 0x2c, 0x65, 0x4c, 0x9a, 0x9b, 0x6f}}
 	iidSessionControl2 = guid{0xbfb7ff88, 0x7239, 0x4fc9, [8]byte{0x8f, 0xa2, 0x07, 0xc9, 0x50, 0xbe, 0x9c, 0x6d}}
 	iidSimpleVolume    = guid{0x87ce5498, 0x68d6, 0x44e5, [8]byte{0x92, 0x15, 0x6d, 0xa4, 0x7e, 0xf8, 0x83, 0xd8}}
@@ -150,10 +151,12 @@ type request struct {
 	prevArt map[string]string // source ID -> art ID of the last reading
 	cmd     *command          // nil for a reading
 	mixer   bool              // read the volume mixer instead
+	peak    bool              // read how loud the output is right now
 	reply   chan reply
 }
 
 type reply struct {
+	peak  float32
 	state State
 	art   map[string][]byte // source ID -> new cover image
 	mixer Mixer
@@ -182,6 +185,13 @@ func (s source) do(c command) {
 	r := make(chan reply, 1)
 	s.req <- request{cmd: &c, reply: r}
 	<-r
+}
+
+// peak is how loud the default playback device is right now, 0 to 1.
+func (s source) peak() float32 {
+	r := make(chan reply, 1)
+	s.req <- request{peak: true, reply: r}
+	return (<-r).peak
 }
 
 type worker struct {
@@ -220,6 +230,8 @@ func (w *worker) handle(req request) {
 		}
 	}()
 	switch {
+	case req.peak:
+		req.reply <- reply{peak: w.peak()}
 	case req.mixer:
 		req.reply <- reply{mixer: w.readMixer()}
 	case req.cmd != nil:
@@ -574,6 +586,34 @@ func (w *worker) mic() *Mic {
 		}
 	})
 	return m
+}
+
+// peak reads the output's meter (what leaves the speakers, after the master
+// volume) and divides the master volume out again, so a quiet setting still
+// moves the waves as much as a loud one.
+func (w *worker) peak() float32 {
+	var out float32
+	w.device(func(dev *com) {
+		meter := dev.out(3, ptr(&iidMeter), clsctxAll, 0) // Activate
+		if meter == nil {
+			return
+		}
+		defer meter.release()
+		var p float32
+		if meter.call(3, ptr(&p)) < 0 { // GetPeakValue
+			return
+		}
+		vol := float32(1)
+		if ep := dev.out(3, ptr(&iidEndpointVolume), clsctxAll, 0); ep != nil {
+			var v float32
+			if ep.call(9, ptr(&v)) >= 0 && v > 0 { // GetMasterVolumeLevelScalar
+				vol = v
+			}
+			ep.release()
+		}
+		out = min(p/max(vol, 0.08), 1)
+	})
+	return out
 }
 
 // volume reads the master volume and mute state.

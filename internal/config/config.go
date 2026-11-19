@@ -405,7 +405,6 @@ const Default = `{
       "title": "Quick",
       "style": "quick",
       "buttons": [
-        { "id": "spotify", "label": "Spotify",    "icon": "music",      "action": { "type": "launch", "target": "spotify:" } },
         { "id": "sleep",   "label": "Sleep",      "icon": "moon",       "confirm": true, "action": { "type": "system", "command": "sleep" } },
         { "id": "lock",    "label": "Lock PC",    "icon": "lock",       "confirm": true, "action": { "type": "system", "command": "lock" } },
         { "id": "shutdown", "label": "Shut down", "icon": "power",      "confirm": true, "action": { "type": "system", "command": "shutdown" } }

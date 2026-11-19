@@ -374,6 +374,7 @@ type serverMsg struct {
 	Windows    []winlist.Window     `json:"windows,omitempty"`    // "windows": the open program windows
 	Batteries  *[]battery.Device    `json:"batteries,omitempty"`  // "batteries": connected Bluetooth devices (an empty list is still sent)
 	Version    string               `json:"version,omitempty"`    // "layout": the panel's files; a phone showing older ones reloads
+	Lvl        *int                 `json:"lvl,omitempty"`        // "level": how loud the PC plays right now, 0-100
 }
 
 func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
@@ -448,7 +449,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	}()
 	budget, budgetAt := float64(msgBurst), time.Now()
 	// Live streams the phone has switched on, keyed by message type.
-	streams := map[string]func(context.Context, *websocket.Conn){"stats": s.streamStats, "claude": s.streamClaude, "media": s.streamMedia, "mixer": s.streamMixer}
+	streams := map[string]func(context.Context, *websocket.Conn){"stats": s.streamStats, "claude": s.streamClaude, "media": s.streamMedia, "mixer": s.streamMixer, "level": s.streamLevel}
 	var brightAsking atomic.Bool // a brightness question from this phone is being answered
 	stop := map[string]context.CancelFunc{}
 	defer func() {
@@ -849,6 +850,52 @@ func (s *Server) streamMedia(ctx context.Context, c *websocket.Conn) {
 		case <-t.C:
 		}
 	}
+}
+
+// levelPoll is how often the loudness is read. The phone smooths between two
+// readings, so ten a second look continuous.
+const levelPoll = 100 * time.Millisecond
+
+// streamLevel sends how loud the PC plays, for the waves in the volume bar. It
+// only sends a number that differs from the last by a few points, and while
+// nothing plays it sends one zero and then waits, so a paused song costs nothing.
+func (s *Server) streamLevel(ctx context.Context, c *websocket.Conn) {
+	t := time.NewTicker(levelPoll)
+	defer t.Stop()
+	last := -100
+	for {
+		v := 0
+		if st := s.nowPlaying(); playingNow(st) {
+			v = s.media.Peak()
+		}
+		if abs(v-last) >= 3 || (v == 0 && last != 0) {
+			if err := wsjson.Write(ctx, c, serverMsg{Type: "level", Lvl: &v}); err != nil {
+				return
+			}
+			last = v
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+	}
+}
+
+func playingNow(st media.State) bool {
+	for _, src := range st.Sources {
+		if src.Playing {
+			return true
+		}
+	}
+	return false
+}
+
+func abs(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
 }
 
 // setTokenCookie stores the device token in a long-lived cookie as a second

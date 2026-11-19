@@ -11,3 +11,7 @@ type gpuSampler struct{}
 func (*gpuSampler) sample() *GPU { return nil }
 
 func sampleRAM() RAM { return RAM{} }
+
+type netSampler struct{}
+
+func (*netSampler) sample() *Net { return nil }

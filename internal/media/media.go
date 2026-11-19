@@ -92,6 +92,10 @@ type Watcher struct {
 
 	mixerAt time.Time
 	mixer   Mixer
+
+	pkMu sync.Mutex // the loudness reading has its own lock, so it never waits for a slow media read
+	pkAt time.Time
+	pk   int
 }
 
 const cacheFor = 700 * time.Millisecond
@@ -132,6 +136,22 @@ func (w *Watcher) Sample() State {
 	w.art = keep
 	w.last, w.at = st, time.Now()
 	return st
+}
+
+// Peak is how loud the PC is playing right now, 0-100. Phones share one
+// reading taken at most every 60 ms.
+func (w *Watcher) Peak() int {
+	w.mu.Lock()
+	w.init()
+	src := w.src
+	w.mu.Unlock()
+	w.pkMu.Lock()
+	defer w.pkMu.Unlock()
+	if time.Since(w.pkAt) < 60*time.Millisecond {
+		return w.pk
+	}
+	w.pk, w.pkAt = int(src.peak()*100+0.5), time.Now()
+	return w.pk
 }
 
 // SetVolume sets the system volume (0-100) of the default playback device.

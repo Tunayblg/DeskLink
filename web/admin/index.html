@@ -364,7 +364,7 @@ button.row { cursor: pointer; }
       removed: "Removed.", connected: "Connected", notConnected: "Not connected", buttonsOnly: "Buttons",
       statusL: "Status", addressL: "Address", forL: "Connected for", showingL: "Showing", pairedL: "Paired on",
       remove: "Remove", removeQ: "Remove {}? It will have to be paired again.", deleteQ: "Remove {} from your games?",
-      newCodeIn: "New code in {} s", noSteam: "No Steam games found",
+      newCodeIn: "New code in {} s", noSteam: "No Steam games found", pickSteam: "Choose a game", needSteam: "Choose a Steam game first",
       running: "Running for {}", stream_media: "Now playing", stream_stats: "Stats", streaming: "{} showing live data", idle: "Idle",
       needName: "Give the game a name.", needProgram: "Choose a program."
     },
@@ -390,7 +390,7 @@ button.row { cursor: pointer; }
       removed: "Kaldırıldı.", connected: "Bağlı", notConnected: "Bağlı değil", buttonsOnly: "Butonlar",
       statusL: "Durum", addressL: "Adres", forL: "Bağlantı süresi", showingL: "Açık ekran", pairedL: "Eşleşme tarihi",
       remove: "Kaldır", removeQ: "{} kaldırılsın mı? Tekrar eşleşmesi gerekecek.", deleteQ: "{} oyunlardan kaldırılsın mı?",
-      newCodeIn: "{} sn sonra yeni kod", noSteam: "Steam oyunu bulunamadı",
+      newCodeIn: "{} sn sonra yeni kod", noSteam: "Steam oyunu bulunamadı", pickSteam: "Bir oyun seç", needSteam: "Önce bir Steam oyunu seç",
       running: "{} süredir çalışıyor", stream_media: "Şimdi çalıyor", stream_stats: "İstatistik", streaming: "{} cihaz canlı veri gösteriyor", idle: "Boşta",
       needName: "Oyuna bir ad ver.", needProgram: "Bir program seç."
     }
@@ -798,8 +798,10 @@ button.row { cursor: pointer; }
     function fill() {
       sel.innerHTML = "";
       if (!steamGames.length) { var o = document.createElement("option"); o.textContent = t("noSteam"); o.value = ""; sel.appendChild(o); return; }
+      // Nothing is chosen until the user picks: an empty first option.
+      var none = document.createElement("option"); none.value = ""; none.textContent = "— " + t("pickSteam") + " —"; sel.appendChild(none);
       steamGames.forEach(function (s) { var o = document.createElement("option"); o.value = s.appid; o.textContent = s.name; sel.appendChild(o); });
-      if (selectId) sel.value = selectId;
+      sel.value = selectId || "";
     }
     if (steamGames) { fill(); return; }
     api("steam").then(function (r) { steamGames = r.games || []; fill(); });
@@ -854,7 +856,7 @@ button.row { cursor: pointer; }
     g.name = name;
     if (kind === "steam") {
       var id = parseInt($("g-steamlist").value, 10);
-      if (!id) { $("g-error").textContent = t("noSteam"); return; }
+      if (!id) { $("g-error").textContent = t("needSteam"); return; }
       g.steam_appid = id; g.target = ""; g.args = "";
     } else {
       var target = $("g-target").value.trim();

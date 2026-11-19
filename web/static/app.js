@@ -167,7 +167,7 @@
       clFive: "5 HOURS", clSeven: "7 DAYS", clLeft: "{} left", d: "d", h: "h", m: "m", clWindow: "5 HOURS", clToday: "TODAY", clWeek: "7 DAYS", clNone: "Claude Code not found on this PC", clHint: "Open Claude Code to see limits",
       launching: "Launching…", toGameMode: "Switching to game mode",
       noAnswer: "No answer from the PC", launchFailed: "Could not start the game",
-      alreadyRunning: "Already running", doubleTap: "Double-tap to start", favMax: "3 favorites at most, un-star one first",
+      alreadyRunning: "Already running", doubleTap: "Double-tap to start", favMax: "3 favorites at most, un-star one first", slotClock: "CLOCK", slotNet: "NETWORK", slotGpuClock: "GPU CLOCK",
       shortcutEmpty: "Add a shortcut from DeskLink on your PC", shortcutAdd: "Add shortcut",
       setAppsAll: "Show every window in the window list", appsWindows: "windows", appsBack: "Back to the list", appsBtn: "Windows", appsTitle: "Open windows", appsNone: "No windows are open", appsGone: "That window is closed", appsNoFocus: "Could not bring that window forward", devMode: "DEVELOPER", devLost: "Another window came to the front. Live typing stopped.", setLive: "Live typing", devFront: "In front", devSendTo: "Send to", devGone: "That window is closed", devNoFocus: "Could not bring that window forward", devRefused: "Windows blocked typing there (an administrator window?)", devNoWindows: "No Claude, Codex, terminal or editor window is open", devLoading: "Loading…", devPlaceholder: "Write or dictate a prompt for Claude, Codex or any tool", devListening: "Listening… speak now",
       devSend: "Send", devType: "Type only", devSent: "Sent to the PC", devTyped: "Typed on the PC", devEmpty: "Nothing to send", devOffline: "Not connected to the PC",
@@ -200,7 +200,7 @@
       clFive: "5 SAAT", clSeven: "7 GÜN", clLeft: "{} kaldı", d: "g", h: "sa", m: "dk", clWindow: "5 SAAT", clToday: "BUGÜN", clWeek: "7 GÜN", clNone: "Bu PC'de Claude Code bulunamadı", clHint: "Limitler için Claude Code'u aç",
       launching: "Başlatılıyor…", toGameMode: "Oyun moduna geçiliyor",
       noAnswer: "Bilgisayardan yanıt gelmedi", launchFailed: "Oyun başlatılamadı",
-      alreadyRunning: "Zaten çalışıyor", doubleTap: "Açmak için çift dokun", favMax: "En fazla 3 favori olur, önce birinin yıldızını kaldır",
+      alreadyRunning: "Zaten çalışıyor", doubleTap: "Açmak için çift dokun", favMax: "En fazla 3 favori olur, önce birinin yıldızını kaldır", slotClock: "SAAT", slotNet: "AĞ", slotGpuClock: "GPU HIZI",
       shortcutEmpty: "Bilgisayardaki DeskLink'ten kısayol ekle", shortcutAdd: "Kısayol ekle",
       setAppsAll: "Pencere listesinde tüm pencereleri göster", appsWindows: "pencere", appsBack: "Listeye dön", appsBtn: "Pencereler", appsTitle: "Açık pencereler", appsNone: "Açık pencere yok", appsGone: "O pencere kapanmış", appsNoFocus: "O pencere öne getirilemedi", devMode: "GELİŞTİRİCİ", devLost: "Başka pencere öne geçti, canlı yazma durdu", setLive: "Canlı yazma", devFront: "Öndeki pencere", devSendTo: "Gönderilecek yer", devGone: "O pencere kapanmış", devNoFocus: "O pencere öne getirilemedi", devRefused: "Windows oraya yazmayı engelledi (yönetici penceresi mi?)", devNoWindows: "Açık Claude, Codex, terminal ya da editör penceresi yok", devLoading: "Yükleniyor…", devPlaceholder: "Claude, Codex ya da herhangi bir araç için prompt yaz veya söyle", devListening: "Dinleniyor… konuşabilirsin",
       devSend: "Gönder", devType: "Sadece yaz", devSent: "Bilgisayara gönderildi", devTyped: "Bilgisayara yazıldı", devEmpty: "Gönderilecek bir şey yok", devOffline: "Bilgisayara bağlı değil",
@@ -571,6 +571,9 @@
       case "media":
         if (msg.media) onMedia(msg.media, msg.art);
         break;
+      case "level":
+        setWaves(typeof msg.lvl === "number" ? msg.lvl : 0);
+        break;
       case "windows":
         devWindows(msg.windows || []);
         break;
@@ -617,6 +620,26 @@
     }
   }
 
+  // The waves in the volume bars follow how loud the PC plays (0-100, about ten
+  // readings a second). Between two readings the CSS transition draws the way,
+  // so only a transform moves. null: no readings, the bars go back to their
+  // own steady beat.
+  var waveEls = null;
+  function setWaves(lv) {
+    if (!waveEls || (waveEls.length && !document.contains(waveEls[0]))) waveEls = document.querySelectorAll(".slider .wv");
+    for (var i = 0; i < waveEls.length; i++) {
+      var w = waveEls[i], b = w.classList.contains("b");
+      if (lv === null) {
+        if (w.classList.contains("live")) { w.classList.remove("live"); w.style.transform = ""; }
+        continue;
+      }
+      var x = lv / 100;
+      w.classList.add("live");
+      // The second wave answers a little more slowly and less far, so the two never move as one.
+      w.style.transform = "scaleY(" + (b ? .4 + .62 * Math.pow(x, .8) : .3 + .86 * x).toFixed(3) + ")";
+    }
+  }
+
   // Live data is only streamed for the screen that is showing: PC stats on the
   // stats screen, now playing on the home screen.
   function syncStreams() {
@@ -626,11 +649,13 @@
       stats: !!(live && ((view === "stats" && statsPage === 0) || (view === "home" && miniEls && miniPage === 0))),
       claude: !!(live && ((view === "home" && claudeEls && miniPage === 1) || (view === "dev" && (prefs.agent || prefs.usage)) || (prefs.agent && !tabHidden("dev")))),
       media: !!(live && view === "home" && np),
+      level: !!(live && view === "home" && np),
       mixer: !!(live && (view === "stats" || view === "watch"))
     };
     Object.keys(want).forEach(function (k) {
       if (want[k] !== !!streaming[k] && send({ type: k, on: want[k] })) streaming[k] = want[k];
     });
+    if (!want.level) setWaves(null);
     // The busy dot on the Claude tab is only true while its numbers stream.
     if (!want.claude) {
       devPrev = "";
@@ -2570,7 +2595,7 @@
   function renderBatteries(list) {
     batLast = list || [];
     fillBatteries(batPage, 5);
-    fillBatteries($("stats-bat"), 4);
+    renderSlots(false);
   }
 
   // One ring per device in a box (the pager's devices page, and game mode).
@@ -4098,6 +4123,8 @@
     // On the home screen only the mini charts are visible; skip the rest.
     if (view !== "stats") return;
 
+    statsLast = s;
+    renderSlots(false);
     setGauge("cpu", s.cpu.usage);
     setGauge("ram", s.ram.usage, gb(s.ram.used_mb) + " / " + gb(s.ram.total_mb) + " GB");
 
@@ -4114,8 +4141,197 @@
 
     $("vram-text").textContent = gb(g.vram_used_mb) + " / " + gb(g.vram_total_mb) + " GB";
     $("vram-bar").style.transform = "scaleX(" + (g.vram_used_mb / g.vram_total_mb).toFixed(3) + ")";
-    $("power-text").textContent = Math.round(g.power_w) + " / " + Math.round(g.power_limit_w) + " W";
+    $("power-text").textContent = Math.round(g.power_w) + " / " + Math.round(g.power_limit_w) + " W · " + g.clock_mhz + " MHz";
     $("power-bar").style.transform = "scaleX(" + Math.min(1, g.power_w / g.power_limit_w).toFixed(3) + ")";
+  }
+
+  // ---- Game mode's three squares ------------------------------------------
+  //
+  // Three independent squares under the rings. Each shows one page of
+  // information; a tap or a swipe moves it to the next page (swipe the other
+  // way for the previous). What a square shows stays as it was left, also after
+  // a restart, until it is changed. A page that one square shows is not offered
+  // by the other two, so a device in square 1 never turns up again in 2 or 3.
+
+  var SLOTS_KEY = "desklink.slots";
+  var statsLast = null;
+  var slotKeys = null;     // the page of each square: "dev:<name>", "clock", "net", "gpuclk", "vram", "power"
+  var slotEls = [];
+  var SLOT_FIXED = ["clock", "net", "gpuclk"];
+  var SLOT_ICONS = {
+    vram: '<rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 7V5M12 7V5M17 7V5M7 17v2M12 17v2M17 17v2"/>',
+    power: '<path d="M13 3 5 13h6l-1 8 8-10h-6z"/>'
+  };
+
+  // Every page that can be shown now, in a fixed order: devices first.
+  function slotPages() {
+    var out = (batLast || []).map(function (d) { return "dev:" + d.name; });
+    SLOT_FIXED.forEach(function (k) {
+      if (k === "gpuclk" && !(statsLast && statsLast.gpu)) return;
+      if (k === "net" && !(statsLast && statsLast.net)) return;
+      out.push(k);
+    });
+    return out;
+  }
+
+  function loadSlotKeys() {
+    try {
+      var v = JSON.parse(load(SLOTS_KEY) || "null");
+      if (Array.isArray(v) && v.length === 3) return v.map(function (k) { return typeof k === "string" ? k : null; });
+    } catch (e) {}
+    return [null, null, null];
+  }
+
+  // A speed as a short number and a unit, never longer than 3 digits, so every
+  // value takes the same room: ["5.1", "MB/s"], ["303", "KB/s"].
+  function rateParts(b) {
+    if (b >= 1000 * 1024) {
+      var mb = b / 1048576;
+      return [mb >= 99.5 ? String(Math.min(999, Math.round(mb))) : mb.toFixed(mb >= 9.95 ? 0 : 1), "MB/s"];
+    }
+    return [String(Math.round(b / 1024)), "KB/s"];
+  }
+  function rateRow(arrow, b) {
+    var r = rateParts(b);
+    return '<div class="slot-row"><i>' + arrow + '</i><b>' + r[0] + '</b><u>' + r[1] + '</u></div>';
+  }
+
+  // What a page shows now: { ring: 0..1 or null, icon, big, small, name, off }.
+  function slotView(key) {
+    var s = statsLast, g = s && s.gpu, i;
+    if (key.indexOf("dev:") === 0) {
+      var nm = key.slice(4), dev = null;
+      for (i = 0; i < (batLast || []).length; i++) if (batLast[i].name === nm) dev = batLast[i];
+      if (!dev) return { ring: 0, icon: BAT_ICONS.device, big: "–", name: batShort(nm), off: true };
+      var pct = Math.max(0, Math.min(100, Math.round(+dev.percent || 0)));
+      return { ring: pct / 100, icon: BAT_ICONS[dev.kind] || BAT_ICONS.device, big: pct + "%", name: batShort(dev.name), cls: pct <= 20 ? "low" : pct <= 40 ? "mid" : "" };
+    }
+    if (key === "clock") {
+      var now = new Date(), hh = now.getHours(), mm = now.getMinutes();
+      // The ring is the minutes of the hour; the hands show the time itself.
+      var ha = (hh % 12) * 30 + mm * 0.5, ma = mm * 6;
+      var hand = function (deg, len) {
+        var r = deg * Math.PI / 180;
+        return '<path d="M12 12L' + (12 + len * Math.sin(r)).toFixed(2) + ' ' + (12 - len * Math.cos(r)).toFixed(2) + '"/>';
+      };
+      return { ring: mm / 60, icon: hand(ha, 6) + hand(ma, 9.2), cls: "clock", big: ('0' + hh).slice(-2) + ':' + ('0' + mm).slice(-2), name: '' };
+    }
+    if (key === "net") {
+      var n = s && s.net;
+      return { html: n ? rateRow("↓", n.down) + rateRow("↑", n.up) : '<div class="slot-row"><b>–</b></div>', name: t("slotNet") };
+    }
+    if (!g) return { text: true, big: "–", name: key === "gpuclk" ? t("slotGpuClock") : key === "vram" ? "VRAM" : "POWER", off: true };
+    if (key === "gpuclk") return { html: '<div class="slot-row"><b>' + g.clock_mhz + '</b><u>MHz</u></div>', name: t("slotGpuClock") };
+    if (key === "vram") {
+      var used = g.vram_total_mb ? g.vram_used_mb / g.vram_total_mb : 0;
+      return { ring: used, icon: SLOT_ICONS.vram, big: gb(g.vram_used_mb) + " GB", name: "VRAM", cls: used >= .9 ? "low" : used >= .75 ? "mid" : "" };
+    }
+    var pw = g.power_limit_w ? Math.min(1, g.power_w / g.power_limit_w) : 0;
+    return { ring: pw, icon: SLOT_ICONS.power, big: Math.round(g.power_w) + " W", name: "POWER" };
+  }
+
+  function slotHTML(v) {
+    if (v.html || v.text) {
+      var body = v.html || '<div class="slot-row"><b>' + v.big + "</b></div>";
+      return '<div class="slot-in"><div class="slot-text">' + body + "</div>" + '<span class="bat-name">' + v.name + "</span></div>";
+    }
+    return '<div class="slot-in"><div class="bat-item' + (v.cls ? " " + v.cls : "") + '"><div class="donut"><svg viewBox="0 0 44 44"><circle class="track" cx="22" cy="22" r="19"/>' +
+      '<circle class="value" cx="22" cy="22" r="19" stroke-dasharray="119.4" stroke-dashoffset="' + (119.4 * (1 - v.ring)).toFixed(1) + '"/></svg>' +
+      '<span class="bat-ico"><svg viewBox="0 0 24 24">' + v.icon + "</svg></span></div>" +
+      '<b class="bat-pct">' + v.big + '</b>' + (v.name ? '<span class="bat-name">' + v.name + "</span>" : "") + "</div></div>";
+  }
+
+  // Moves square i by dir pages (1 next, -1 previous), skipping what the others show.
+  function slotStep(i, dir) {
+    var pages = slotPages(), mine = slotKeys[i];
+    var others = slotKeys.filter(function (k, j) { return j !== i && k; });
+    var list = pages.filter(function (k) { return k === mine || others.indexOf(k) < 0; });
+    if (mine && list.indexOf(mine) < 0) list.push(mine);
+    if (list.length < 2) return;
+    var at = list.indexOf(mine);
+    slotKeys[i] = list[(at + dir + list.length) % list.length];
+    save(SLOTS_KEY, JSON.stringify(slotKeys));
+    renderSlots(true, i);
+  }
+
+  function buildSlots() {
+    var root = $("slots");
+    for (var i = 0; i < 3; i++) {
+      (function (i) {
+        var el = document.createElement("div");
+        el.className = "slot";
+        var x0 = 0, y0 = 0, down = false, swiped = 0;
+        // The pager of the game mode page must not start from here.
+        el.addEventListener("touchstart", function (e) {
+          e.stopPropagation();
+          var p = e.touches[0];
+          x0 = p.clientX; y0 = p.clientY; down = e.touches.length === 1;
+        }, { passive: true });
+        el.addEventListener("touchend", function (e) {
+          e.stopPropagation();
+          if (!down) return;
+          down = false;
+          var p = e.changedTouches[0], dx = p.clientX - x0, dy = p.clientY - y0;
+          var far = Math.max(Math.abs(dx), Math.abs(dy));
+          if (far < 10) return; // a tap: the click that follows does it
+          if (far >= 22) {
+            swiped = Date.now();
+            var v = Math.abs(dx) > Math.abs(dy) ? dx : dy;
+            slotStep(i, v < 0 ? 1 : -1);
+          }
+        });
+        el.addEventListener("click", function () {
+          if (Date.now() - swiped < 500) return;
+          slotStep(i, 1);
+        });
+        root.appendChild(el);
+        slotEls.push(el);
+      })(i);
+    }
+  }
+
+  // Every page is drawn in one fixed design box (72 x 82) and the whole box is
+  // scaled to the square it is in, so nothing inside changes size when the page
+  // does, and the same layout fits a small phone and a big screen.
+  var slotK = 0;
+  function fitSlots() {
+    var el = slotEls[0];
+    if (!el || !el.clientHeight || !el.clientWidth) return;
+    var k = Math.max(.4, Math.min(el.clientWidth / 76, el.clientHeight / 84, 2.2));
+    k = Math.round(k * 100) / 100;
+    if (k !== slotK) { slotK = k; $("slots").style.setProperty("--k", k); }
+  }
+
+  // Fills the squares. Until the device list is known nothing is decided, so a
+  // square is never pinned to a page just because the devices had not arrived.
+  function renderSlots(animateAll, only) {
+    if (!slotEls.length) { if (!$("slots")) return; buildSlots(); }
+    if (batLast === null) return;
+    fitSlots();
+    if (!slotKeys) slotKeys = loadSlotKeys();
+    var pages = slotPages(), changed = false;
+    for (var i = 0; i < 3; i++) {
+      if (slotKeys[i]) continue;
+      var taken = slotKeys.filter(Boolean);
+      var pick = pages.filter(function (k) { return taken.indexOf(k) < 0; })[0];
+      if (pick) { slotKeys[i] = pick; changed = true; }
+    }
+    if (changed) save(SLOTS_KEY, JSON.stringify(slotKeys));
+    for (var j = 0; j < 3; j++) {
+      var el = slotEls[j];
+      if (!slotKeys[j]) { el.innerHTML = ""; continue; }
+      var v = slotView(slotKeys[j]);
+      var html = slotHTML(v);
+      if (el._html === html) continue;
+      el._html = html;
+      el.classList.toggle("off", !!v.off);
+      el.innerHTML = html;
+      if (animateAll && only === j) {
+        el.classList.remove("swap");
+        void el.offsetWidth;
+        el.classList.add("swap");
+      }
+    }
   }
 
   // ---- Pairing -----------------------------------------------------------
