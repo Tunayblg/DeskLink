@@ -4179,3 +4179,20 @@ html.portrait .bat-name { font-size: 9px; }
 .pw-opt:active { transform: scale(.95); opacity: .85; }
 .pw-no { height: 36px; border: 0; background: none; color: rgba(255, 255, 255, .55); font: inherit; font-size: 13px; font-weight: 600; }
 .pw-no:active { color: #fff; }
+
+/* Watch mode in portrait: the two sliders (PC volume, brightness) side by side on
+   top and the transport keys on a row of their own under them, so the back and
+   forward keys no longer sit inside the sliders' columns. */
+html.portrait .watch-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+html.portrait .watch-body > .watch-side { grid-row: 1; min-height: 0; flex: none; }
+html.portrait .watch-body > .watch-side:first-child { grid-column: 1; }
+html.portrait .watch-body > #watch-bright { grid-column: 2; }
+html.portrait .watch-body > .watch-deck { grid-row: 2; grid-column: 1 / -1; flex-direction: row; padding: 6px 0 2px; }
+html.portrait .watch-deck .transport { gap: 28px; padding: 0; }
+html.portrait .watch-deck .tbtn { width: 64px; height: 56px; }
+html.portrait .watch-deck .tbtn.main { width: 96px; height: 64px; }
