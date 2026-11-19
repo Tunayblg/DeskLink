@@ -34,7 +34,7 @@ import (
 	"github.com/Tunayblg/DeskLink/web"
 )
 
-var version = "1.4.0"
+var version = "2.0.0"
 
 const maxLog = 1 << 20
 
