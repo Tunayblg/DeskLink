@@ -2523,3 +2523,1659 @@ body.kb-open .dev-note { display: none; }
 
 /* Switching source: the covers melt into each other (no slide, no cut). */
 .np-art img.fade, .np-art img.fade.gone { transform: none; transition: opacity .7s cubic-bezier(.4, 0, .2, 1); }
+
+/* ---------- Design pass: glass layers, one shape language ----------
+   Radii step down 24 (panels) > 18 (tiles) > 14 (small controls) > capsule.
+   Everything here is transform/opacity or static paint: no backdrop blur. */
+
+/* The left rail floats as its own calm glass panel; the cover never colors it. */
+.rail {
+  margin: 6px 0 6px 6px;
+  padding: 10px 0;
+  border: 1px solid var(--edge);
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .04), rgba(255, 255, 255, .012)), rgba(10, 12, 18, .72);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05), 0 10px 28px -14px rgba(0, 0, 0, .85);
+}
+.tab-pill {
+  background: linear-gradient(145deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, .06));
+  border-color: rgba(255, 255, 255, .16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 0 18px -4px rgba(120, 150, 255, .55);
+}
+.tab { color: #6f7688; }
+.tab.active { color: #fff; }
+
+/* Page changes: 200-300 ms, soft. */
+.view { transition: opacity .25s var(--ease), transform .3s var(--ease), visibility 0s .3s; }
+.view.active { transition: opacity .25s var(--ease), transform .3s var(--ease), visibility 0s; }
+
+/* The cover's backdrop changes with a calm crossfade. */
+.np-bg i { transition: opacity .65s var(--ease); }
+
+/* Media card: softer cover corners, a capsule play button, a clearer progress bar. */
+.np-art { border-radius: 20px; -webkit-clip-path: inset(0 round 20px); clip-path: inset(0 round 20px); }
+.np-progress .track { height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .14); }
+.np-progress .track i { background: linear-gradient(90deg, rgba(255, 255, 255, .6), #fff); }
+.tbtn svg { opacity: .88; }
+.tbtn.main {
+  width: 84px;
+  height: 52px;
+  border-radius: 26px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, .07));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .2), inset 0 1px 0 rgba(255, 255, 255, .18), 0 8px 22px -10px rgba(0, 0, 0, .7);
+  transition: transform .14s var(--ease);
+}
+.tbtn.main svg { width: 30px; height: 30px; opacity: 1; }
+.tbtn.main.pressed { transform: scale(.96); }
+
+/* Clock: the time leads, the date follows quietly. */
+.home-clock { align-items: baseline; gap: 8px; margin: 0 2px 8px; }
+.home-clock .time { font-size: 22px; font-weight: 700; letter-spacing: -.01em; line-height: 1; color: #fff; }
+.home-clock .date { font-size: 12px; color: var(--muted); }
+
+/* ---------- Design pass 2: Liquid Glass ----------
+   Every surface is built from the same four layers: a dark translucent body, a
+   soft inner light (brighter at the top), a hairline edge (top-left lit, bottom
+   dark) and a short drop shadow. Static paint only, no backdrop blur. */
+:root {
+  --bg: #09080d;
+  --panel: #131118;
+  --panel-2: #1a171f;
+  --text: #f7f5fa;
+  --muted: #9b95a8;
+}
+body {
+  background:
+    radial-gradient(circle at 12% -10%, rgba(56, 189, 248, .09), transparent 42%),
+    radial-gradient(circle at 105% 110%, rgba(167, 139, 250, .09), transparent 45%),
+    var(--bg);
+}
+
+/* Layering: the right panel is the full-height surface behind; the media card
+   sits on top of its left end and casts its shadow onto it. */
+.group.media + .group { margin: 4px 0 4px -38px; }
+.group.media::after {
+  content: "";
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  z-index: 3;
+  border-radius: 24px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .09), inset 0 1px 0 rgba(255, 255, 255, .2), inset 0 -26px 40px -34px rgba(0, 0, 0, .65), inset 12px 0 24px -18px rgba(255, 255, 255, .07);
+  pointer-events: none;
+}
+
+/* Cover: a lit edge instead of a frame. */
+.np-art { border-radius: 22px; -webkit-clip-path: inset(0 round 22px); clip-path: inset(0 round 22px); }
+.np-art::after {
+  content: "";
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  z-index: 3;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .16), inset 0 1px 0 rgba(255, 255, 255, .26), inset 0 -18px 28px -22px rgba(0, 0, 0, .5);
+  pointer-events: none;
+}
+
+/* Progress: a glass groove, a bright fill and a round knob with a halo. */
+.np-progress { position: relative; }
+.np-progress .track { background: rgba(255, 255, 255, .12); box-shadow: inset 0 1px 1px rgba(0, 0, 0, .35); }
+.np-progress .knob {
+  position: absolute;
+  top: -3px;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, .16), 0 0 10px rgba(255, 255, 255, .5), 0 2px 4px rgba(0, 0, 0, .45);
+  pointer-events: none;
+}
+
+/* Volume: a frosted light capsule. */
+.slider {
+  background: rgba(255, 255, 255, .13);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .26), inset 0 -10px 16px -10px rgba(0, 0, 0, .35), inset 0 0 0 1px rgba(255, 255, 255, .07);
+}
+.slider i { background: linear-gradient(180deg, rgba(255, 255, 255, .95), rgba(222, 222, 234, .8)); }
+
+/* Play: a thick glass key. */
+.tbtn.main {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .2), rgba(255, 255, 255, .06) 55%, rgba(0, 0, 0, .12));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .2), inset 0 1px 0 rgba(255, 255, 255, .32), inset 0 -8px 12px -8px rgba(0, 0, 0, .4), 0 8px 18px -8px rgba(0, 0, 0, .75);
+}
+.tbtn.main.pressed { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18), inset 0 1px 0 rgba(255, 255, 255, .18), inset 0 -4px 8px -6px rgba(0, 0, 0, .4), 0 3px 8px -5px rgba(0, 0, 0, .7); }
+
+/* Rail: the active key is a glass key too. */
+.tab-pill {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .2), rgba(255, 255, 255, .06) 55%, rgba(0, 0, 0, .1));
+  border-color: rgba(255, 255, 255, .14);
+  border-top-color: rgba(255, 255, 255, .3);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22), inset 0 -8px 12px -8px rgba(0, 0, 0, .4), 0 0 18px -4px rgba(120, 150, 255, .5), 0 6px 12px -6px rgba(0, 0, 0, .7);
+}
+
+/* Right panel keys: glass tiles (shortcuts and quick controls). */
+.gtile, .ibtn {
+  border: 1px solid rgba(255, 255, 255, .09);
+  border-top-color: rgba(255, 255, 255, .24);
+  border-left-color: rgba(255, 255, 255, .14);
+  border-bottom-color: rgba(255, 255, 255, .03);
+  border-radius: 18px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), inset 0 0 16px rgba(255, 255, 255, .03), inset -8px 0 14px -12px rgba(var(--a), .5), 0 8px 14px -8px rgba(0, 0, 0, .75);
+  transition: transform .14s var(--ease), box-shadow .14s, border-color .3s;
+}
+.gtile {
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, .13), rgba(255, 255, 255, 0) 42%, rgba(0, 0, 0, .22)),
+    radial-gradient(100% 100% at 50% 40%, rgba(var(--a), .36), rgba(var(--a), .07) 75%),
+    #0f1118;
+}
+.ibtn {
+  background: linear-gradient(160deg, rgba(255, 255, 255, .11), rgba(255, 255, 255, .02) 45%, rgba(0, 0, 0, .18)), rgba(255, 255, 255, .03);
+}
+.gtile.pressed, .ibtn.pressed {
+  transform: scale(.97);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), inset 0 0 22px rgba(255, 255, 255, .06), 0 3px 7px -5px rgba(0, 0, 0, .8);
+}
+.gtile.empty { box-shadow: none; background: none; }
+.stile-name { font-size: 10px; bottom: 6px; color: rgba(255, 255, 255, .8); }
+.quick .gtile.stile .icon { height: 43%; }
+
+/* The pager's pages share the glass look. */
+.mini-item, .bat-page, .plan-page {
+  border-color: rgba(255, 255, 255, .08);
+  border-top-color: rgba(255, 255, 255, .17);
+  background: linear-gradient(170deg, rgba(255, 255, 255, .07), rgba(255, 255, 255, .015) 50%, rgba(0, 0, 0, .12)), rgba(255, 255, 255, .02);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1), 0 8px 14px -10px rgba(0, 0, 0, .7);
+}
+.bat-page { gap: 4px; padding: 6px 10px; }
+.bat-item .donut { width: 58px; height: 58px; }
+.bat-item .donut circle { stroke-width: 4.5; }
+.bat-item .donut .value { filter: drop-shadow(0 0 3px var(--c)); }
+.donut .bat-ico svg { width: 22px; height: 22px; }
+.bat-pct { font-size: 14px; }
+.bat-name { font-size: 10px; color: var(--muted); }
+/* Devices page: the ring, the charge and the name must all fit the page's height. */
+.bat-page { padding: 3px 8px; }
+.bat-item { gap: 1px; }
+.bat-item .donut { width: 48px; height: 48px; }
+.donut .bat-ico svg { width: 19px; height: 19px; }
+.bat-pct { font-size: 13px; }
+.bat-name { font-size: 9px; }
+
+/* Media card edge: light that comes through the glass in the cover's color
+   (--glow is set from the cover, see paintGlow), white where there is no cover. */
+.group.media::after {
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--glow, 255, 255, 255), .32),
+    inset 0 1px 0 rgba(255, 255, 255, .28),
+    inset 0 0 34px -12px rgba(var(--glow, 255, 255, 255), .55),
+    inset 0 -26px 40px -34px rgba(0, 0, 0, .6);
+}
+
+/* ---------- Design pass 3: the join and the keys, from the closer reference ----------
+   The media card's edge is a bright line in the cover's color and its light
+   spills over the right panel (painted in that panel's own background, under
+   the keys). The right panel only slips 12px under the card. */
+.group.media + .group {
+  margin: 4px 0 4px -22px;
+  padding-left: 38px;
+  border-color: rgba(255, 255, 255, .08);
+  border-top-color: rgba(255, 255, 255, .16);
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0) 12px, rgba(var(--glow, 110, 130, 190), .42) 12px, rgba(var(--glow, 110, 130, 190), .2) 22px, rgba(var(--glow, 110, 130, 190), .07) 42px, rgba(var(--glow, 110, 130, 190), 0) 76px),
+    radial-gradient(90% 60% at 0% 100%, rgba(var(--glow, 110, 130, 190), .22), rgba(var(--glow, 110, 130, 190), 0)),
+    linear-gradient(165deg, var(--panel-2), var(--panel));
+}
+.group.media + .group::before { display: none; }
+.group.media + .group::after { left: 12px; }
+.group.media::after {
+  box-shadow:
+    inset 0 0 0 1.5px rgba(var(--glow, 255, 255, 255), .55),
+    inset 0 1px 0 rgba(255, 255, 255, .3),
+    inset 0 0 30px -8px rgba(var(--glow, 255, 255, 255), .7),
+    inset 0 -26px 40px -34px rgba(0, 0, 0, .6);
+}
+
+/* Keys: rounder, each with a rim of its own color. */
+.gtile, .ibtn {
+  border-radius: 20px;
+  border: 1px solid rgba(var(--a), .5);
+  border-top-color: rgba(255, 255, 255, .3);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16), inset 0 0 18px -6px rgba(var(--a), .5), 0 0 12px -6px rgba(var(--a), .55), 0 8px 14px -8px rgba(0, 0, 0, .8);
+}
+.gtile {
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, .12), rgba(255, 255, 255, 0) 40%, rgba(0, 0, 0, .25)),
+    radial-gradient(120% 120% at 25% 0%, rgba(var(--a), .3), rgba(var(--a), .06) 62%),
+    #0c0d12;
+}
+.ibtn { --a: 150, 150, 170; }
+.gtile.pressed, .ibtn.pressed { transform: scale(.97); }
+.stile-name { font-size: 11px; font-weight: 800; letter-spacing: .01em; bottom: 6px; color: #fff; }
+.quick .gtile.stile .icon { height: 46%; top: 36%; }
+.ibtn .chip {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 25%, rgba(255, 255, 255, .07), rgba(0, 0, 0, .3) 75%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .05), inset 0 6px 10px -6px rgba(0, 0, 0, .55);
+}
+.mini-item, .bat-page, .plan-page { border-radius: 20px; }
+/* Key labels: bold but small enough to clear the icon. */
+.stile-name { font-size: 10px; letter-spacing: 0; bottom: 5px; }
+.quick .gtile.stile .icon { height: 40%; top: 33%; }
+
+/* ---------- Design pass 4: no black layer over the photo, a join without a gap ---------- */
+
+/* The cover's blurred photo is the only thing behind the media card's content:
+   no dark base, no vignette, no dark inner shadow. Text stays readable with a
+   soft shadow of its own instead. */
+.np-bg::after { display: none; }
+.group.media::after {
+  box-shadow:
+    inset 0 0 0 1.5px rgba(var(--glow, 255, 255, 255), .55),
+    inset 0 1px 0 rgba(255, 255, 255, .3),
+    inset 0 0 30px -8px rgba(var(--glow, 255, 255, 255), .6);
+}
+.np-title, .np-artist, .np-progress .times { text-shadow: 0 1px 10px rgba(0, 0, 0, .45); }
+
+/* The right panel runs 24px under the media card, as tall as it, with square
+   left corners, so the media card's rounded corners always have the panel
+   behind them (no dark notch, no seam). Content stays where it was. */
+.group.media + .group {
+  margin: 0 0 0 -34px;
+  padding-left: 50px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0) 24px, rgba(var(--glow, 110, 130, 190), .42) 24px, rgba(var(--glow, 110, 130, 190), .2) 34px, rgba(var(--glow, 110, 130, 190), .07) 54px, rgba(var(--glow, 110, 130, 190), 0) 88px),
+    radial-gradient(90% 60% at 0% 100%, rgba(var(--glow, 110, 130, 190), .22), rgba(var(--glow, 110, 130, 190), 0)),
+    linear-gradient(165deg, var(--panel-2), var(--panel));
+}
+.group.media + .group::after { left: 24px; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+
+/* ---------- Design pass 5: a seamless seam ---------- */
+/* The light starts under the media card (so no dark strip is left at its edge,
+   even with the rim and rounding) and dies away in steps. The hard-started
+   hairline along the panel's top and bottom is gone. */
+.group.media + .group {
+  background:
+    linear-gradient(90deg, rgba(var(--glow, 110, 130, 190), .42) 0, rgba(var(--glow, 110, 130, 190), .42) 24px, rgba(var(--glow, 110, 130, 190), .26) 31px, rgba(var(--glow, 110, 130, 190), .13) 42px, rgba(var(--glow, 110, 130, 190), .05) 62px, rgba(var(--glow, 110, 130, 190), 0) 92px),
+    radial-gradient(90% 60% at 0% 100%, rgba(var(--glow, 110, 130, 190), .2), rgba(var(--glow, 110, 130, 190), 0)),
+    linear-gradient(165deg, var(--panel-2), var(--panel));
+  border-top-color: rgba(255, 255, 255, .08);
+}
+.group.media + .group::after { display: none; }
+/* The card itself and its 1px border are see-through: the dark base lives on the
+   photo layer. (The card's own dark base used to show under its border as a thin
+   black ring around the whole card, and over the right panel's light.) */
+.group.media { background: transparent; border-color: transparent; }
+.np-bg { background: #0c0d12; }
+
+/* ---------- Design pass 6: keys lit from their own edges, a calmer rail ---------- */
+
+/* Keys: a dark body tinted by the key's own color (--a, from its icon or brand),
+   a thin rim in that color all the way round, and light coming in from the
+   edges while the middle stays dark. No gray gloss on top of the body. */
+.gtile {
+  border: 1px solid rgba(var(--a), .55);
+  border-radius: 20px;
+  background:
+    radial-gradient(120% 90% at 50% -10%, rgba(var(--a), .2), rgba(var(--a), 0) 60%),
+    linear-gradient(180deg, rgba(var(--a), .09), rgba(var(--a), .03)),
+    #0b0a0f;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .16),
+    inset 0 0 14px -3px rgba(var(--a), .38),
+    inset 0 -1px 0 rgba(var(--a), .3),
+    0 0 14px -5px rgba(var(--a), .45),
+    0 8px 14px -8px rgba(0, 0, 0, .8);
+}
+.ibtn {
+  border: 1px solid rgba(var(--a), .32);
+  border-radius: 20px;
+  background:
+    radial-gradient(120% 90% at 50% -10%, rgba(var(--a), .15), rgba(var(--a), 0) 60%),
+    linear-gradient(180deg, rgba(var(--a), .09), rgba(var(--a), .03)),
+    #0b0a0f;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .1),
+    inset 0 0 14px -4px rgba(var(--a), .28),
+    0 8px 14px -8px rgba(0, 0, 0, .8);
+}
+.ibtn .chip {
+  background: rgba(255, 255, 255, .045);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07), inset 0 1px 0 rgba(255, 255, 255, .08);
+}
+.gtile.pressed, .ibtn.pressed {
+  transform: scale(.97);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), inset 0 0 20px -2px rgba(var(--a), .45), 0 2px 6px -4px rgba(0, 0, 0, .8);
+}
+.gtile.empty { background: none; box-shadow: none; border: 1.5px dashed rgba(255, 255, 255, .2); }
+
+/* Rail: every key is a small dark glass square; the active one is lit. The
+   accent is the app's own cool blue-violet, never the cover's color. */
+.tab {
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .045), rgba(255, 255, 255, .015));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .05);
+  transition: color .3s, transform .15s var(--ease), background-color .3s;
+}
+.tab.active { background: none; box-shadow: none; }
+.tab-pill {
+  border-radius: 14px;
+  background:
+    radial-gradient(120% 90% at 50% -10%, rgba(170, 190, 255, .38), rgba(170, 190, 255, 0) 65%),
+    linear-gradient(180deg, rgba(110, 140, 255, .3), rgba(120, 100, 235, .16)),
+    #0e1020;
+  border: 1px solid rgba(150, 175, 255, .6);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .32),
+    inset 0 0 14px -2px rgba(130, 160, 255, .45),
+    0 0 14px -2px rgba(110, 140, 255, .6),
+    0 6px 12px -6px rgba(0, 0, 0, .8);
+}
+.tab.active svg { filter: drop-shadow(0 0 4px rgba(190, 205, 255, .55)); }
+/* Keys are small: a rounder corner would turn them into pills. */
+.gtile, .ibtn { border-radius: 15px; }
+.tab, .tab-pill { border-radius: 13px; }
+
+/* ---------- Design pass 7: a plain lit card, liquid corners, see-through controls ---------- */
+
+/* The card's own dark base under the cover's light, as at first. */
+.np-bg::after { display: block; }
+
+/* A background image is sized to the padding box and repeats into the 1px
+   border, which put a thin copy of the panel's red left end on its right edge.
+   It covers the border box once instead. */
+.group.media + .group { background-origin: border-box; background-repeat: no-repeat; }
+
+/* Liquid corners: a bright thin rim that exists only around the corners and
+   fades along the straight edges, like light caught on curved glass. */
+.group.media + .group::after {
+  display: block;
+  content: "";
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  border: 1.5px solid rgba(255, 255, 255, .6);
+  border-radius: 0 24px 24px 0;
+  -webkit-mask-image: radial-gradient(circle at 100% 0, #000 0, rgba(0, 0, 0, .4) 24px, transparent 52px), radial-gradient(circle at 100% 100%, #000 0, rgba(0, 0, 0, .4) 24px, transparent 52px);
+  mask-image: radial-gradient(circle at 100% 0, #000 0, rgba(0, 0, 0, .4) 24px, transparent 52px), radial-gradient(circle at 100% 100%, #000 0, rgba(0, 0, 0, .4) 24px, transparent 52px);
+  pointer-events: none;
+}
+.group.media::before {
+  content: "";
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  z-index: 3;
+  border: 1.5px solid rgba(255, 255, 255, .65);
+  border-radius: 24px;
+  -webkit-mask-image: radial-gradient(circle at 0 0, #000 0, rgba(0, 0, 0, .4) 24px, transparent 50px), radial-gradient(circle at 100% 0, #000 0, rgba(0, 0, 0, .4) 24px, transparent 50px), radial-gradient(circle at 0 100%, #000 0, rgba(0, 0, 0, .4) 24px, transparent 50px), radial-gradient(circle at 100% 100%, #000 0, rgba(0, 0, 0, .4) 24px, transparent 50px);
+  mask-image: radial-gradient(circle at 0 0, #000 0, rgba(0, 0, 0, .4) 24px, transparent 50px), radial-gradient(circle at 100% 0, #000 0, rgba(0, 0, 0, .4) 24px, transparent 50px), radial-gradient(circle at 0 100%, #000 0, rgba(0, 0, 0, .4) 24px, transparent 50px), radial-gradient(circle at 100% 100%, #000 0, rgba(0, 0, 0, .4) 24px, transparent 50px);
+  pointer-events: none;
+}
+
+/* Rail: the keys that are not in use are barely there. */
+.tab:not(.active) {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .018), rgba(255, 255, 255, .004));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .03);
+}
+
+/* Volume: a see-through glass capsule; the level is a milky, lit fill. */
+.slider {
+  background: rgba(255, 255, 255, .06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), inset 0 -8px 12px -8px rgba(0, 0, 0, .35), inset 0 0 0 1px rgba(255, 255, 255, .1);
+}
+.slider i {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .5), rgba(255, 255, 255, .2) 55%, rgba(255, 255, 255, .28));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6), inset 0 -6px 10px -6px rgba(255, 255, 255, .3);
+}
+.slider .spk, .slider .pct { mix-blend-mode: normal; color: #fff; stroke: #fff; }
+.slider .pct { opacity: .85; text-shadow: 0 1px 6px rgba(0, 0, 0, .35); }
+
+/* Progress: a see-through groove and a lit, milky fill with a bright upper edge. */
+.np-progress .track {
+  height: 7px;
+  background: rgba(255, 255, 255, .08);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, .3), inset 0 0 0 1px rgba(255, 255, 255, .09);
+}
+.np-progress .track i {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .85), rgba(255, 255, 255, .45));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .8);
+}
+.group.media + .group::after { width: auto; }
+
+/* ---------- Design pass 8: no frame around the media card, a squarer rail ---------- */
+/* The glowing rim and corner lights around the media card are gone: the card is
+   only its picture. The card's own base is not dark any more under the photo. */
+.group.media::after, .group.media::before { display: none; }
+.np-bg::after { display: none; }
+
+/* Rail: tighter corners on the panel and on its keys. */
+.rail { border-radius: 14px; }
+.tab, .tab-pill { border-radius: 10px; }
+
+/* ---------- Design pass 9: slow, soft song changes ---------- */
+
+/* The card's backdrop: the cover's colors on a dark base, melting into the next
+   song's colors over 1.4 s. */
+.np-bg::after { display: block; }
+.np-bg i { transition: opacity 1.4s cubic-bezier(.4, 0, .2, 1); }
+
+/* Title and artist lift away slowly and the new ones settle in. */
+.np-title, .np-artist { transition: opacity .8s cubic-bezier(.4, 0, .2, 1), transform .95s cubic-bezier(.22, 1, .36, 1); }
+.np-artist { transition-delay: .1s; }
+.np-meta.out .np-title, .np-meta.out .np-artist { opacity: 0; transform: translateY(-8px); transition-duration: .45s, .5s; }
+
+/* The right panel's light is its own layer (under the keys), so it can fade out
+   and back in when the cover's color changes. */
+.group.media + .group {
+  isolation: isolate;
+  background: linear-gradient(165deg, var(--panel-2), var(--panel));
+  background-origin: border-box;
+  background-repeat: no-repeat;
+}
+.group.media + .group::before {
+  display: block;
+  content: "";
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background:
+    linear-gradient(90deg, rgba(var(--glow, 110, 130, 190), .42) 0, rgba(var(--glow, 110, 130, 190), .42) 24px, rgba(var(--glow, 110, 130, 190), .26) 31px, rgba(var(--glow, 110, 130, 190), .13) 42px, rgba(var(--glow, 110, 130, 190), .05) 62px, rgba(var(--glow, 110, 130, 190), 0) 92px),
+    radial-gradient(90% 60% at 0% 100%, rgba(var(--glow, 110, 130, 190), .2), rgba(var(--glow, 110, 130, 190), 0));
+  opacity: 1;
+  transition: opacity .9s cubic-bezier(.4, 0, .2, 1);
+  pointer-events: none;
+}
+.glow-out .group.media + .group::before { opacity: 0; transition-duration: .55s; }
+
+/* ---------- Design pass 10: the active key flows between tabs ---------- */
+/* It leaves slowly, speeds up in the middle and settles softly, and while it
+   travels it stretches along its path and relaxes again, like a drop of liquid
+   glass following the finger. */
+.tab-pill { transition: transform .7s cubic-bezier(.5, 0, .15, 1); }
+.tab-pill.flow { animation: pillflow .7s cubic-bezier(.4, 0, .2, 1); }
+@keyframes pillflow {
+  0% { scale: 1 1; }
+  35% { scale: .93 1.32; }
+  70% { scale: .98 1.1; }
+  100% { scale: 1 1; }
+}
+.tab.active svg, .tab svg { transition: opacity .5s, filter .5s; }
+.tab, .tab svg { transition-property: color, background-color, transform, opacity, filter; transition-duration: .5s; }
+.tab:active { transform: scale(.9); transition-duration: .12s; }
+
+/* ---------- Design pass 11: color through the glass, a tinted volume, a soft progress end ---------- */
+
+/* Rail: the icon is centered in its key, not left to sit on a text baseline. */
+.tab { display: flex; align-items: center; justify-content: center; }
+.tab svg { display: block; }
+
+/* The cover's color reaches further into the right panel (still a layer under
+   the keys), and the keys are translucent glass: the color shows through them
+   and their edges catch it. */
+.group.media + .group::before {
+  background:
+    linear-gradient(90deg, rgba(var(--glow, 110, 130, 190), .46) 0, rgba(var(--glow, 110, 130, 190), .46) 24px, rgba(var(--glow, 110, 130, 190), .32) 46px, rgba(var(--glow, 110, 130, 190), .19) 80px, rgba(var(--glow, 110, 130, 190), .09) 120px, rgba(var(--glow, 110, 130, 190), .03) 160px, rgba(var(--glow, 110, 130, 190), 0) 210px),
+    radial-gradient(70% 55% at 0% 100%, rgba(var(--glow, 110, 130, 190), .26), rgba(var(--glow, 110, 130, 190), 0)),
+    radial-gradient(60% 45% at 0% 0%, rgba(var(--glow, 110, 130, 190), .2), rgba(var(--glow, 110, 130, 190), 0));
+}
+.gtile {
+  background:
+    radial-gradient(120% 90% at 50% -10%, rgba(var(--a), .2), rgba(var(--a), 0) 60%),
+    linear-gradient(180deg, rgba(var(--a), .09), rgba(var(--a), .03)),
+    rgba(11, 10, 15, .45);
+}
+.ibtn {
+  background:
+    radial-gradient(120% 90% at 50% -10%, rgba(var(--a), .15), rgba(var(--a), 0) 60%),
+    linear-gradient(180deg, rgba(var(--a), .09), rgba(var(--a), .03)),
+    rgba(11, 10, 15, .4);
+}
+.mini-item, .bat-page, .plan-page { background: linear-gradient(170deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, .01) 50%, rgba(0, 0, 0, .1)), rgba(11, 10, 15, .35); }
+
+/* Volume: tinted with the cover's color like everything around it. */
+.slider {
+  background: rgba(var(--glow, 255, 255, 255), .16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), inset 0 -8px 12px -8px rgba(0, 0, 0, .35), inset 0 0 0 1px rgba(var(--glow, 255, 255, 255), .28);
+}
+.slider i {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .5), rgba(var(--glow, 255, 255, 255), .5) 55%, rgba(var(--glow, 255, 255, 255), .65));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6), inset 0 -6px 10px -6px rgba(255, 255, 255, .25);
+}
+
+/* Progress: no knob; the lit fill simply ends in a soft fade. */
+.np-progress .knob { display: none; }
+.np-progress .track i {
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 22px), rgba(0, 0, 0, 0));
+  mask-image: linear-gradient(90deg, #000 calc(100% - 22px), rgba(0, 0, 0, 0));
+}
+
+/* ---------- Design pass 12: a quieter join, a milkier volume, status on the rail's lower edge ---------- */
+
+/* The right panel is rounded at its left too (24px, the same as the media
+   card), and runs exactly 24px under it, so its corner arc lies under the card
+   and only a soft double curve shows where the card's own corner falls away.
+   The cover's light is weaker and fades from the card's edge, with no step. */
+.group.media + .group { border-top-left-radius: 24px; border-bottom-left-radius: 24px; }
+.group.media + .group::before {
+  background:
+    linear-gradient(90deg, rgba(var(--glow, 110, 130, 190), .22) 0, rgba(var(--glow, 110, 130, 190), .3) 24px, rgba(var(--glow, 110, 130, 190), .2) 40px, rgba(var(--glow, 110, 130, 190), .11) 70px, rgba(var(--glow, 110, 130, 190), .05) 110px, rgba(var(--glow, 110, 130, 190), 0) 170px),
+    radial-gradient(70% 55% at 0% 100%, rgba(var(--glow, 110, 130, 190), .16), rgba(var(--glow, 110, 130, 190), 0)),
+    radial-gradient(60% 45% at 0% 0%, rgba(var(--glow, 110, 130, 190), .12), rgba(var(--glow, 110, 130, 190), 0));
+}
+
+/* Volume: a milky capsule; the cover's color only warms it. */
+.slider {
+  background: rgba(255, 255, 255, .1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .32), inset 0 -8px 12px -8px rgba(0, 0, 0, .3), inset 0 0 0 1px rgba(255, 255, 255, .14);
+}
+.slider i {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .8), rgba(255, 255, 255, .6) 55%, rgba(var(--glow, 255, 255, 255), .55));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .7), inset 0 -6px 10px -6px rgba(255, 255, 255, .25);
+}
+
+/* Rail status: no dot on top. The connection shows as a short light along the
+   rail's lower edge that wraps a little way up both sides and fades:
+   green connected, amber connecting, red offline. */
+.logo {
+  --lc: 251, 191, 36;
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  width: auto;
+  height: auto;
+  margin: 0;
+  border: 1.5px solid rgb(var(--lc));
+  border-radius: 14px;
+  background: none;
+  box-shadow: inset 0 -8px 14px -10px rgba(var(--lc), .55);
+  opacity: .8;
+  -webkit-mask-image: linear-gradient(to top, #000 0, #000 12px, rgba(0, 0, 0, 0) 44px);
+  mask-image: linear-gradient(to top, #000 0, #000 12px, rgba(0, 0, 0, 0) 44px);
+  pointer-events: none;
+  transition: border-color .5s, box-shadow .5s;
+}
+.logo.online { --lc: 52, 211, 153; }
+.logo.offline { --lc: 244, 63, 94; }
+.logo i, .logo::after { display: none; }
+/* The status light stays thin and quiet. */
+.logo {
+  border-width: 1px;
+  opacity: .65;
+  -webkit-mask-image: linear-gradient(to top, #000 0, #000 8px, rgba(0, 0, 0, 0) 36px);
+  mask-image: linear-gradient(to top, #000 0, #000 8px, rgba(0, 0, 0, 0) 36px);
+}
+
+/* ---------- Design pass 13: smaller clock, one capsule for mute and volume ---------- */
+
+/* Clock and date, both about 14% smaller. */
+.home-clock .time { font-size: 19px; }
+.home-clock .date { font-size: 10.5px; }
+
+/* Mute and volume are one capsule: the mute key is its left section (same
+   height, same glass, a hairline between them) and the slider is the rest. */
+.vol { gap: 0; height: 48px; }
+.vbtn {
+  flex: 0 0 52px;
+  width: 52px;
+  height: 48px;
+  border-radius: 24px 0 0 24px;
+  background: rgba(255, 255, 255, .1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .32), inset 0 -8px 12px -8px rgba(0, 0, 0, .3), inset 0 0 0 1px rgba(255, 255, 255, .14), inset -1px 0 0 rgba(255, 255, 255, .16);
+}
+.slider { border-radius: 0 24px 24px 0; transform-origin: 0 50%; }
+.vbtn.on { background: rgba(244, 63, 94, .75); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .32), inset 0 0 0 1px rgba(255, 255, 255, .14), inset -1px 0 0 rgba(255, 255, 255, .2); }
+
+/* ---------- Design pass 14: presses without squares, a join that melts, status outside ---------- */
+
+/* Presses. Every press layer takes its control's own corners (some had none,
+   and Safari shows such a layer square while the control scales), and the
+   light is a soft radial glow with no edge, so even a loose clip shows no shape.
+   Pressing is quick (.12 s), letting go is slow and soft (.35 s). */
+.ctl::before, .ctl::after { border-radius: inherit; }
+.ctl { transition: transform .35s var(--ease); }
+.ctl.pressed { transform: scale(.95); transition-duration: .12s; }
+.tbtn::before {
+  background: radial-gradient(circle, rgba(255, 255, 255, .2) 0, rgba(255, 255, 255, .08) 45%, rgba(255, 255, 255, 0) 70%);
+  transform: scale(.6);
+  transition: opacity .45s var(--ease), transform .45s var(--ease);
+}
+.tbtn.pressed::before { opacity: 1; transform: scale(1.05); transition-duration: .12s; }
+.tbtn.pressed svg { transform: scale(.88); opacity: .85; }
+.tbtn svg { transition: transform .35s var(--ease), opacity .35s; }
+.tbtn.main::before { background: radial-gradient(70% 90% at 50% 40%, rgba(255, 255, 255, .22), rgba(255, 255, 255, 0) 75%); transform: none; }
+.tbtn.main.pressed::before { transform: none; }
+.vbtn::before {
+  background: radial-gradient(60% 70% at 55% 50%, rgba(255, 255, 255, .22), rgba(255, 255, 255, 0) 75%);
+  transition: opacity .45s var(--ease);
+}
+.vbtn.pressed::before { opacity: 1; transition-duration: .12s; }
+.ibtn::before { background: radial-gradient(70% 80% at 50% 45%, rgba(var(--a), .32), rgba(var(--a), 0) 75%); transition: opacity .45s var(--ease); }
+.ibtn.pressed::before { transition-duration: .12s; }
+
+/* The join. The media card's backdrop melts away over its last 30px on the
+   right, so the right panel shows through and the two read as one surface;
+   the card's buttons and text stay sharp. The panel's left corners are square
+   again: its top and bottom edges carry on straight from the card's, under
+   the melted corner, instead of a second corner showing there. */
+.np-bg {
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 30px), rgba(0, 0, 0, 0) 100%);
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 30px), rgba(0, 0, 0, 0) 100%);
+}
+.group.media + .group { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+
+/* Status: the light hugs the outside of the rail's lower edge and glows outward. */
+.logo {
+  top: -2px; right: -2px; bottom: -2px; left: -2px;
+  border-radius: 16px;
+  box-shadow: 0 6px 12px -7px rgba(var(--lc), .75);
+}
+/* The melt happens entirely over the right panel (it runs 24px under the card),
+   so nothing but the panel is ever seen through it: no strip of page, no left
+   border line, and the panel's light rises from nothing across the melt. */
+.np-bg {
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 22px), rgba(0, 0, 0, 0) 100%);
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 22px), rgba(0, 0, 0, 0) 100%);
+}
+.group.media + .group { border-left-color: transparent; }
+.group.media + .group::before {
+  background:
+    linear-gradient(90deg, rgba(var(--glow, 110, 130, 190), 0) 0, rgba(var(--glow, 110, 130, 190), .26) 24px, rgba(var(--glow, 110, 130, 190), .2) 40px, rgba(var(--glow, 110, 130, 190), .11) 70px, rgba(var(--glow, 110, 130, 190), .05) 110px, rgba(var(--glow, 110, 130, 190), 0) 170px),
+    radial-gradient(70% 55% at 0% 100%, rgba(var(--glow, 110, 130, 190), .14), rgba(var(--glow, 110, 130, 190), 0)),
+    radial-gradient(60% 45% at 0% 0%, rgba(var(--glow, 110, 130, 190), .1), rgba(var(--glow, 110, 130, 190), 0));
+}
+/* The card has no border at all, so its backdrop reaches its very edge and its
+   top and bottom line up exactly with the panel's (a see-through 1px border left
+   the panel's edge line showing 1px above the card). */
+.group.media { border-width: 0; }
+
+/* ---------- Design pass 15: smooth and light song changes, softer seams ---------- */
+
+/* Performance. The melt mask moves from the backdrop's box to each of its
+   layers: a mask on the box made the phone redraw the whole masked card on every
+   frame of the 1.4 s cross-fade. Each layer now carries its own fixed mask and
+   gets its own GPU layer, so the cross-fade is only an opacity change. */
+.np-bg { -webkit-mask-image: none; mask-image: none; }
+.np-bg i, .np-bg::after {
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 22px), rgba(0, 0, 0, 0) 100%);
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 22px), rgba(0, 0, 0, 0) 100%);
+}
+.np-bg i { will-change: opacity; }
+/* No more photo under the text, so no text shadow to redraw while it moves. */
+.np-title, .np-artist, .np-progress .times { text-shadow: none; }
+
+/* The cover changes with a calm cross-fade and a slight settle, no slide. */
+.np-art img { transform: scale(.985); transition: opacity .9s cubic-bezier(.4, 0, .2, 1), transform 1.1s cubic-bezier(.22, 1, .36, 1); }
+.np-art img.shown { transform: none; }
+.np-art img.gone { transform: scale(.985); transition: opacity .8s .15s cubic-bezier(.4, 0, .2, 1), transform 1.1s cubic-bezier(.22, 1, .36, 1); }
+.np-art img.fade, .np-art img.fade.gone { transition: opacity 1s cubic-bezier(.4, 0, .2, 1); }
+
+/* Mute and volume: no seam. No hairline between them, no inner edge line where
+   they meet, and the level's fill fades in from the join instead of starting
+   with a hard edge. */
+.vbtn {
+  background: linear-gradient(90deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, .12));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .32), inset 1px 0 0 rgba(255, 255, 255, .14), inset 0 -1px 0 rgba(255, 255, 255, .1), inset 0 -8px 12px -8px rgba(0, 0, 0, .3);
+}
+.slider {
+  background: linear-gradient(90deg, rgba(255, 255, 255, .12), rgba(255, 255, 255, .1) 40px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .32), inset -1px 0 0 rgba(255, 255, 255, .14), inset 0 -1px 0 rgba(255, 255, 255, .1), inset 0 -8px 12px -8px rgba(0, 0, 0, .3);
+}
+.slider i {
+  -webkit-mask-image: linear-gradient(90deg, rgba(0, 0, 0, 0) 0, #000 28px);
+  mask-image: linear-gradient(90deg, rgba(0, 0, 0, 0) 0, #000 28px);
+}
+.vbtn.on { background: linear-gradient(90deg, rgba(244, 63, 94, .75), rgba(244, 63, 94, .45)); }
+
+/* The pager's pages (CPU/GPU, Claude, plan, devices): liquid glass that bends
+   the cover's light. Their rim and inner glow take the cover's color (--glow),
+   white only where there is no cover. */
+.mini-item, .bat-page, .plan-page {
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(var(--glow, 255, 255, 255), .14), rgba(var(--glow, 255, 255, 255), 0) 60%),
+    radial-gradient(100% 80% at 100% 100%, rgba(var(--glow, 255, 255, 255), .09), rgba(var(--glow, 255, 255, 255), 0) 60%),
+    rgba(11, 10, 15, .35);
+  border: 1px solid rgba(var(--glow, 255, 255, 255), .22);
+  border-top-color: rgba(255, 255, 255, .22);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .14),
+    inset 0 0 18px -6px rgba(var(--glow, 255, 255, 255), .4),
+    inset 0 -10px 16px -12px rgba(0, 0, 0, .45),
+    0 8px 16px -10px rgba(0, 0, 0, .7);
+}
+
+/* Right panel: its top and bottom edges (and its body) start see-through at the
+   join and open up toward the right, so nothing of it starts with a hard line
+   next to the media card. Its right edge keeps its line and liquid corners. */
+.group.media + .group {
+  border-color: transparent;
+  border-right-color: rgba(255, 255, 255, .08);
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0) 0, rgba(255, 255, 255, .09) 90px) top / 100% 1px no-repeat,
+    linear-gradient(90deg, rgba(255, 255, 255, 0) 0, rgba(255, 255, 255, .06) 90px) bottom / 100% 1px no-repeat,
+    linear-gradient(90deg, rgba(26, 23, 31, 0) 0, rgba(26, 23, 31, .85) 26px, #1a171f 44px, #131118 100%);
+  background-origin: border-box;
+}
+
+/* Rail status: exactly on the rail's own border line, the same curve. */
+.logo {
+  top: -1px; right: -1px; bottom: -1px; left: -1px;
+  border-radius: 14px;
+  border-width: 1px;
+  box-shadow: 0 4px 10px -6px rgba(var(--lc), .7);
+}
+/* Only the panel's top and bottom edge lines start see-through at the join; its
+   body stays solid under the media card (a see-through body let the page show
+   through the card's melt as a dark outline). */
+.group.media + .group {
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0) 0, rgba(255, 255, 255, 0) 24px, rgba(255, 255, 255, .09) 110px) top / 100% 1px no-repeat,
+    linear-gradient(90deg, rgba(255, 255, 255, 0) 0, rgba(255, 255, 255, 0) 24px, rgba(255, 255, 255, .06) 110px) bottom / 100% 1px no-repeat,
+    linear-gradient(165deg, var(--panel-2), var(--panel));
+  background-origin: border-box;
+}
+/* The backdrop's dark base melts with the rest: it is a masked layer of its own
+   (left on the box itself it stayed solid and drew a dark outline at the join). */
+.np-bg { background: none; }
+.np-bg::before {
+  content: "";
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  background: #0c0d12;
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 22px), rgba(0, 0, 0, 0) 100%);
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 22px), rgba(0, 0, 0, 0) 100%);
+}
+
+/* ---------- Design pass 16: a longer melt, a gentle mute, a breathing volume ---------- */
+
+/* The media card turns toward the right panel's own color over its last 90px
+   (the cover's light and the panel's base), and only then melts away, so the
+   card reaches the join already looking like the panel. */
+.np-bg::after {
+  display: block;
+  background:
+    linear-gradient(90deg, rgba(var(--glow, 110, 130, 190), 0) calc(100% - 90px), rgba(var(--glow, 110, 130, 190), .2) 100%),
+    linear-gradient(90deg, rgba(26, 23, 31, 0) calc(100% - 90px), rgba(26, 23, 31, .7) 100%),
+    linear-gradient(180deg, rgba(255, 255, 255, .03) 0%, rgba(8, 9, 13, 0) 30%, rgba(8, 9, 13, .45) 100%);
+}
+
+/* Mute press: no shrinking (the key is part of the capsule and must not come
+   loose from it); a soft light swells inside and fades out slowly, and the icon
+   gives a little. */
+.vbtn.pressed { transform: none; }
+.vbtn::before {
+  background: radial-gradient(55% 65% at 50% 50%, rgba(255, 255, 255, .16), rgba(255, 255, 255, 0) 80%);
+  transition: opacity .6s cubic-bezier(.4, 0, .2, 1);
+}
+.vbtn.pressed::before { opacity: 1; transition-duration: .18s; }
+.vbtn svg { transition: transform .45s var(--ease); }
+.vbtn.pressed svg { transform: scale(.86); transition-duration: .15s; }
+
+/* Mute to volume: the slider's light and the cover's color run on into the
+   mute key and fade there, and the level's fill fades in over a longer stretch. */
+.vbtn {
+  background:
+    radial-gradient(120% 90% at 100% 100%, rgba(var(--glow, 255, 255, 255), .3), rgba(var(--glow, 255, 255, 255), 0) 70%),
+    linear-gradient(90deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, .17));
+}
+.slider i {
+  -webkit-mask-image: linear-gradient(90deg, rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, .55) 20px, #000 52px);
+  mask-image: linear-gradient(90deg, rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, .55) 20px, #000 52px);
+}
+
+/* Volume breathes with the music: the cover-colored lower part of the fill is
+   two soft waves that rise and fall at different paces, only while a song plays.
+   Transform only, on two small layers. */
+.slider i { background: linear-gradient(180deg, rgba(255, 255, 255, .82), rgba(255, 255, 255, .62) 55%, rgba(var(--glow, 255, 255, 255), .32)); }
+.slider i::before, .slider i::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 62%;
+  transform-origin: 50% 100%;
+  will-change: transform;
+  animation: volwave-a 2.8s ease-in-out infinite;
+  animation-play-state: paused;
+  pointer-events: none;
+}
+.slider i::before { background: radial-gradient(55% 100% at 28% 100%, rgba(var(--glow, 255, 255, 255), .55), rgba(var(--glow, 255, 255, 255), 0) 72%); }
+.slider i::after { background: radial-gradient(60% 100% at 74% 100%, rgba(var(--glow, 255, 255, 255), .5), rgba(var(--glow, 255, 255, 255), 0) 72%); animation-name: volwave-b; animation-duration: 3.9s; }
+.np.playing ~ .vol .slider i::before, .np.playing ~ .vol .slider i::after { animation-play-state: running; }
+@keyframes volwave-a {
+  0%, 100% { transform: scaleY(1); }
+  22% { transform: scaleY(1.2); }
+  48% { transform: scaleY(.84); }
+  74% { transform: scaleY(1.1); }
+}
+@keyframes volwave-b {
+  0%, 100% { transform: scaleY(.9); }
+  30% { transform: scaleY(1.16); }
+  62% { transform: scaleY(.94); }
+  84% { transform: scaleY(1.06); }
+}
+/* One capsule, one surface: the glass, its rim and a touch of the cover's color
+   belong to the row itself; the mute key and the slider are see-through on top
+   of it, so there is no join between them at all, only the fill fading in. The
+   slider no longer swells on its own while dragged (it would leave the capsule). */
+.vol {
+  border-radius: 24px;
+  background:
+    radial-gradient(45% 90% at 20% 100%, rgba(var(--glow, 255, 255, 255), .2), rgba(var(--glow, 255, 255, 255), 0) 70%),
+    rgba(255, 255, 255, .1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .32), inset 0 0 0 1px rgba(255, 255, 255, .12), inset 0 -8px 12px -8px rgba(0, 0, 0, .3);
+}
+.vbtn, .vbtn.on { background: none; box-shadow: none; }
+.vbtn.on::after {
+  content: "";
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  background: linear-gradient(90deg, rgba(244, 63, 94, .6), rgba(244, 63, 94, 0));
+  pointer-events: none;
+}
+.slider, .slider.dragging { background: none; box-shadow: none; transform: none; }
+
+/* ---------- Design pass 17: a light pager, natural glass, a soft volume end ---------- */
+
+/* Pager swipes. The sliding track gets its own GPU layer, so a swipe only moves
+   an already drawn picture instead of repainting every page's shadows and light
+   on each frame. The rings lose their drop-shadow filter (a filter is redrawn on
+   every frame of a move, and was the heaviest part), and the pager clips with a
+   plain rectangle: the pages are rounded themselves. */
+.mini-track { will-change: transform; -webkit-backface-visibility: hidden; backface-visibility: hidden; }
+.mini-pager { border-radius: 0; }
+.bat-item .donut .value, .mini-item .donut .value { filter: none; }
+
+/* The pages' glass, more natural: light comes mainly from the top left and
+   catches the top edge, the cover's color is only a faint tint in the rim and
+   inside, and the lower edge darkens a little. */
+.mini-item, .bat-page, .plan-page {
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, .07), rgba(255, 255, 255, .015) 40%, rgba(0, 0, 0, .08)),
+    radial-gradient(120% 80% at 0% 0%, rgba(var(--glow, 255, 255, 255), .07), rgba(var(--glow, 255, 255, 255), 0) 60%),
+    rgba(11, 10, 15, .35);
+  border: 1px solid rgba(255, 255, 255, .07);
+  border-top-color: rgba(255, 255, 255, .16);
+  border-bottom-color: rgba(var(--glow, 255, 255, 255), .1);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .08),
+    inset 0 0 16px -8px rgba(var(--glow, 255, 255, 255), .18),
+    0 6px 14px -10px rgba(0, 0, 0, .65);
+}
+
+/* Volume: the level's fill also fades out at its own end, so a lowered volume
+   ends softly instead of with a hard edge. */
+.slider i {
+  -webkit-mask-image: linear-gradient(90deg, rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, .55) 20px, #000 52px, #000 calc(100% - 30px), rgba(0, 0, 0, 0) 100%);
+  mask-image: linear-gradient(90deg, rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, .55) 20px, #000 52px, #000 calc(100% - 30px), rgba(0, 0, 0, 0) 100%);
+}
+
+/* ---------- Design pass 18: the volume bar moves with the music ---------- */
+
+/* The made-up breathing is gone; two real waves follow the PC's playback level
+   (see onLevel in app.js). The first answers quickly, the second follows slower
+   and calmer, so together they rise and fall like a soft equalizer. */
+.slider i::before, .slider i::after { content: none; animation: none; }
+.slider .wv {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 70%;
+  transform-origin: 50% 100%;
+  will-change: transform;
+  pointer-events: none;
+}
+.slider .wv.a {
+  background: radial-gradient(55% 100% at 30% 100%, rgba(var(--glow, 255, 255, 255), .62), rgba(var(--glow, 255, 255, 255), 0) 72%);
+  transform: scaleY(.35);
+  transition: transform .12s cubic-bezier(.3, .7, .4, 1);
+}
+.slider .wv.b {
+  background: radial-gradient(60% 100% at 74% 100%, rgba(var(--glow, 255, 255, 255), .55), rgba(var(--glow, 255, 255, 255), 0) 72%);
+  transform: scaleY(.45);
+  transition: transform .32s cubic-bezier(.3, .7, .4, 1);
+}
+
+/* The level's fill fades out gently toward its end over a long stretch, so at
+   any volume the bar just turns see-through toward the right. */
+.slider i {
+  -webkit-mask-image: linear-gradient(90deg, rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, .55) 20px, #000 52px, #000 calc(100% - 120px), rgba(0, 0, 0, .78) calc(100% - 80px), rgba(0, 0, 0, .42) calc(100% - 40px), rgba(0, 0, 0, 0) 100%);
+  mask-image: linear-gradient(90deg, rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, .55) 20px, #000 52px, #000 calc(100% - 120px), rgba(0, 0, 0, .78) calc(100% - 80px), rgba(0, 0, 0, .42) calc(100% - 40px), rgba(0, 0, 0, 0) 100%);
+}
+
+/* The media card: no gray band turning it toward the panel's tone (that band
+   was what showed where the card melts). Only a faint warmth of the cover's
+   color near the join, and the melt itself. */
+.np-bg::after {
+  background:
+    linear-gradient(90deg, rgba(var(--glow, 110, 130, 190), 0) calc(100% - 70px), rgba(var(--glow, 110, 130, 190), .1) 100%),
+    linear-gradient(180deg, rgba(255, 255, 255, .03) 0%, rgba(8, 9, 13, 0) 30%, rgba(8, 9, 13, .45) 100%);
+}
+
+/* ---------- Design pass 19: a bass beat in the volume bar, one surface for card and panel ---------- */
+
+/* The volume bar's cover-colored part beats while a song plays: a quick rise and
+   a slower fall, like a bass drum. The first wave hits on every beat (~120 BPM),
+   the second, calmer, on the off-beat every other beat. It is a fixed rhythm,
+   not the song's own; it only runs while playing. Transform only. */
+.slider .wv { height: 82%; transition: none; animation-play-state: paused; }
+.slider .wv.a {
+  background: radial-gradient(55% 100% at 30% 100%, rgba(var(--glow, 255, 255, 255), .72), rgba(var(--glow, 255, 255, 255), 0) 72%);
+  transform: scaleY(.38);
+  animation: bass-a .5s cubic-bezier(.2, .7, .3, 1) infinite;
+  animation-play-state: paused;
+}
+.slider .wv.b {
+  background: radial-gradient(60% 100% at 72% 100%, rgba(var(--glow, 255, 255, 255), .62), rgba(var(--glow, 255, 255, 255), 0) 72%);
+  transform: scaleY(.45);
+  animation: bass-b 1s cubic-bezier(.2, .7, .3, 1) .25s infinite;
+  animation-play-state: paused;
+}
+.np.playing ~ .vol .slider .wv { animation-play-state: running; }
+@keyframes bass-a {
+  0% { transform: scaleY(.38); }
+  9% { transform: scaleY(1.3); }
+  32% { transform: scaleY(.78); }
+  65% { transform: scaleY(.5); }
+  100% { transform: scaleY(.38); }
+}
+@keyframes bass-b {
+  0% { transform: scaleY(.45); }
+  7% { transform: scaleY(1.1); }
+  25% { transform: scaleY(.7); }
+  50% { transform: scaleY(.55); }
+  57% { transform: scaleY(.95); }
+  80% { transform: scaleY(.6); }
+  100% { transform: scaleY(.45); }
+}
+
+/* One surface. The media card has square right corners, so its top and bottom
+   edges run straight on into the right panel's: from outside there is a single
+   shape. The panel runs 64px under the card and the card's color turns into the
+   panel's over those 64px, with no corner arcs left to show inside the blend.
+   The panel's content stays where it was (its padding grows by the same 40px). */
+.group.media { border-radius: 24px 0 0 24px; -webkit-clip-path: inset(0 round 24px 0 0 24px); clip-path: inset(0 round 24px 0 0 24px); }
+.np-bg { border-radius: 24px 0 0 24px; -webkit-clip-path: inset(0 round 24px 0 0 24px); clip-path: inset(0 round 24px 0 0 24px); }
+.np-bg::before, .np-bg i, .np-bg::after {
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 64px), rgba(0, 0, 0, .84) calc(100% - 48px), rgba(0, 0, 0, .52) calc(100% - 30px), rgba(0, 0, 0, .18) calc(100% - 13px), rgba(0, 0, 0, 0) 100%);
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 64px), rgba(0, 0, 0, .84) calc(100% - 48px), rgba(0, 0, 0, .52) calc(100% - 30px), rgba(0, 0, 0, .18) calc(100% - 13px), rgba(0, 0, 0, 0) 100%);
+}
+.group.media + .group { margin: 0 0 0 -74px; padding-left: 90px; }
+.group.media + .group::before {
+  background:
+    linear-gradient(90deg, rgba(var(--glow, 110, 130, 190), .1) 0, rgba(var(--glow, 110, 130, 190), .2) 34px, rgba(var(--glow, 110, 130, 190), .26) 64px, rgba(var(--glow, 110, 130, 190), .2) 84px, rgba(var(--glow, 110, 130, 190), .11) 114px, rgba(var(--glow, 110, 130, 190), .05) 154px, rgba(var(--glow, 110, 130, 190), 0) 214px),
+    radial-gradient(70% 55% at 0% 100%, rgba(var(--glow, 110, 130, 190), .14), rgba(var(--glow, 110, 130, 190), 0)),
+    radial-gradient(60% 45% at 0% 0%, rgba(var(--glow, 110, 130, 190), .1), rgba(var(--glow, 110, 130, 190), 0));
+}
+.group.media + .group {
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0) 0, rgba(255, 255, 255, 0) 64px, rgba(255, 255, 255, .09) 150px) top / 100% 1px no-repeat,
+    linear-gradient(90deg, rgba(255, 255, 255, 0) 0, rgba(255, 255, 255, 0) 64px, rgba(255, 255, 255, .06) 150px) bottom / 100% 1px no-repeat,
+    linear-gradient(165deg, var(--panel-2), var(--panel));
+  background-origin: border-box;
+}
+/* The panel's light has no peak at the join (a peak there read as a vertical
+   band): it stays level through the blend and fades out slowly after it. */
+.group.media + .group::before {
+  background:
+    linear-gradient(90deg, rgba(var(--glow, 110, 130, 190), .14) 0, rgba(var(--glow, 110, 130, 190), .16) 64px, rgba(var(--glow, 110, 130, 190), .13) 100px, rgba(var(--glow, 110, 130, 190), .07) 140px, rgba(var(--glow, 110, 130, 190), .025) 180px, rgba(var(--glow, 110, 130, 190), 0) 230px),
+    radial-gradient(70% 55% at 0% 100%, rgba(var(--glow, 110, 130, 190), .12), rgba(var(--glow, 110, 130, 190), 0)),
+    radial-gradient(60% 45% at 0% 0%, rgba(var(--glow, 110, 130, 190), .08), rgba(var(--glow, 110, 130, 190), 0));
+}
+
+/* ---------- Design pass 20: a new song's color opens up step by step ---------- */
+
+/* Each backdrop layer holds four lights in the cover's colors (--c0, --c1, set
+   from the cover in paintGlow). When a new song's layer is shown, they open one
+   after another: top left grows out of its corner first, then bottom left and
+   bottom right, then a light rises from the bottom right to the top right; last
+   the color flows on into the right panel (its light slides in from the left).
+   The old song's layer fades out slowly underneath. Opacity and transform only. */
+.np-bg i {
+  background: linear-gradient(160deg, rgba(var(--c0), .16), rgba(var(--c1), .06));
+  transition: opacity 1.6s cubic-bezier(.4, 0, .2, 1);
+}
+.np-bg i.shown { z-index: 1; transition-duration: .3s; }
+.np-bg::after { z-index: 2; }
+.np-bg .g {
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1.1s cubic-bezier(.4, 0, .2, 1), transform 1.6s cubic-bezier(.22, 1, .36, 1);
+}
+.np-bg .g.tl { background: radial-gradient(90% 85% at 0% 0%, rgba(var(--c0), .6), rgba(var(--c0), 0) 62%); transform-origin: 0 0; transform: scale(.5); }
+.np-bg .g.bl { background: radial-gradient(70% 70% at 15% 100%, rgba(var(--c1), .3), rgba(var(--c1), 0) 65%); transform-origin: 0 100%; transform: scale(.7); }
+.np-bg .g.br { background: radial-gradient(70% 80% at 100% 100%, rgba(var(--c0), .42), rgba(var(--c0), 0) 62%); transform-origin: 100% 100%; transform: scale(.55); }
+.np-bg .g.tr { background: radial-gradient(55% 45% at 74% 6%, rgba(var(--c0), .24), rgba(var(--c0), 0) 70%); transform: translateY(55%); }
+.np-bg i.shown .g { opacity: 1; transform: none; }
+.np-bg i.shown .g.tl { transition-delay: 0s; }
+.np-bg i.shown .g.bl { transition-delay: .35s; }
+.np-bg i.shown .g.br { transition-delay: .6s; }
+.np-bg i.shown .g.tr { transition-delay: .95s; }
+/* A layer going away keeps its lights until it has faded, then quietly resets. */
+.np-bg i:not(.shown) .g { transition-duration: 0s; transition-delay: 1.7s; }
+
+/* The panel's light flows in from the left, after the card's lights. */
+.group.media + .group::before { transition: opacity 1.3s cubic-bezier(.4, 0, .2, 1), transform 1.6s cubic-bezier(.22, 1, .36, 1); }
+.glow-out .group.media + .group::before { opacity: 0; transform: translateX(-60px); transition-duration: .5s, .5s; }
+
+/* ---------- Design pass 21: one big box, sound waves in the volume bar ---------- */
+
+/* The top right light just fades in where it is (no rising slide). */
+.np-bg .g.tr { transform: none; }
+
+/* One big box: the media card has the same faint rim as the right panel on its
+   top, left and bottom, and the panel's top and bottom lines run all the way to
+   the card, so the two sit inside a single outline. */
+.group.media::after {
+  display: block;
+  content: "";
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  z-index: 3;
+  border-radius: 24px 0 0 24px;
+  box-shadow: inset 1px 0 0 rgba(255, 255, 255, .08), inset 0 1px 0 rgba(255, 255, 255, .09), inset 0 -1px 0 rgba(255, 255, 255, .06);
+  pointer-events: none;
+}
+.group.media + .group {
+  background:
+    linear-gradient(rgba(255, 255, 255, .09), rgba(255, 255, 255, .09)) top / 100% 1px no-repeat,
+    linear-gradient(rgba(255, 255, 255, .06), rgba(255, 255, 255, .06)) bottom / 100% 1px no-repeat,
+    linear-gradient(165deg, var(--panel-2), var(--panel));
+  background-origin: border-box;
+}
+
+/* Volume bar: sound waves. The cover-colored lower part is two rows of soft
+   crests that travel from right to left, a quick small one and a slow broad
+   one, so the crests rise and fall against each other like a sound wave. Each
+   row is a little wider than the bar and slides by one crest, then repeats.
+   Transform only; it runs only while a song plays. */
+.slider .wv { right: auto; height: 80%; transform: none; }
+.slider .wv.a {
+  width: calc(100% + 60px);
+  background: radial-gradient(30px 100% at 30px 100%, rgba(var(--glow, 255, 255, 255), .72), rgba(var(--glow, 255, 255, 255), 0) 72%) 0 100% / 60px 100% repeat-x;
+  animation: sound-a 1.5s linear infinite;
+  animation-play-state: paused;
+}
+.slider .wv.b {
+  width: calc(100% + 96px);
+  height: 62%;
+  background: radial-gradient(48px 100% at 48px 100%, rgba(var(--glow, 255, 255, 255), .6), rgba(var(--glow, 255, 255, 255), 0) 72%) 0 100% / 96px 100% repeat-x;
+  animation: sound-b 2.7s linear infinite;
+  animation-play-state: paused;
+}
+.np.playing ~ .vol .slider .wv { animation-play-state: running; }
+@keyframes sound-a { from { transform: translateX(0); } to { transform: translateX(-60px); } }
+@keyframes sound-b { from { transform: translateX(0); } to { transform: translateX(-96px); } }
+/* The crests stand out a little more. */
+.slider .wv.a { background: radial-gradient(30px 100% at 30px 100%, rgba(var(--glow, 255, 255, 255), .88), rgba(var(--glow, 255, 255, 255), .25) 45%, rgba(var(--glow, 255, 255, 255), 0) 74%) 0 100% / 60px 100% repeat-x; }
+.slider .wv.b { background: radial-gradient(48px 100% at 48px 100%, rgba(var(--glow, 255, 255, 255), .72), rgba(var(--glow, 255, 255, 255), .2) 45%, rgba(var(--glow, 255, 255, 255), 0) 74%) 0 100% / 96px 100% repeat-x; }
+/* Taller crests: the rows fill the bar's height and the color reaches up the crest. */
+.slider .wv.a {
+  height: 100%;
+  background: radial-gradient(30px 78% at 30px 100%, rgba(var(--glow, 255, 255, 255), .9) 0, rgba(var(--glow, 255, 255, 255), .55) 55%, rgba(var(--glow, 255, 255, 255), 0) 100%) 0 100% / 60px 100% repeat-x;
+}
+.slider .wv.b {
+  height: 100%;
+  background: radial-gradient(48px 58% at 48px 100%, rgba(var(--glow, 255, 255, 255), .75) 0, rgba(var(--glow, 255, 255, 255), .4) 55%, rgba(var(--glow, 255, 255, 255), 0) 100%) 0 100% / 96px 100% repeat-x;
+}
+
+/* ---------- Design pass 22: the bass beat back, refined; truly one box ---------- */
+
+/* Volume bar: back to the beat, smoother. Each wave rises softly, swells and
+   settles slowly instead of snapping on and off; the two sit at different
+   places (left and right) and beat at different times, so the color moves
+   across the bar rather than flashing. Only while a song plays. */
+.slider .wv { left: 0; right: 0; width: auto; height: 82%; transform-origin: 50% 100%; transform: scaleY(.42); }
+.slider .wv.a {
+  background: radial-gradient(55% 100% at 30% 100%, rgba(var(--glow, 255, 255, 255), .74), rgba(var(--glow, 255, 255, 255), 0) 72%);
+  animation: beat-a .64s cubic-bezier(.45, 0, .2, 1) infinite;
+  animation-play-state: paused;
+}
+.slider .wv.b {
+  height: 82%;
+  background: radial-gradient(60% 100% at 72% 100%, rgba(var(--glow, 255, 255, 255), .64), rgba(var(--glow, 255, 255, 255), 0) 72%);
+  animation: beat-b 1.28s cubic-bezier(.45, 0, .2, 1) .32s infinite;
+  animation-play-state: paused;
+}
+.np.playing ~ .vol .slider .wv { animation-play-state: running; }
+@keyframes beat-a {
+  0% { transform: scaleY(.42); }
+  16% { transform: scaleY(1.12); }
+  45% { transform: scaleY(.8); }
+  75% { transform: scaleY(.56); }
+  100% { transform: scaleY(.42); }
+}
+@keyframes beat-b {
+  0% { transform: scaleY(.48); }
+  12% { transform: scaleY(1); }
+  32% { transform: scaleY(.7); }
+  50% { transform: scaleY(.58); }
+  62% { transform: scaleY(.9); }
+  85% { transform: scaleY(.6); }
+  100% { transform: scaleY(.48); }
+}
+
+/* One box. The right panel now has exactly the media card's ground: the same
+   dark base and the same soft darkening toward the bottom, so nothing changes
+   at the join but the cover's light. That light is gentler on the card's right
+   side and goes on at the same strength in the panel, fading slowly to its
+   right end, so there is no step anywhere. */
+.group.media + .group {
+  background:
+    linear-gradient(rgba(255, 255, 255, .09), rgba(255, 255, 255, .09)) top / 100% 1px no-repeat,
+    linear-gradient(rgba(255, 255, 255, .06), rgba(255, 255, 255, .06)) bottom / 100% 1px no-repeat,
+    linear-gradient(180deg, rgba(255, 255, 255, .03) 0%, rgba(8, 9, 13, 0) 30%, rgba(8, 9, 13, .45) 100%),
+    #0c0d12;
+  background-origin: border-box;
+}
+.np-bg .g.br { background: radial-gradient(70% 80% at 100% 100%, rgba(var(--c0), .3), rgba(var(--c0), 0) 62%); }
+.np-bg .g.tr { background: radial-gradient(55% 45% at 74% 6%, rgba(var(--c0), .16), rgba(var(--c0), 0) 70%); }
+.np-bg::after {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .03) 0%, rgba(8, 9, 13, 0) 30%, rgba(8, 9, 13, .45) 100%);
+}
+.group.media + .group::before {
+  background:
+    linear-gradient(90deg, rgba(var(--glow, 110, 130, 190), .2) 0, rgba(var(--glow, 110, 130, 190), .2) 64px, rgba(var(--glow, 110, 130, 190), .15) 110px, rgba(var(--glow, 110, 130, 190), .09) 160px, rgba(var(--glow, 110, 130, 190), .04) 210px, rgba(var(--glow, 110, 130, 190), 0) 270px),
+    radial-gradient(70% 60% at 0% 100%, rgba(var(--glow, 110, 130, 190), .14), rgba(var(--glow, 110, 130, 190), 0)),
+    radial-gradient(60% 45% at 0% 0%, rgba(var(--glow, 110, 130, 190), .1), rgba(var(--glow, 110, 130, 190), 0));
+}
+/* The panel's light changes in step with the card's: a quick dip, then it opens
+   with the card's lights (no slide, no delay). */
+.group.media + .group::before { transform: none; transition: opacity 1.2s cubic-bezier(.4, 0, .2, 1); }
+.glow-out .group.media + .group::before { transform: none; opacity: 0; transition-duration: .3s; }
+
+/* ---------- Design pass 23: one real container ---------- */
+
+/* The home screen's cards sit in one box. The box is the only thing with a
+   ground, an outline and the cover's light; the media part and the right part
+   are see-through on top of it, so there is no join to see at all. It fills
+   the view's padding box (the view has 10px 12px 12px of padding). */
+.home-box {
+  position: absolute;
+  top: 10px; right: 12px; bottom: 12px; left: 12px;
+  z-index: 0;
+  border-radius: 24px;
+  overflow: hidden;
+  -webkit-clip-path: inset(0 round 24px);
+  clip-path: inset(0 round 24px);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .03) 0%, rgba(8, 9, 13, 0) 30%, rgba(8, 9, 13, .45) 100%), #0c0d12;
+  pointer-events: none;
+}
+.home-box::after {
+  content: "";
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  z-index: 3;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08), inset 0 1px 0 rgba(255, 255, 255, .1);
+}
+
+/* The cards: no ground, outline, shadow, clip or overlap of their own. */
+.home .group, .home .group.media, .home .group.media + .group {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  padding: 10px 12px 12px;
+  background: none;
+  border: 0;
+  border-radius: 24px;
+  box-shadow: none;
+  -webkit-clip-path: none;
+  clip-path: none;
+  isolation: auto;
+}
+.home .group.media::before, .home .group.media::after,
+.home .group.media + .group::before, .home .group.media + .group::after { display: none; }
+
+/* The cover's light spans the whole box: no melt masks, the box's own corners. */
+.home-box .np-bg { border-radius: inherit; -webkit-clip-path: none; clip-path: none; background: none; }
+.home-box .np-bg::before, .home-box .np-bg i, .home-box .np-bg::after { -webkit-mask-image: none; mask-image: none; }
+.home-box .np-bg::before { display: none; }
+.home-box .np-bg .g.tl { background: radial-gradient(60% 90% at 0% 0%, rgba(var(--c0), .6), rgba(var(--c0), 0) 62%); transform-origin: 0 0; }
+.home-box .np-bg .g.bl { background: radial-gradient(42% 70% at 8% 100%, rgba(var(--c1), .3), rgba(var(--c1), 0) 65%); transform-origin: 0 100%; }
+.home-box .np-bg .g.br { background: radial-gradient(45% 75% at 50% 100%, rgba(var(--c0), .3), rgba(var(--c0), 0) 62%); transform-origin: 50% 100%; }
+.home-box .np-bg .g.tr { background: radial-gradient(60% 70% at 72% 30%, rgba(var(--c0), .13), rgba(var(--c0), 0) 70%); transform-origin: 72% 30%; }
+
+/* The rail's active key moves as it always did: one smooth slide, no stretch. */
+.tab-pill { transition: transform .45s var(--ease); }
+.tab-pill.flow { animation: none; }
+
+/* ---------- Design pass 24: the level starts inside the mute key, and ends in a clean round cap ---------- */
+
+/* No fading masks on the level any more. The one at its start dimmed the fill's
+   left edge at full volume, and the one at its end only turned the bar
+   see-through toward the right, at any volume. The fill is now solid and its
+   right end is a round cap (it takes the slider's corner). */
+.slider i {
+  -webkit-mask-image: none;
+  mask-image: none;
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, .45);
+}
+
+/* The home volume: the level runs on to the left into the mute key, with the
+   same light as the fill, and melts away there, so mute and level are one stroke
+   of light. It is gone at 0 and dim while muted, like the fill. */
+.np ~ .vol { position: relative; }
+.np ~ .vol::before {
+  content: "";
+  position: absolute;
+  top: 0; bottom: 0; left: 0;
+  width: 52px;
+  border-radius: 24px 0 0 24px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .82), rgba(255, 255, 255, .62) 55%, rgba(var(--glow, 255, 255, 255), .32));
+  -webkit-mask-image: linear-gradient(90deg, rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, .06) 14%, rgba(0, 0, 0, .28) 38%, rgba(0, 0, 0, .66) 68%, #000 100%);
+  mask-image: linear-gradient(90deg, rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, .06) 14%, rgba(0, 0, 0, .28) 38%, rgba(0, 0, 0, .66) 68%, #000 100%);
+  pointer-events: none;
+  transition: opacity .3s;
+}
+.np ~ .vol::before { opacity: var(--lv, 1); }
+.np ~ .vol.zero::before { opacity: 0; }
+.np ~ .vol.muted::before { opacity: calc(var(--lv, 1) * .3); }
+
+/* ---------- Design pass 25: the games screen in the same language ---------- */
+
+/* The list is one box, like the home screen's: a dark ground, a faint rim, 24px
+   corners. The cards sit in it with concentric corners and move under its edge. */
+.game-list {
+  padding: 12px;
+  gap: 12px;
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .03) 0%, rgba(8, 9, 13, 0) 30%, rgba(8, 9, 13, .45) 100%), #0c0d12;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08), inset 0 1px 0 rgba(255, 255, 255, .1);
+  -webkit-clip-path: inset(0 round 24px);
+  clip-path: inset(0 round 24px);
+}
+
+/* A card is glass lit by its own picture's color: the tint pours in from the top
+   left and gathers softly at the bottom, with no border and no outer shadow. A
+   rim of light runs round it on top of the picture. */
+.game {
+  border: 0;
+  border-radius: 14px;
+  background:
+    radial-gradient(90% 70% at 0% 0%, rgba(var(--a), .5), rgba(var(--a), 0) 70%),
+    radial-gradient(80% 50% at 50% 100%, rgba(var(--a), .26), rgba(var(--a), 0) 75%),
+    linear-gradient(180deg, rgba(255, 255, 255, .04), rgba(8, 9, 13, .5)),
+    #10121a;
+  box-shadow: none;
+}
+.game::before {
+  content: "";
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  z-index: 2;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1), inset 0 1px 0 rgba(255, 255, 255, .24);
+  pointer-events: none;
+}
+/* A calmer fade under the name, warmed by the card's color. */
+.game::after {
+  height: 64%;
+  background:
+    radial-gradient(90% 70% at 50% 100%, rgba(var(--a), .22), rgba(var(--a), 0) 80%),
+    linear-gradient(180deg, rgba(6, 7, 11, 0) 0%, rgba(6, 7, 11, .16) 38%, rgba(6, 7, 11, .5) 70%, rgba(6, 7, 11, .78) 100%);
+}
+.game .icon { filter: drop-shadow(0 8px 16px rgba(0, 0, 0, .5)); }
+/* The play key is a small glass pill, with the card's color through it. */
+.game .play {
+  border: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .2), rgba(255, 255, 255, .1));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), inset 0 0 0 1px rgba(255, 255, 255, .12);
+}
+
+/* ---------- Design pass 26: game mode as one lit box ---------- */
+
+/* The page holds one box, like the home screen's: a dark ground, a faint rim,
+   and soft light in the colors of the gauges (cyan on the left, violet in the
+   middle, pink on the right). Nothing inside has a card of its own: the gauges
+   are separated by hairlines of light, and the rows below by one more. */
+.stats { position: relative; gap: 0; }
+.stats::before {
+  content: "";
+  position: absolute;
+  top: 34px; right: 12px; bottom: 12px; left: 12px;
+  border-radius: 24px;
+  background:
+    radial-gradient(40% 70% at 12% 0%, rgba(56, 189, 248, .2), rgba(56, 189, 248, 0)),
+    radial-gradient(40% 70% at 50% 0%, rgba(167, 139, 250, .16), rgba(167, 139, 250, 0)),
+    radial-gradient(40% 70% at 90% 0%, rgba(244, 114, 182, .16), rgba(244, 114, 182, 0)),
+    radial-gradient(60% 50% at 80% 100%, rgba(52, 211, 153, .08), rgba(52, 211, 153, 0)),
+    linear-gradient(180deg, rgba(255, 255, 255, .03) 0%, rgba(8, 9, 13, 0) 30%, rgba(8, 9, 13, .45) 100%),
+    #0c0d12;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08), inset 0 1px 0 rgba(255, 255, 255, .1);
+  pointer-events: none;
+}
+.stats-head { position: relative; z-index: 1; margin-bottom: 8px; }
+.gauges, .lower { position: relative; z-index: 1; }
+.gauges { gap: 0; padding: 12px 10px 4px 10px; }
+.lower { gap: 12px; padding: 0 12px 12px; }
+
+/* Gauges: no card. A hairline between neighbours, fading at both ends. */
+.gauge { border: 0; border-radius: 0; background: none; padding: 4px 6px 2px; }
+.gauge + .gauge::before {
+  content: "";
+  position: absolute;
+  top: 8%; bottom: 8%; left: 0;
+  width: 1px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, .12) 50%, rgba(255, 255, 255, 0));
+}
+.gauge.hot { border: 0; }
+/* The ring: slimmer, lit. The track is a faint groove, the value a bright
+   stroke with a soft halo of its own color. */
+.ring .track { stroke: rgba(255, 255, 255, .06); stroke-width: 6; }
+.ring .value { stroke-width: 6; }
+.ring .glow { stroke-width: 16; opacity: .22; }
+.ring .num { font-size: 28px; font-weight: 700; letter-spacing: -.03em; }
+.gauge .name { letter-spacing: .16em; }
+
+/* Below the gauges: a hairline across, then the mic key and the readings. */
+.lower::before {
+  content: "";
+  position: absolute;
+  top: -2px; left: 18px; right: 18px;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, .12) 20%, rgba(255, 255, 255, .12) 80%, rgba(255, 255, 255, 0));
+}
+.lower .card { border: 0; border-radius: 0; background: none; padding: 8px 4px 0; }
+.quick-mix { padding: 8px 4px 0; gap: 10px; }
+.mic {
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .13), rgba(255, 255, 255, .06));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .26), inset 0 0 0 1px rgba(255, 255, 255, .1);
+}
+.mic.muted { background: linear-gradient(180deg, rgba(244, 63, 94, .85), rgba(244, 63, 94, .6)); }
+.mix.mini { background: rgba(255, 255, 255, .06); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), inset 0 0 0 1px rgba(255, 255, 255, .06); border: 0; }
+
+/* The readings: slim glass grooves with a lit stroke. */
+.details { padding: 6px 4px 0 14px; }
+.details::before {
+  content: "";
+  position: absolute;
+  top: 10%; bottom: 6%; left: 0;
+  width: 1px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, .12) 50%, rgba(255, 255, 255, 0));
+}
+.bar {
+  height: 6px;
+  background: rgba(255, 255, 255, .08);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, .35);
+}
+.bar i { box-shadow: 0 0 10px rgba(56, 189, 248, .45); }
+.bar.power i { box-shadow: 0 0 10px rgba(251, 191, 36, .35); }
+.fan circle { fill: #0c0d12; }
+
+/* The level's color stays inside the level: the fill clips its waves, and the
+   capsule behind it no longer has a colored glow of its own that showed past
+   the fill's end as a second color. */
+.slider i { overflow: hidden; }
+.np ~ .vol { background: rgba(255, 255, 255, .1); }
+
+/* ---------- Design pass 27: one bar for volume, rings without halos, batteries in game mode ---------- */
+
+/* No mute key: the speaker in the bar mutes (a tap on it or on the bar's far
+   left). The bar is the whole capsule, so the fill starts at its very left. */
+.np ~ .vol .slider { border-radius: 24px; }
+.np ~ .vol::before { display: none; }
+.np ~ .vol .slider .spk { left: 16px; }
+.vol.muted .slider .spk { stroke: #fb7185; }
+
+/* Game mode rings: only the ring itself, no halo around it. */
+.ring .glow { display: none; }
+
+/* Game mode: the batteries of the connected devices where the fan and the core
+   clock were, the same rings as on the home screen's devices page. */
+.stat-bats { display: flex; align-items: flex-start; justify-content: space-around; gap: 6px; min-height: 0; }
+.stat-bats .bat-item { max-width: 78px; }
+.stat-bats .bat-item .donut { width: 44px; height: 44px; }
+.stat-bats .donut .bat-ico svg { width: 18px; height: 18px; }
+.stat-bats .bat-pct { font-size: 12px; }
+.stat-bats .bat-name { font-size: 9px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.stat-bats .bat-none { margin: auto; font-size: 11px; color: var(--muted); }
+
+/* ---------- Design pass 28: the big player's volume bar is the home screen's ---------- */
+
+.nf-side .vol {
+  position: relative;
+  display: block;
+  height: 48px;
+  margin: 0;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, .1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .32), inset 0 0 0 1px rgba(255, 255, 255, .12), inset 0 -8px 12px -8px rgba(0, 0, 0, .3);
+}
+.nf-side .slider, .nf-side .slider.dragging {
+  height: 48px;
+  border-radius: 24px;
+  overflow: hidden;
+  background: none;
+  box-shadow: none;
+  transform: none;
+}
+.nf-side .slider::before { content: none; }
+.nf-side .slider i {
+  top: 0; bottom: 0;
+  height: auto;
+  margin-top: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .82), rgba(255, 255, 255, .62) 55%, rgba(var(--glow, 255, 255, 255), .32));
+}
+.nf-side .slider i::after { content: none; animation: none; }
+.nf-side .slider .spk { display: block; left: 16px; mix-blend-mode: normal; stroke: #fff; z-index: 2; }
+.nf-side .slider .pct { display: block; right: 16px; mix-blend-mode: normal; color: #fff; opacity: .85; z-index: 2; }
+.nf-side .vol.muted .slider .spk { stroke: #fb7185; }
+.nf-side .vol.muted .slider i { opacity: .3; }
+.np-full.playing .slider .wv { animation-play-state: running; }
+
+/* ---------- Design pass 29: a little air between the tabs ---------- */
+@media (max-height: 400px) and (min-height: 341px) {
+  .rail { gap: 6px; }
+}
+
+/* ---------- Design pass 30: portrait layout, for one hand ---------- */
+
+/* On when Settings > "Portrait layout" is set (html.portrait, see app.js). The
+   tab bar lies along the bottom, where the thumb is, and the screens sit above
+   it, stacked instead of side by side. Each screen gets its own pass after this
+   one; this is the frame they all share. */
+html.portrait .rotate { display: none !important; }
+html.portrait body { flex-direction: column; }
+html.portrait .views { order: 1; flex: 1 1 0; min-width: 0; min-height: 0; }
+html.portrait .rail {
+  order: 2;
+  flex: 0 0 auto;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0;
+  height: 58px;
+  margin: 0 8px 8px;
+  padding: 0 6px;
+  border-right: 1px solid var(--edge);
+  border-radius: 24px;
+}
+html.portrait .logo { display: none; }
+html.portrait .tab, html.portrait .tab-pill { width: 40px; height: 44px; border-radius: 14px; }
+html.portrait .tab-pill { top: 0; left: 0; }
+html.portrait .settings-tab { margin: 0; }
+html.portrait .tab::after { top: -6px; bottom: -6px; left: -3px; right: -3px; }
+html.portrait body.clock-mode .rail { display: none; }
+
+/* Home: one column. The media card on top, the quick tiles and pages below. */
+html.portrait .home { grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: auto minmax(0, 1fr); }
+html.portrait .home .group { padding: 12px 14px; }
+html.portrait .np { gap: 14px; }
+html.portrait .np-art { width: 96px; height: 96px; max-width: none; max-height: none; border-radius: 16px; -webkit-clip-path: inset(0 round 16px); clip-path: inset(0 round 16px); }
+html.portrait .np-title { font-size: 18px; }
+html.portrait .np-artist { font-size: 13px; }
+html.portrait .transport { gap: 36px; }
+html.portrait .mini-item .donut { width: 70px; height: 70px; max-width: none; max-height: none; }
+html.portrait .mini-item .donut b { font-size: 15px; }
+
+/* Game mode in portrait: the four gauges two by two, the readings under them. */
+html.portrait .stats { grid-template-rows: auto minmax(0, 1.5fr) minmax(0, 1fr); }
+html.portrait .stats::before { top: 30px; }
+html.portrait .gauges { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); padding: 10px 8px 2px; }
+html.portrait .gauge + .gauge::before { display: none; }
+html.portrait .gauge:nth-child(even)::before { display: block; top: 12%; bottom: 12%; }
+html.portrait .ring .num { font-size: 24px; }
+html.portrait .lower { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; gap: 8px; padding: 0 12px 10px; }
+html.portrait .quick-mix { flex-direction: row; }
+html.portrait .mic { flex: 0 0 64px; flex-direction: column; padding: 8px 0; }
+html.portrait .details::before { display: none; }
+html.portrait .details { padding: 4px 4px 0; }
+
+/* ---------- Design pass 31: portrait refinements ---------- */
+
+/* Home: the row of three round buttons is for the sideways card only; in portrait
+   it squeezed the CPU / GPU pages into thin lines, so it is left out. The tiles
+   are a little lower to give the pages their room. */
+html.portrait .icon-row { display: none; }
+html.portrait .quick .shortcut-row .gtile { max-height: 78px; }
+html.portrait .home .quick .group-body { gap: 8px; }
+html.portrait .mini-pager { min-height: 118px; }
+
+/* Pages end where the tab bar begins: no loose strip under them. */
+html.portrait .view { padding-bottom: 6px; }
+html.portrait .home-box { bottom: 6px; }
+html.portrait .rail { margin-bottom: 6px; }
+
+/* Game mode in portrait, second pass: smaller gauges to win room, a mixer row
+   with real sliders, and the batteries and bars given their own space. */
+html.portrait .stats { grid-template-rows: auto minmax(0, .95fr) minmax(0, 1.25fr); }
+html.portrait .gauges { padding: 8px 14px 0; }
+html.portrait .gauge .ring { margin: 0 14px; }
+html.portrait .ring .num { font-size: 21px; }
+html.portrait .lower { grid-template-rows: minmax(104px, 1fr) auto; gap: 10px; padding: 8px 12px 12px; }
+html.portrait .lower .quick-mix { min-height: 0; padding: 0; gap: 8px; }
+html.portrait .mic { flex: 0 0 60px; }
+html.portrait .mini-mix { align-items: stretch; gap: 6px; }
+html.portrait .mix.mini { flex: 1 1 0; min-width: 0; }
+html.portrait .mix.mini .vslider { max-width: none; min-height: 60px; }
+html.portrait .lower .details { gap: 10px; justify-content: flex-start; padding: 0; }
+html.portrait .stat-bats { margin-bottom: 2px; }
+html.portrait .lower .details .meter { margin: 0; }
+
+/* The level bar is exactly as tall as its capsule. A taller screen's rule made
+   the slider 56px inside a 48px capsule, so the white fill stuck out above and
+   below it. */
+.np ~ .vol .slider { height: 100%; }
+
+/* Portrait home, third pass: everything is a little smaller so the media card,
+   the tiles and the pages (CPU/GPU, Claude, plan, batteries) fit above the bar
+   without touching it. */
+html.portrait .home .group { padding: 10px 12px; }
+html.portrait .np-art { width: 80px; height: 80px; border-radius: 14px; -webkit-clip-path: inset(0 round 14px); clip-path: inset(0 round 14px); }
+html.portrait .np-title { font-size: 17px; }
+html.portrait .group.media .group-body { gap: 8px; }
+html.portrait .transport { padding: 0; }
+html.portrait .tbtn { width: 52px; height: 52px; }
+html.portrait .tbtn.main { width: 72px; height: 54px; }
+html.portrait .home-clock { margin-bottom: 6px; }
+html.portrait .quick .shortcut-row { flex: 0 0 auto; gap: 6px; }
+html.portrait .quick .shortcut-row .gtile { aspect-ratio: auto; height: 56px; max-height: 56px; border-radius: 14px; }
+html.portrait .stile-name { font-size: 9px; bottom: 4px; }
+html.portrait .quick .gtile.stile .icon { top: 34%; height: 40%; }
+html.portrait .stile .initial { top: 34%; font-size: 20px; }
+html.portrait .home .quick .group-body { gap: 6px; }
+html.portrait .mini-pager { min-height: 0; flex: 1 1 0; }
+html.portrait .mini { gap: 6px; }
+html.portrait .mini-item .donut { width: 54px; height: 54px; }
+html.portrait .mini-item .donut b { font-size: 13px; }
+html.portrait .bat-page { padding: 4px 6px; }
+html.portrait .bat-item .donut { width: 42px; height: 42px; }
+html.portrait .donut .bat-ico svg { width: 17px; height: 17px; }
+html.portrait .bat-pct { font-size: 12px; }
+html.portrait .bat-name { font-size: 9px; }
+
+/* ---------- Design pass 32: the confirm sheet (sleep, shut down and the like) ---------- */
+
+/* The screen behind goes soft and dark; a glass card in the app's own look sits
+   in the middle: dark ground, a faint rim, a soft light in the action's color. */
+.pw-sheet {
+  position: fixed;
+  top: 0; right: 0; bottom: 0; left: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+  background: rgba(6, 7, 11, .5);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  --pw: 129, 140, 248;
+}
+.pw-sheet.shutdown { --pw: 244, 63, 94; }
+.pw-sheet.plain { --pw: 120, 150, 230; }
+.pw-sheet[hidden] { display: none; }
+.pw-box {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 24px;
+  background:
+    radial-gradient(90% 70% at 0% 0%, rgba(var(--pw), .28), rgba(var(--pw), 0) 70%),
+    linear-gradient(180deg, rgba(255, 255, 255, .04) 0%, rgba(8, 9, 13, 0) 30%, rgba(8, 9, 13, .45) 100%),
+    #0c0d12;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1), inset 0 1px 0 rgba(255, 255, 255, .16), 0 24px 60px -20px rgba(0, 0, 0, .85);
+  animation: pwin .28s var(--ease);
+}
+@keyframes pwin { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
+.pw-head { display: flex; align-items: center; gap: 12px; }
+.pw-ic {
+  flex: none;
+  width: 38px; height: 38px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(var(--pw), .4), rgba(var(--pw), .16));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), inset 0 0 0 1px rgba(255, 255, 255, .1);
+}
+.pw-ic svg { width: 20px; height: 20px; fill: none; stroke: #fff; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.pw-title { font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+
+/* The time left, when something is waiting: tap it to cancel. */
+.pw-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(var(--pw), .26), rgba(var(--pw), .1));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22), inset 0 0 0 1px rgba(var(--pw), .4);
+  color: #fff;
+  font: inherit;
+  text-align: left;
+  transition: transform .15s var(--ease), opacity .2s;
+}
+.pw-left:active { transform: scale(.98); opacity: .85; }
+.pw-left span { flex: 1; font-size: 12px; font-weight: 600; color: rgba(255, 255, 255, .75); }
+.pw-left b { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.pw-left small { flex: none; font-size: 10px; color: rgba(255, 255, 255, .55); }
+
+.pw-opts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.pw-opts.one { grid-template-columns: minmax(0, 1fr); }
+.pw-opt {
+  height: 48px;
+  padding: 0;
+  border: 0;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .13), rgba(255, 255, 255, .06));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22), inset 0 0 0 1px rgba(255, 255, 255, .08);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  transition: transform .15s var(--ease), opacity .2s;
+}
+.pw-opt.now { background: linear-gradient(180deg, rgba(var(--pw), .85), rgba(var(--pw), .55)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), inset 0 0 0 1px rgba(255, 255, 255, .12); }
+.pw-opt:active { transform: scale(.95); opacity: .85; }
+.pw-no { height: 36px; border: 0; background: none; color: rgba(255, 255, 255, .55); font: inherit; font-size: 13px; font-weight: 600; }
+.pw-no:active { color: #fff; }

@@ -37,6 +37,7 @@
 | `internal/tray`, `internal/desktop` | Notification-area icon and menu, dashboard window, dialogs, start with Windows. |
 | `web/static` | The phone panel. |
 | `web/admin` | The dashboard and its two user guides (iPhone and Android). Both folders are embedded into the executable with `go:embed`. |
+| `internal/usb` | Cable connection for Android: when a phone with USB debugging is plugged in, it asks `adb` to forward the phone's port 8765 to a second listener on `127.0.0.1:<port+1>`. That listener serves the panel but not the dashboard (see SECURITY.md). |
 | `android` | The Android app: a full-screen WebView onto the panel, with a connection screen that scans the QR code or takes the address by hand. |
 
 Windows APIs are called directly through `syscall`, with no cgo. Outside the Go standard library there are only two small dependencies: [`github.com/coder/websocket`](https://github.com/coder/websocket) for the WebSocket and [`rsc.io/qr`](https://pkg.go.dev/rsc.io/qr) for the pairing QR code.

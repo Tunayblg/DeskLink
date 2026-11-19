@@ -82,6 +82,8 @@ type Server struct {
 	web       fs.FS
 	// assetVersion changes whenever the panel's files do (see AssetVersion).
 	assetVersion string
+	// A sleep or shut down waiting for its time (see power.go).
+	power powerState
 	// Rate limit for /api/report.
 	reportMu sync.Mutex
 	reportAt time.Time
@@ -229,6 +231,22 @@ func (s *Server) Handler() http.Handler {
 	return lanOnly(h)
 }
 
+// USBHandler is the handler for the listener a phone reaches through its cable
+// (see package usb). The phone's traffic arrives from this PC's own loopback
+// address, which would pass for "this PC" and so for the dashboard; any app on
+// the phone could then reach the dashboard. So the dashboard is not served here:
+// the phone gets the panel and pairing, like on Wi-Fi.
+func (s *Server) USBHandler() http.Handler {
+	h := s.Handler()
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/admin" || strings.HasPrefix(r.URL.Path, "/admin/") {
+			http.NotFound(w, r)
+			return
+		}
+		h.ServeHTTP(w, r)
+	})
+}
+
 type statusRecorder struct {
 	http.ResponseWriter
 	status int
@@ -332,6 +350,7 @@ type clientMsg struct {
 	Text   string `json:"text,omitempty"`   // "type": what to type on the PC (see typing.go)
 	Send   bool   `json:"send,omitempty"`   // "type": press Enter afterwards; "key" uses Action for the key's name
 	Window uint64 `json:"window,omitempty"` // "type", "key": a window from the "windows" list to send it to; 0: the one in front
+	Delay  int    `json:"delay,omitempty"`  // "press": seconds to wait first (sleep and shut down only); "powercancel" drops it
 }
 
 type serverMsg struct {
@@ -346,6 +365,7 @@ type serverMsg struct {
 	Claude     *claude.Usage        `json:"claude,omitempty"`
 	Art        map[string]string    `json:"art,omitempty"` // art ID -> data: URI, each cover sent once
 	Mixer      *mixerView           `json:"mixer,omitempty"`
+	Power      *powerPlan           `json:"power,omitempty"`      // "power": the sleep or shut down that is waiting (absent: none)
 	Mic        *media.Mic           `json:"mic,omitempty"`        // "micack": the microphone now (absent: none)
 	Icons      map[string]string    `json:"icons,omitempty"`      // mixer app ID -> data: URI, each sent once
 	Shortcuts  []publicShortcut     `json:"shortcuts,omitempty"`  // "layout": the three home screen shortcut tiles
@@ -393,6 +413,12 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if pm, ok := s.planMsg(); ok {
+		if err := wsjson.Write(ctx, c, pm); err != nil {
+			return
+		}
+	}
+
+	if pm := s.powerMsg(); pm.Power != nil {
 		if err := wsjson.Write(ctx, c, pm); err != nil {
 			return
 		}
@@ -612,6 +638,20 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			}()
 			continue
 		}
+		if msg.Type == "powercancel" {
+			s.cancelPower()
+			continue
+		}
+		if msg.Type == "press" && msg.Delay > 0 {
+			reply := serverMsg{Type: "result", ID: msg.ID, OK: true}
+			if err := s.schedulePower(msg.ID, time.Duration(msg.Delay)*time.Second); err != nil {
+				reply.OK, reply.Error = false, err.Error()
+			}
+			if err := wsjson.Write(ctx, c, reply); err != nil {
+				return
+			}
+			continue
+		}
 		if msg.Type == "mediactl" {
 			if media.ValidAction(msg.Action) && msg.Source != "" && s.knownSource(msg.Source) {
 				s.control(msg.Source, msg.Action)
@@ -679,6 +719,10 @@ func (s *Server) press(id string, last *sync.Map) error {
 		return nil
 	}
 	last.Store(id, now)
+	// Sleeping or shutting down now makes a waiting plan pointless: it would fire after the PC is back.
+	if a.Type == "system" && (a.Command == "sleep" || a.Command == "shutdown") {
+		s.cancelPower()
+	}
 	if s.gameOpen(cfg, id) {
 		return errAlreadyRunning
 	}

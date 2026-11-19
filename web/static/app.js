@@ -12,6 +12,43 @@
   // It starts from the "rotate your phone" screen, and after that whenever
   // the app opens upright. Turning the phone for real leaves it.
   var ROT_KEY = "desklink.rotate";
+  // Portrait layout (one-handed use): held upright, the tab bar lies along the
+  // bottom and the screens are stacked, with no sideways frame. It is automatic;
+  // Settings can switch it off (the old turn-your-phone screen and sideways
+  // frame then come back). Kept here because it is needed before anything else is drawn.
+  var LAYOUT_KEY = "desklink.layout";
+  var portraitMode = true;    // on unless switched off in Settings: upright phone, portrait layout
+  var portraitNow = false;    // the choice, and the window really is upright: the layout in use
+  try { portraitMode = localStorage.getItem(LAYOUT_KEY) !== "off"; } catch (e) { /* no storage */ }
+  function applyLayout() {
+    portraitNow = portraitMode && window.innerHeight > window.innerWidth;
+    document.documentElement.classList.toggle("portrait", portraitNow);
+  }
+  applyLayout();
+  // Held sideways the panel keeps its sideways layout even with the choice on;
+  // turning the phone upright switches to the bottom bar and back. iOS is slow and
+  // unreliable about telling a page that it turned (the resize event can come before
+  // the window has its new size), so every signal there is is listened to, and the
+  // size is also looked at twice a second.
+  function relayout() {
+    var was = portraitNow;
+    applyLayout();
+    if (was === portraitNow) return;
+    var pill = document.getElementById("tab-pill");
+    if (pill) { pill.style.top = ""; pill.style.left = ""; pill.style.transform = ""; }
+    if (typeof placePill === "function") placePill();
+  }
+  function relayoutSoon() { [0, 120, 350, 800].forEach(function (ms) { setTimeout(relayout, ms); }); }
+  window.addEventListener("resize", relayoutSoon);
+  window.addEventListener("orientationchange", relayoutSoon);
+  window.addEventListener("pageshow", relayoutSoon);
+  if (window.visualViewport) window.visualViewport.addEventListener("resize", relayoutSoon);
+  if (window.matchMedia) {
+    var portraitQuery = window.matchMedia("(orientation: portrait)");
+    if (portraitQuery.addEventListener) portraitQuery.addEventListener("change", relayoutSoon);
+    else if (portraitQuery.addListener) portraitQuery.addListener(relayoutSoon);
+  }
+  setInterval(relayout, 500);
   var framed = window.parent !== window;
   // The turn direction is remembered per physical position of the phone, so the
   // sideways position it was last flipped in is not mixed up with upright.
@@ -27,7 +64,7 @@
     var force = false;
     try { force = sessionStorage.getItem(ROT_KEY) === "now"; sessionStorage.removeItem(ROT_KEY); } catch (e) { /* no storage */ }
     var deg = rotPref();
-    if (framed || !deg) return false;
+    if (framed || !deg || (portraitMode && !force)) return false;
     var upright = window.innerHeight > window.innerWidth;
     // A window taller than wide is the stuck-in-portrait case, whether the
     // phone is held upright or already sideways.
@@ -139,9 +176,10 @@
       devMicNet: "Dictation needs an internet connection.", devMicQuiet: "Did not hear anything. Try again.",
       settings: "SETTINGS", setHint: "Saved on this phone", setTabs: "Tabs", setDev: "Developer mode", setGeneral: "General",
       tabHome: "Home", tabGames: "Games", tabStats: "Stats", tabWatch: "Watch mode", tabDev: "Developer", tabPad: "Trackpad", tabClock: "Clock",
-      setActivity: "Show what Claude / Codex is doing", setUsage: "Show usage", setAutosend: "Send after dictation", setLang: "Dictation language", setCalm: "Calm mode", setReset: "Reset tabs and settings", setResetDone: "Reset",
+      setActivity: "Show what Claude / Codex is doing", setUsage: "Show usage", setAutosend: "Send after dictation", setLang: "Dictation language", setCalm: "Calm mode", setPortrait: "Portrait layout when held upright", setReset: "Reset tabs and settings", setResetDone: "Reset",
       setUp: "Move up", setDown: "Move down",
       watchMode: "WATCH MODE", brightness: "BRIGHTNESS", shutdownQ: "Shut down the PC?",
+      pwNow: "Now", pwMin: "{} min", pwCancel: "Cancel", pwSleepIn: "Sleep in", pwShutIn: "Shut down in", pwTapCancel: "Tap to cancel", pwSet: "{} in {} min", pwOff: "Cancelled", pwShutLabel: "Shut down", pwYes: "Yes",
       gameMode: "GAME MODE", gpuFan: "GPU FAN", gpuFanIdle: "GPU FAN · IDLE",
       coreClock: "CORE CLOCK", noGpu: "No NVIDIA GPU found. GPU stats are only available for NVIDIA cards for now.",
       mic: "MIC", noMic: "NO MIC", padHint: "Slide to move · tap to click · two fingers: right click · three: middle click", sound: "SOUND", soundHint: "Swipe back for stats", master: "PC", brightBeta: "May not work on every monitor", brightBetaLong: "Brightness is in beta: it may not work properly with every monitor yet.", outTitle: "Sound output", outPick: "Output", outDone: "Sound now plays on", game: "GAME", noApps: "Programs that play sound show up here."
@@ -171,9 +209,10 @@
       devMicNet: "Dikte için internet gerekir.", devMicQuiet: "Ses duyulmadı. Tekrar dene.",
       settings: "AYARLAR", setHint: "Bu telefonda saklanır", setTabs: "Sekmeler", setDev: "Geliştirici modu", setGeneral: "Genel",
       tabHome: "Ana ekran", tabGames: "Oyunlar", tabStats: "İstatistik", tabWatch: "Dizi modu", tabDev: "Geliştirici", tabPad: "Dokunmatik yüzey", tabClock: "Saat",
-      setActivity: "Claude / Codex ne yapıyor göster", setUsage: "Kullanımı göster", setAutosend: "Konuşunca hemen gönder", setLang: "Dikte dili", setCalm: "Sakin mod", setReset: "Sekmeleri ve ayarları sıfırla", setResetDone: "Sıfırlandı",
+      setActivity: "Claude / Codex ne yapıyor göster", setUsage: "Kullanımı göster", setAutosend: "Konuşunca hemen gönder", setLang: "Dikte dili", setCalm: "Sakin mod", setPortrait: "Dik tutunca dikey düzen", setReset: "Sekmeleri ve ayarları sıfırla", setResetDone: "Sıfırlandı",
       setUp: "Yukarı al", setDown: "Aşağı al",
       watchMode: "DİZİ MODU", brightness: "PARLAKLIK", shutdownQ: "Bilgisayar kapatılsın mı?",
+      pwNow: "Hemen", pwMin: "{} dk", pwCancel: "Vazgeç", pwSleepIn: "Uykuya geçmesine", pwShutIn: "Kapanmasına", pwTapCancel: "İptal için dokun", pwSet: "{} {} dk sonra", pwOff: "İptal edildi", pwShutLabel: "Bilgisayarı kapat", pwYes: "Evet",
       gameMode: "OYUN MODU", gpuFan: "GPU FANI", gpuFanIdle: "GPU FANI · DURDU",
       coreClock: "ÇEKİRDEK HIZI", noGpu: "NVIDIA ekran kartı bulunamadı. GPU verileri şimdilik sadece NVIDIA kartlarda var.",
       mic: "MİKROFON", noMic: "MİKROFON YOK", padHint: "Kaydırarak hareket ettir · dokun: tıkla · iki parmak: sağ tık · üç parmak: orta tık", sound: "SES", soundHint: "İstatistikler için geri kaydır", master: "ANA SES", brightBeta: "Her monitörde çalışmayabilir", brightBetaLong: "Parlaklık beta aşamasında: henüz her monitörle düzgün çalışmayabilir.", outTitle: "Ses çıkışı", outPick: "Çıkış", outDone: "Ses artık burada:", game: "OYUN", noApps: "Ses çalan programlar burada görünür."
@@ -284,12 +323,15 @@
     var rail = $("rail"), pill = $("tab-pill");
     if (!rail || !pill) return;
     var startY = 0, scrubbing = false, over = null;
+    // Along the rail on a sideways screen, along the bar in portrait: the finger's place on that axis.
+    function along(p) { return portraitNow ? p.clientX : p.clientY; }
     function tabAt(y) {
       var best = null, dist = Infinity;
       tabs.forEach(function (t) {
         if (t.hidden || !t.offsetHeight) return;
         var r = t.getBoundingClientRect();
-        var d = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0;
+        var lo = portraitNow ? r.left : r.top, hi = portraitNow ? r.right : r.bottom;
+        var d = y < lo ? lo - y : y > hi ? y - hi : 0;
         if (d < dist) { dist = d; best = t; }
       });
       return best;
@@ -299,10 +341,8 @@
       if (over) over.classList.remove("scrub");
       over = t;
       t.classList.add("scrub");
-      var base = parseFloat(getComputedStyle(pill).top) || 0;
       pill.style.visibility = "";
-      pill.style.transform = "translateY(" + (t.offsetTop - base) + "px)";
-      pill.classList.toggle("soft", t.classList.contains("settings-tab"));
+      movePill(pill, t);
     }
     function finish(open) {
       if (!scrubbing) return;
@@ -316,15 +356,15 @@
     rail.addEventListener("touchstart", function (e) {
       scrubbing = false;
       over = null;
-      startY = e.touches && e.touches.length === 1 ? e.touches[0].clientY : NaN;
+      startY = e.touches && e.touches.length === 1 ? along(e.touches[0]) : NaN;
     }, { passive: true });
     rail.addEventListener("touchmove", function (e) {
       var p = e.touches && e.touches[0];
       if (!p || isNaN(startY) || document.body.classList.contains("pairing")) return;
-      if (!scrubbing && Math.abs(p.clientY - startY) < 12) return;
+      if (!scrubbing && Math.abs(along(p) - startY) < 12) return;
       scrubbing = true;
       rail.classList.add("scrubbing");
-      hover(tabAt(p.clientY));
+      hover(tabAt(along(p)));
     }, { passive: true });
     rail.addEventListener("touchend", function () { finish(true); });
     rail.addEventListener("touchcancel", function () { finish(false); });
@@ -368,17 +408,37 @@
 
   // The highlight behind the active tab. It sits where the first tab would be
   // (its CSS top) and slides down by the active tab's offset.
+  // The key behind the active tab has exactly the tab's size and left edge, so
+  // the icon sits in the middle of it however much the rail's height squeezes the tabs.
+  function fitPill(pill, t) {
+    pill.style.left = portraitNow ? "0px" : t.offsetLeft + "px";
+    pill.style.width = t.offsetWidth + "px";
+    pill.style.height = t.offsetHeight + "px";
+  }
+
+  // Moves the highlight to a tab: down the rail on a sideways screen, along the bar in portrait.
+  function movePill(pill, t) {
+    fitPill(pill, t);
+    if (portraitNow) {
+      pill.style.top = "0px";
+      pill.style.transform = "translate(" + t.offsetLeft + "px," + t.offsetTop + "px)";
+    } else {
+      pill.style.top = "";
+      var base = parseFloat(getComputedStyle(pill).top) || 0;
+      pill.style.transform = "translateY(" + (t.offsetTop - base) + "px)";
+    }
+    pill.classList.toggle("soft", t.classList.contains("settings-tab"));
+  }
+
   function placePill() {
     var pill = $("tab-pill");
-    var base = parseFloat(getComputedStyle(pill).top) || 0;
     var found = false;
     tabs.forEach(function (t) {
       var on = t.dataset.view === view && !t.hidden;
       t.classList.toggle("active", on);
       if (on) {
         found = true;
-        pill.style.transform = "translateY(" + (t.offsetTop - base) + "px)";
-        pill.classList.toggle("soft", t.classList.contains("settings-tab"));
+        movePill(pill, t);
       }
     });
     pill.style.visibility = found ? "" : "hidden";
@@ -539,6 +599,9 @@
       case "mixer":
         if (msg.mixer) renderMixer(msg.mixer, msg.icons);
         break;
+      case "power":
+        setPower(msg.power);
+        break;
       case "brightness":
         onBrightness(msg);
         break;
@@ -576,13 +639,13 @@
     }
     clearInterval(progressTimer);
     progressTimer = want.media ? setInterval(function () { tickProgress(false); }, 1000) : null;
-    // Batteries change slowly: ask when the home screen shows, then once a minute.
+    // Devices come and go: ask when the home screen shows, then every 20 s (6 s on the devices page).
     clearInterval(batTimer);
     batTimer = null;
-    if (live && view === "home" && batPage) {
+    if (live && ((view === "home" && batPage) || view === "stats")) {
       askBatteries();
       // Faster on the devices page, so a device that is switched on shows up soon.
-      batTimer = setInterval(askBatteries, miniPage === 3 ? 15000 : 30000);
+      batTimer = setInterval(askBatteries, view === "home" && miniPage === 3 ? 6000 : 20000);
     }
     // The plan counts down on the phone's own clock, so it needs no stream.
     clearInterval(planTimer);
@@ -698,20 +761,10 @@
     if (tag === "button") el.type = "button";
     el.dataset.id = id;
     if (accent) el.style.setProperty("--a", accent);
-    el.addEventListener("touchstart", function (ev) { ripple(el, ev.touches[0]); }, { passive: true });
-    el.addEventListener("mousedown", function (ev) { ripple(el, ev); });
+    // No ripple: Safari clips a growing child of a rounded control to its square
+    // box, so it flashed as a square. Each control's own press look is enough.
     el.addEventListener("click", onPress);
     return el;
-  }
-
-  function ripple(el, point) {
-    var r = el.getBoundingClientRect();
-    var dot = document.createElement("span");
-    dot.className = "ripple";
-    dot.style.left = point.clientX - r.left + "px";
-    dot.style.top = point.clientY - r.top + "px";
-    dot.addEventListener("animationend", function () { dot.remove(); });
-    el.appendChild(dot);
   }
 
   function flash(id, cls, ms) {
@@ -744,7 +797,7 @@
   function press(b) {
     if (b.page) { flash(b.id, "pressed", 160); showView(b.page); return; }
     if (!ws || ws.readyState !== WebSocket.OPEN) { toast(t("notConnected")); return; }
-    if (b.confirm && !window.confirm(b.label + "?")) return;
+    if (b.confirm) { confirmSheet(b); return; }
     send({ type: "press", id: b.id });
     flash(b.id, "pressed", 160);
     // Remember which way the next track change goes, for the cover slide.
@@ -752,6 +805,116 @@
       np.dir = b.id === np.prevId ? -1 : 1;
       np.dirAt = Date.now();
     }
+  }
+
+  // ---- Confirm sheet: sleep, shut down and the other buttons that ask first -----
+  //
+  // A glass card over the blurred screen. Sleep and shut down can go now or wait
+  // 5, 15 or 30 minutes. A waiting one shows its time left at the top of the
+  // card, and tapping that cancels it. Pressing "now" asks nothing more.
+
+  var pwPlan = null;      // { command, at } the PC is waiting to run; at is on the phone's clock
+  var pwSheet = null;
+  var pwTimer = null;
+
+  function powerKind(b) {
+    if (b.id === "sleep" || b.icon === "moon") return "sleep";
+    if (b.id === "shutdown" || b.icon === "power") return "shutdown";
+    return "";
+  }
+
+  function setPower(p) {
+    pwPlan = p ? { command: p.command, at: Date.now() + (+p.in || 0) } : null;
+    if (pwSheet && !pwSheet.hidden) renderConfirm();
+  }
+
+  function pwLeft() {
+    var s = Math.max(0, Math.ceil((pwPlan.at - Date.now()) / 1000));
+    return Math.floor(s / 60) + ":" + ("0" + (s % 60)).slice(-2);
+  }
+
+  function closeConfirm() {
+    if (!pwSheet) return;
+    pwSheet.hidden = true;
+    clearInterval(pwTimer);
+    pwTimer = null;
+  }
+
+  var pwButton = null;    // the button the open sheet is for
+
+  function confirmSheet(b) {
+    pwButton = b;
+    if (!pwSheet) {
+      pwSheet = mk("div", "pw-sheet");
+      pwSheet.hidden = true;
+      document.body.appendChild(pwSheet);
+      // A tap outside the card closes it.
+      onTap(pwSheet, function (e) { if (e && e.target === pwSheet) closeConfirm(); });
+    }
+    pwSheet.hidden = false;
+    renderConfirm();
+    clearInterval(pwTimer);
+    pwTimer = setInterval(function () {
+      var el = pwSheet && pwSheet.querySelector(".pw-left b");
+      if (el && pwPlan) el.textContent = pwLeft();
+    }, 1000);
+  }
+
+  function renderConfirm() {
+    var b = pwButton, kind = powerKind(b);
+    pwSheet.className = "pw-sheet " + (kind || "plain");
+    pwSheet.innerHTML = "";
+    var box = mk("div", "pw-box");
+    var head = mk("div", "pw-head");
+    var ic = ICONS[b.icon];
+    var icon = mk("span", "pw-ic");
+    if (ic) icon.innerHTML = svg(ic[0]);
+    head.appendChild(icon);
+    head.appendChild(mk("span", "pw-title", b.label));
+    box.appendChild(head);
+
+    if (pwPlan) {
+      var left = mk("button", "pw-left");
+      left.type = "button";
+      left.innerHTML = "<span>" + (pwPlan.command === "sleep" ? t("pwSleepIn") : t("pwShutIn")) + "</span><b>" + pwLeft() + "</b><small>" + t("pwTapCancel") + "</small>";
+      onTap(left, function () {
+        send({ type: "powercancel" });
+        pwPlan = null;
+        toast(t("pwOff"));
+        closeConfirm();
+      });
+      box.appendChild(left);
+    }
+
+    var row = mk("div", "pw-opts" + (kind ? "" : " one"));
+    function opt(label, cls, fn) {
+      var o = mk("button", "pw-opt " + cls, label);
+      o.type = "button";
+      onTap(o, fn);
+      row.appendChild(o);
+    }
+    opt(kind ? t("pwNow") : t("pwYes"), "now", function () {
+      closeConfirm();
+      if (!ws || ws.readyState !== WebSocket.OPEN) { toast(t("notConnected")); return; }
+      send({ type: "press", id: b.id });
+      flash(b.id, "pressed", 160);
+    });
+    if (kind) {
+      [5, 15, 30].forEach(function (m) {
+        opt(t("pwMin", m), "", function () {
+          closeConfirm();
+          if (!ws || ws.readyState !== WebSocket.OPEN) { toast(t("notConnected")); return; }
+          send({ type: "press", id: b.id, delay: m * 60 });
+          toast(t("pwSet").replace("{}", b.label).replace("{}", m));
+        });
+      });
+    }
+    box.appendChild(row);
+    var no = mk("button", "pw-no", t("pwCancel"));
+    no.type = "button";
+    onTap(no, closeConfirm);
+    box.appendChild(no);
+    pwSheet.appendChild(box);
   }
 
   // ---- Home --------------------------------------------------------------
@@ -765,14 +928,17 @@
     pause: '<rect x="5.5" y="4" width="4.6" height="16" rx="1.4"/><rect x="13.9" y="4" width="4.6" height="16" rx="1.4"/>'
   };
   var np = null; // now-playing elements, set when the media card is rendered
+  var homeBox = null; // the one box behind all the home screen's cards (see renderHome)
 
   var renderers = {
     // media: a now-playing card. Buttons 1-3 are previous / play-pause / next,
     // button 4 (mute) sits next to the volume slider.
     media: function (body, buttons) {
       var card = body.parentNode;
-      // Blurred cover behind everything: two layers so a new cover can cross-fade in.
-      card.insertAdjacentHTML("afterbegin", '<div class="np-bg"><i></i><i></i></div>');
+      // The cover's light, two layers so a new cover can cross-fade in. It belongs
+      // to the home screen's one box, so it lies behind the media part and the
+      // right part alike, with nothing in between.
+      (homeBox || card).insertAdjacentHTML("afterbegin", '<div class="np-bg">' + '<i><b class="g bl"></b><b class="g tl"></b><b class="g br"></b><b class="g tr"></b></i>'.repeat(2) + '</div>');
       body.insertAdjacentHTML("beforeend",
         '<div class="np idle"><div class="np-art">' + svg('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>') +
         '<img alt=""><img alt=""></div><div class="np-meta"><span class="np-app"><i></i><b></b></span>' +
@@ -791,30 +957,25 @@
       });
       body.appendChild(transport);
 
-      // Volume: [mute] [slider] — the fourth button (if any) is the mute key.
+      // Volume: one bar. Tapping the speaker, or the bar's far left, is the mute key (the fourth button).
       var vol = document.createElement("div");
       vol.className = "vol";
       var muteBtn = null;
-      if (buttons[3]) {
-        var mb = buttons[3];
-        muteBtn = control("button", "vbtn", mb.id, null, function () { mediaControl("mute", mb); toggleMuteLocally(); });
-        muteBtn.setAttribute("aria-label", mb.label);
-        var mic = iconOf(mb);
-        muteBtn.innerHTML = mic ? svg(mic[0]) : "";
-        vol.appendChild(muteBtn);
-      }
+      // No key of its own: the speaker in the bar mutes (see bindSlider's mute zone).
       vol.insertAdjacentHTML("beforeend",
         '<div class="slider" role="slider" aria-label="Volume" aria-valuemin="0" aria-valuemax="100">' +
-        '<i></i>' + svg('<path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/>', "spk") +
+        '<i><b class="wv a"></b><b class="wv b"></b></i>' + svg('<path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/>', "spk") +
         '<span class="pct"></span></div>');
       body.appendChild(vol);
-      bindSlider(vol.querySelector(".slider"));
+      vol.querySelector(".slider").dataset.mute = "1";
+      bindSlider(vol.querySelector(".slider"), buttons[3] || null);
+      var muteCfgHome = buttons[3] || null;
 
       np = {
         card: card,
         root: body.querySelector(".np"),
         imgs: body.querySelectorAll(".np-art img"),
-        bgs: card.querySelectorAll(".np-bg i"),
+        bgs: (homeBox || card).querySelectorAll(".np-bg i"),
         front: 0,
         meta: body.querySelector(".np-meta"),
         app: body.querySelector(".np-app b"),
@@ -834,6 +995,7 @@
         spk: vol.querySelector(".slider .spk"),
         pct: vol.querySelector(".pct"),
         mute: muteBtn,
+        muteCfg: muteCfgHome,
         dots: body.appendChild(document.createElement("div")),
         volSource: "",
         state: null
@@ -920,6 +1082,7 @@
         miniEls[k] = { root: item, value: item.querySelector("b"), ring: item.querySelector(".value") };
       });
       bindPager(pager, track);
+      miniTrack = track;
       setMiniPage(miniPage, true);
       if (claudeLast) renderClaude(claudeLast);
       renderPlan();
@@ -975,6 +1138,7 @@
   var FAV_KEY = "desklink.favpage";
   var favPage = (function () { var v = parseInt(load(FAV_KEY), 10); return v >= 0 && v <= 3 ? v : -1; })();
   var favEl = null;       // the star button, once the home screen is drawn
+  var miniTrack = null;   // the pager's sliding track (kept, as the card is not in the page yet while it is built)
   var miniPage = favPage >= 0 ? favPage : 0; // 0: CPU and GPU, 1: Claude, 2: plan, 3: devices
 
   // Stars the page showing now, or takes the star off it.
@@ -1785,6 +1949,10 @@
 
     general.appendChild(flag("appsAll", t("setAppsAll")));
     general.appendChild(flag("calm", t("setCalm")));
+    general.appendChild(setRow(t("setPortrait"), swtch(portraitMode), null, function () {
+      try { if (portraitMode) localStorage.setItem(LAYOUT_KEY, "off"); else localStorage.removeItem(LAYOUT_KEY); } catch (e) { /* no storage */ }
+      (framed ? window.parent : window).location.reload();
+    }, portraitMode));
     var reset = mk("button", "set-reset", t("setReset"));
     reset.type = "button";
     onTap(reset, function () {
@@ -2199,7 +2367,7 @@
     finishWrap();
     miniPage = p;
     if (favEl) favEl.classList.toggle("on", favPage === p);
-    var track = document.querySelector(".mini-track");
+    var track = miniTrack;
     if (track) {
       var rest = p ? "translateX(-" + (p * 100 / PAGES).toFixed(3) + "%)" : "";
       track.style.transition = instant ? "none" : "";
@@ -2320,9 +2488,15 @@
   function renderHome(groups) {
     var home = $("view-home");
     home.innerHTML = "";
+    // One box behind all the cards: it carries the ground, the outline and the
+    // cover's light, and the cards sit in it see-through (see .home-box).
+    homeBox = document.createElement("div");
+    homeBox.className = "home-box";
+    home.appendChild(homeBox);
     np = null;
     clockEl = null;
     favEl = null;
+    miniTrack = null;
     batPage = null;
     miniEls = null;
     claudeEls = null;
@@ -2366,7 +2540,7 @@
   var batAsked = 0;       // when the PC was last asked
 
   function askBatteries() {
-    if (Date.now() - batAsked < 10000) return;
+    if (Date.now() - batAsked < 4000) return;
     if (send({ type: "batteries" })) batAsked = Date.now();
   }
 
@@ -2395,13 +2569,19 @@
   // 20% and under is red, 40% and under amber.
   function renderBatteries(list) {
     batLast = list || [];
-    if (!batPage) return;
-    batPage.innerHTML = "";
+    fillBatteries(batPage, 5);
+    fillBatteries($("stats-bat"), 4);
+  }
+
+  // One ring per device in a box (the pager's devices page, and game mode).
+  function fillBatteries(box, max) {
+    if (!box) return;
+    box.innerHTML = "";
     if (!batLast.length) {
-      batPage.appendChild(textNode("bat-none", t("batNone")));
+      box.appendChild(textNode("bat-none", t("batNone")));
       return;
     }
-    batLast.slice(0, 5).forEach(function (d) {
+    batLast.slice(0, max).forEach(function (d) {
       var pct = Math.max(0, Math.min(100, Math.round(+d.percent || 0)));
       var item = document.createElement("div");
       item.className = "bat-item" + (pct <= 20 ? " low" : pct <= 40 ? " mid" : "");
@@ -2411,7 +2591,7 @@
         '<span class="bat-ico"><svg viewBox="0 0 24 24">' + (BAT_ICONS[d.kind] || BAT_ICONS.device) + '</svg></span></div>' +
         '<b class="bat-pct">' + pct + '%</b>';
       item.appendChild(textNode("bat-name", batShort(d.name)));
-      batPage.appendChild(item);
+      box.appendChild(item);
     });
   }
 
@@ -2540,7 +2720,7 @@
   // the configured buttons (media keys).
   function mediaControl(action, b) {
     var src = shownSource();
-    if (!src || (action === "mute" && src.volume < 0)) { if (b) press(b); return false; }
+    if (!src || (action === "mute" && src.volume < 0)) { if (b) { press(b); return true; } return false; }
     if (!ws || ws.readyState !== WebSocket.OPEN) { toast(t("notConnected")); return false; }
     send({ type: "mediactl", source: src.id, action: action });
     if (b) flash(b.id, "pressed", 160);
@@ -2563,7 +2743,7 @@
     // A new track's title often arrives before its cover: keep the old cover
     // until then instead of flashing the empty frame.
     else if (np.lastArt && sameSource) revealArt(true);
-    else showArt(null);
+    else { showArt(null); np.lastArt = null; purpleGlow(); }
     renderDots(list, m.id);
     var lockState = (locked ? "1" : "0") + (m.id ? "1" : "0");
     if (np.lockState !== lockState) {
@@ -2595,6 +2775,8 @@
       // New track: the old text lifts away, then the new text rises into place.
       var meta = np.meta, first = !np.title.textContent;
       clearTimeout(np.textTimer);
+      // For the next 1.4 s the progress bar glides to its new place instead of jumping.
+      if (!first) np.easeUntil = Date.now() + 1400;
       meta.classList.add("out");
       np.textTimer = setTimeout(function () {
         np.title.textContent = title;
@@ -2603,7 +2785,7 @@
         meta.classList.add("in");
         void meta.offsetWidth;
         meta.classList.remove("in");
-      }, first ? 0 : 230);
+      }, first ? 0 : 480);
     }
     // The server repeats this about every second; only touch the DOM on a change.
     if (np.appText !== app) { np.appText = app; np.app.textContent = app; }
@@ -2617,6 +2799,10 @@
     np.volSource = own ? m.id : "";
     np.slider.classList.toggle("app", !!own);
     var v = own ? m.volume : mediaState.volume, muted = own ? m.muted : mediaState.muted;
+    if (muteWant) {
+      if (muteWant.src !== np.volSource || muted === muteWant.muted || Date.now() > muteWant.until) muteWant = null;
+      else muted = muteWant.muted;
+    }
     if (v >= 0 && Date.now() > volumeLockUntil) setVolume(v, muted);
     if (full) fillFull();
   }
@@ -2684,8 +2870,8 @@
       '<div class="nf-side"><div class="nf-meta"><span class="nf-app"></span><span class="nf-title"></span><span class="nf-artist"></span></div>' +
       '<div class="np-progress"><div class="track"><i></i></div><div class="times"><span class="pos">0:00</span><span class="dur">0:00</span></div></div>' +
       '<div class="transport"></div>' +
-      '<div class="vol">' + svg('<path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/>', "nf-spk") +
-      '<div class="slider" role="slider" aria-label="Volume" aria-valuemin="0" aria-valuemax="100"><i></i><span class="pct"></span></div></div></div>';
+      '<div class="vol">' +
+      '<div class="slider" role="slider" aria-label="Volume" aria-valuemin="0" aria-valuemax="100"><i><b class="wv a"></b><b class="wv b"></b></i>' + svg('<path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/>', "spk") + '<span class="pct"></span></div></div></div>';
     var transport = el.querySelector(".transport");
     var glyphs = [GLYPH.prev, GLYPH.play, GLYPH.next], acts = ["prev", "toggle", "next"];
     glyphs.forEach(function (g, i) {
@@ -2697,7 +2883,8 @@
       transport.appendChild(b);
     });
     var slider = el.querySelector(".slider");
-    bindSlider(slider);
+    slider.dataset.mute = "1"; // the same bar as on the home screen: the speaker and the far left mute
+    bindSlider(slider, np ? np.muteCfg : null);
     el.addEventListener("click", function (e) {
       if (e.target.closest && e.target.closest(".slider, .tbtn")) return;
       closeFull();
@@ -2707,7 +2894,7 @@
       root: el, bg: el.querySelector(".nf-bg"), layers: el.querySelectorAll(".nf-layer"), cur: 0, art: el.querySelector(".nf-art"), imgs: el.querySelectorAll(".nf-art img"), front: 0, meta: el.querySelector(".nf-meta"),
       app: el.querySelector(".nf-app"), title: el.querySelector(".nf-title"), artist: el.querySelector(".nf-artist"),
       pos: el.querySelector(".pos"), dur: el.querySelector(".dur"), bar: el.querySelector(".track i"),
-      play: transport.children[1], slider: slider, level: slider.querySelector("i"), spk: el.querySelector(".nf-spk"),
+      play: transport.children[1], slider: slider, level: slider.querySelector("i"), spk: el.querySelector(".slider .spk"),
       pct: el.querySelector(".pct"), vol: el.querySelector(".vol"), src: "", bgCss: "", glyphPlaying: null
     };
   }
@@ -2737,6 +2924,10 @@
     if (!full || !np) return;
     var m = shownSource() || {};
     if (!m.title) { closeFull(); return; }
+    // The volume bar here is the home screen's: its waves follow the song and take the cover's color.
+    full.root.classList.toggle("playing", !!m.playing);
+    var glow = $("view-home").style.getPropertyValue("--glow");
+    if (glow) full.root.style.setProperty("--glow", glow);
     if (np.lastArt && full.src !== np.lastArt) {
       var first = !full.src, src = np.lastArt;
       full.src = src;
@@ -2823,7 +3014,8 @@
     np.pos.textContent = fmt(p);
     // Remaining time, as in Apple Music.
     np.dur.textContent = d > 0 ? "-" + fmt(d - p) : "0:00";
-    np.bar.style.transition = jump || !playback || !playback.playing ? "none" : "transform 1s linear";
+    var easing = np.easeUntil && Date.now() < np.easeUntil;
+    np.bar.style.transition = easing ? "transform 1.2s cubic-bezier(.22, 1, .36, 1)" : jump || !playback || !playback.playing ? "none" : "transform 1s linear";
     // Slide the fill (not scale it) so its rounded end keeps its shape.
     np.bar.style.transform = "translateX(" + (d > 0 ? (p / d * 100 - 100).toFixed(2) : -100) + "%)";
     if (full) {
@@ -2851,6 +3043,9 @@
     np.pct.textContent = v;
     np.slider.setAttribute("aria-valuenow", v);
     np.vol.classList.toggle("muted", muted);
+    np.vol.classList.toggle("zero", v <= 0);
+    // The mute key's share of the level only shows once the fill is long enough to carry it.
+    np.vol.style.setProperty("--lv", Math.max(0, Math.min(1, (v - 20) / 30)).toFixed(2));
     if (np.mute) np.mute.classList.toggle("on", muted);
     if (full) {
       full.level.style.transform = np.level.style.transform;
@@ -2860,16 +3055,22 @@
     }
   }
 
+  // The phone flips the mute at once; the PC's reading takes a second or two to
+  // follow. Until it agrees (or 4 s pass) the wanted state stays on screen, so
+  // the key does not flick back to the old state and look reversed.
+  var muteWant = null;
   function toggleMuteLocally() {
     if (!np || !np.state) return;
     volumeLockUntil = Date.now() + 1500;
-    setVolume(np.state.volume, !np.state.muted);
+    muteWant = { muted: !np.state.muted, until: Date.now() + 4000, src: np.volSource };
+    setVolume(np.state.volume, muteWant.muted);
   }
 
   // Drag (or tap) anywhere on the slider to set the volume. While dragging,
   // the level is sent at most every 80 ms, plus once more on release.
-  function bindSlider(el) {
+  function bindSlider(el, muteCfg) {
     var dragging = false, lastSent = 0, pending = null, timer = null;
+    var muteStart = null; // x where a touch began in the mute zone, until it moves or lifts
 
     function levelAt(x) {
       var r = el.getBoundingClientRect();
@@ -2891,23 +3092,41 @@
     }
     function move(x, force) {
       if (!np) return;
+      if (muteStart !== null) {
+        if (Math.abs(x - muteStart) < 10) return; // still a tap on the speaker
+        muteStart = null;
+        el.classList.add("dragging");
+      }
       var v = levelAt(x);
       volumeLockUntil = Date.now() + 1500;
       setVolume(v, np.state ? np.state.muted && v === 0 : false);
       push(v, force);
     }
-    function start(x) { dragging = true; el.classList.add("dragging"); move(x); }
-    function end(x) {
+    function start(x) {
+      dragging = true;
+      // The far left of the home bar is the mute key: a tap there mutes, a drag from there is still a drag.
+      muteStart = el.dataset.mute && x - el.getBoundingClientRect().left < 46 ? x : null;
+      if (muteStart !== null) return;
+      el.classList.add("dragging");
+      move(x);
+    }
+    function end(x, cancelled) {
       if (!dragging) return;
       dragging = false;
       el.classList.remove("dragging");
+      if (muteStart !== null) {
+        muteStart = null;
+        if (cancelled) return; // iOS took the touch away: that was not a tap
+        if (mediaControl("mute", muteCfg)) toggleMuteLocally(); // never flip the display when nothing was sent
+        return;
+      }
       if (x !== undefined) move(x, true); else if (pending !== null) push(pending, true);
     }
 
     el.addEventListener("touchstart", function (e) { e.preventDefault(); start(e.touches[0].clientX); }, { passive: false });
     el.addEventListener("touchmove", function (e) { e.preventDefault(); if (dragging) move(e.touches[0].clientX); }, { passive: false });
     el.addEventListener("touchend", function () { end(); });
-    el.addEventListener("touchcancel", function () { end(); });
+    el.addEventListener("touchcancel", function () { end(undefined, true); });
     el.addEventListener("mousedown", function (e) {
       start(e.clientX);
       function mm(ev) { move(ev.clientX); }
@@ -3025,7 +3244,7 @@
     });
     $("watch-power").addEventListener("click", function () {
       if (!ws || ws.readyState !== WebSocket.OPEN) { toast(t("notConnected")); return; }
-      if (window.confirm(t("shutdownQ"))) send({ type: "press", id: "shutdown" });
+      confirmSheet({ id: "shutdown", label: t("pwShutLabel"), icon: "power" });
     });
   })();
 
@@ -3452,6 +3671,39 @@
 
   // Two soft glows in the cover's colors from opposite corners: the card
   // takes on the mood of the cover without showing a smeared copy of it.
+  // The home box's light takes a new main color: it fades out, changes and
+  // fades back in, in step with the card's own cross-fade.
+  function setHomeGlow(c0) {
+    var homeEl = $("view-home");
+    if (!homeEl.style.getPropertyValue("--glow")) {
+      homeEl.style.setProperty("--glow", c0);
+      np.glowTarget = c0;
+    } else if ((np.glowTarget || homeEl.style.getPropertyValue("--glow")) !== c0) {
+      np.glowTarget = c0; // compared with where the light is heading, not where it is now
+      homeEl.classList.add("glow-out");
+      clearTimeout(np.glowTimer);
+      np.glowTimer = setTimeout(function () {
+        homeEl.style.setProperty("--glow", c0);
+        homeEl.classList.remove("glow-out");
+      }, 300); // the panel's light changes together with the card's lights, not after them
+    }
+  }
+
+  // A song with no cover gets a soft violet light, as if it had a violet cover.
+  var PURPLE = ["128,96,214", "88,72,170"];
+  function purpleGlow() {
+    if (!np) return;
+    var layer = np.front;
+    np.bgs[layer].style.setProperty("--c0", PURPLE[0]);
+    np.bgs[layer].style.setProperty("--c1", PURPLE[1]);
+    np.bgs[layer].classList.add("shown");
+    np.pals = np.pals || [];
+    np.tinys = np.tinys || [];
+    np.pals[layer] = PURPLE; // the big player takes the same violet instead of the last cover's colors
+    np.tinys[layer] = "";
+    setHomeGlow(PURPLE[0]);
+  }
+
   function paintGlow(layer, img) {
     var c = palette(img);
     if (!c) return;
@@ -3460,26 +3712,38 @@
     np.tinys = np.tinys || [];
     np.tinys[layer] = tinyCover(img);
     // The card next to this one picks up the cover's main color along its near edge (see the join in style.css).
-    $("view-home").style.setProperty("--glow", c[0]);
-    np.bgs[layer].style.background =
-      "radial-gradient(90% 85% at 0% 0%, rgba(" + c[0] + ",.55), transparent 62%)," +
-      "radial-gradient(80% 90% at 100% 100%, rgba(" + c[1] + ",.42), transparent 60%)," +
-      "linear-gradient(160deg, rgba(" + c[0] + ",.14), rgba(" + c[1] + ",.06))";
+    // The light on that panel fades out, takes the new color, and fades back in, in step with the card's own cross-fade.
+    setHomeGlow(c[0]);
+    // The cover's two colors as soft light on a dark card: a strong glow top left,
+    // a second bottom right, a small bright one near the top right, and a base tint.
+    // All in one background, so the cross-fade between songs melts them together.
+    // The cover's colors as soft light on a dark card. The main color leads: strong
+    // top left, and it also lights the right side (top and bottom right), because
+    // that is the color that flows on into the right panel (--glow), so the card's
+    // right edge and the panel beside it always agree. The second color only adds
+    // depth bottom left, away from the join. (No picture: only the cover's colors.)
+    // Each light is its own element in the layer (see .np-bg .g in style.css),
+    // so on a new song they can open one after another: top left first, then
+    // bottom left and bottom right, then the light that slides up to the top
+    // right. Here the layer only learns the two colors.
+    np.bgs[layer].style.setProperty("--c0", c[0]);
+    np.bgs[layer].style.setProperty("--c1", c[1]);
   }
 
   // The cover squeezed to a few pixels and stretched back: a blur that costs the
   // phone nothing while it moves (no blur filter on a moving layer).
-  function tinyCover(img) {
+  function tinyCover(img, n) {
+    n = n || 24; // how many pixels the cover is squeezed to: fewer is blurrier
     try {
       var a = document.createElement("canvas");
-      a.width = a.height = 24;
-      a.getContext("2d").drawImage(img, 0, 0, 24, 24);
+      a.width = a.height = n;
+      a.getContext("2d").drawImage(img, 0, 0, n, n);
       var b = document.createElement("canvas");
-      b.width = b.height = 96;
+      b.width = b.height = n * 4;
       var x = b.getContext("2d");
       x.imageSmoothingEnabled = true;
       if (x.imageSmoothingQuality) x.imageSmoothingQuality = "high";
-      x.drawImage(a, 0, 0, 96, 96);
+      x.drawImage(a, 0, 0, n * 4, n * 4);
       return b.toDataURL("image/jpeg", 0.7);
     } catch (e) {
       return "";
@@ -3812,14 +4076,6 @@
     setGauge("gpu", g.usage);
     setGauge("temp", g.temp);
 
-    tween($("fan-val"), g.fan, 0);
-    $("fan-sub").textContent = g.fan > 0 ? t("gpuFan") : t("gpuFanIdle");
-    var fan = $("fan");
-    fan.classList.toggle("spinning", g.fan > 0);
-    // Faster fan, faster spin: 1.6 s per turn at idle speed down to 0.25 s at 100%.
-    fan.firstChild.style.animationDuration = (1.6 - 1.35 * Math.min(g.fan, 100) / 100).toFixed(2) + "s";
-
-    tween($("clock-val"), g.clock_mhz, 0);
     $("vram-text").textContent = gb(g.vram_used_mb) + " / " + gb(g.vram_total_mb) + " GB";
     $("vram-bar").style.transform = "scaleX(" + (g.vram_used_mb / g.vram_total_mb).toFixed(3) + ")";
     $("power-text").textContent = Math.round(g.power_w) + " / " + Math.round(g.power_limit_w) + " W";

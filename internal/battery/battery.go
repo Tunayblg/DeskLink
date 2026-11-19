@@ -99,8 +99,13 @@ func collect(nodes []node) []Device {
 			d = &dev{level: -1}
 			byAddr[a] = d
 		}
+		// Connected if any of its nodes says so. A profile node can say "not
+		// connected" for its own profile (earbuds playing music have their
+		// hands-free profile closed) while the device itself is connected, and
+		// the nodes come in no fixed order.
 		if n.known {
-			d.known, d.connected = true, n.connected
+			d.known = true
+			d.connected = d.connected || n.connected
 		}
 		if n.level >= 0 && n.level <= 100 {
 			d.level = n.level
@@ -121,7 +126,8 @@ func collect(nodes []node) []Device {
 	return out
 }
 
-const cacheFor = 15 * time.Second
+// cacheFor is short, so a device switched on or off shows within seconds.
+const cacheFor = 5 * time.Second
 
 // Reader reads the batteries, remembering the answer briefly so several
 // phones share one reading. The zero value is ready to use.

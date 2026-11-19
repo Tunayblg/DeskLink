@@ -34,9 +34,11 @@ func TestKindOf(t *testing.T) {
 	}
 }
 
+// The checksum is the XOR of the report's bytes after the transaction ID, up to the arguments' end
+// (Razer's protocol: struct bytes 2 to 87, here shifted by the report ID).
 func TestRazerBattery(t *testing.T) {
 	req := razerRequest(0x1F, 0x07, 0x80)
-	if len(req) != 91 || req[2] != 0x1F || req[6] != 0x02 || req[7] != 0x07 || req[8] != 0x80 || req[89] != (0x1F^0x02^0x07^0x80) {
+	if len(req) != 91 || req[2] != 0x1F || req[6] != 0x02 || req[7] != 0x07 || req[8] != 0x80 || req[89] != (0x02^0x07^0x80) {
 		t.Fatalf("request = % x", req[:12])
 	}
 	// An answer as a Razer mouse gives it: status 2, level 0x67 of 255.
@@ -63,8 +65,10 @@ func TestCollect(t *testing.T) {
 		{id: `BTHENUM\DEV_AABBCCDDEE03\x`, name: "Test Headset 2", level: -1, known: true, connected: false},
 		{id: `BTHENUM\{0000111E}_VID&1_PID&4\A&1&0&AABBCCDDEE03_C0`, name: "Test Headset 2 Hands-Free AG", level: 37},
 		// A headset that is on: the level comes from the profile node, the name from the device node.
+		// Its hands-free profile node, read after it, says "not connected" for that
+		// profile alone: the earbuds still count as connected.
 		{id: `BTHENUM\DEV_AABBCCDDEE02\x`, name: "Test Buds", level: -1, known: true, connected: true},
-		{id: `BTHENUM\{0000111E}_L\A&1&0&AABBCCDDEE02_C0`, name: "Test Buds Hands-Free AG", level: 100},
+		{id: `BTHENUM\{0000111E}_L\A&1&0&AABBCCDDEE02_C0`, name: "Test Buds Hands-Free AG", level: 100, known: true, connected: false},
 		// Nonsense levels are ignored.
 		{id: `BTHLE\DEV_AAAAAAAAAAAA\x`, name: "Odd", level: 250, known: true, connected: true},
 	}

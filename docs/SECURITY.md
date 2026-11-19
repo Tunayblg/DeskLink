@@ -23,6 +23,7 @@ DeskLink runs actions on your PC, so it assumes the local network is **not** ful
 
 - Traffic is plain HTTP and WebSocket on your local network, not encrypted. The pairing code or QR protects the first pairing only; after that, someone who can read traffic on your Wi-Fi can take the device token and connect as that phone, which means sending keys, mouse moves and app launches to the PC. Only use DeskLink on a network you trust, such as your home Wi-Fi, and never on shared or public Wi-Fi. If you suspect someone saw the traffic, remove the phone in the dashboard.
 - If a phone is lost, remove it in the dashboard. Its token stops working immediately.
+- **Cable connection (Android).** `adb reverse` makes the phone's traffic arrive from this PC's loopback address, which the dashboard trusts as "this PC". So the forwarded port is a separate listener (`127.0.0.1`, port + 1) that answers 404 for `/admin`; pairing and the panel work as on Wi-Fi. The normal port is never forwarded.
 - Releases are not code-signed, so Windows SmartScreen or Smart App Control may warn about them, and the Android app is installed from outside the Play Store.
 
 ## Reporting a vulnerability

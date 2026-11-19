@@ -102,6 +102,14 @@ Older configs that pinned games to the home screen are converted automatically t
 
 **A game does not start.** Check that `target` points to the same file your desktop shortcut uses. Many games need to start from their own folder, which DeskLink does automatically.
 
+## Android over a cable
+
+Plug the phone in with a USB cable, turn on **USB debugging** (Settings → Developer options) and accept the question on the phone. DeskLink then runs `adb reverse` by itself and the Android app connects to the PC at `localhost`, with no Wi-Fi.
+
+- The PC needs `adb` (Android platform-tools). DeskLink finds it next to `desklink.exe`, on the PATH, or in the usual Android SDK folder. Without it nothing happens and the Wi-Fi way works as before. The log says so once.
+- The cable uses its own listener on `127.0.0.1`, port + 1 (8766 by default), which serves the panel but not the dashboard.
+- The phone is paired once by code, like on Wi-Fi: it sees the PC at a different address, so it counts as a new device.
+
 ## Building from source
 
 Requires Go 1.23 or later.

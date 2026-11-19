@@ -30,10 +30,11 @@ import (
 	"github.com/Tunayblg/DeskLink/internal/plan"
 	"github.com/Tunayblg/DeskLink/internal/server"
 	"github.com/Tunayblg/DeskLink/internal/tray"
+	"github.com/Tunayblg/DeskLink/internal/usb"
 	"github.com/Tunayblg/DeskLink/web"
 )
 
-var version = "1.3.1"
+var version = "1.4.0"
 
 const maxLog = 1 << 20
 
@@ -103,6 +104,16 @@ func main() {
 			fatal(err.Error())
 		}
 	}()
+	// A phone on a cable reaches DeskLink through a second listener that only this
+	// PC can connect to and that does not serve the dashboard (see usb.Run).
+	usbPort := cfg.Port + 1
+	if uln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", usbPort)); err != nil {
+		log.Printf("usb: port %d is busy, cable connection is off: %v", usbPort, err)
+	} else {
+		usbSrv := &http.Server{Handler: app.USBHandler(), ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second}
+		go func() { _ = usbSrv.Serve(uln) }()
+		go usb.Run(context.Background(), cfg.Port, usbPort)
+	}
 	log.Printf("phone addresses: %s", strings.Join(app.Addresses, ", "))
 	log.Printf("dashboard: %s", dashboard)
 

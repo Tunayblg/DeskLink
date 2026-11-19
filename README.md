@@ -22,6 +22,7 @@ Media controls with cover art, a game launcher, per-app volume, screen brightnes
 - 🪶 **Featherweight.** One small `.exe`, roughly 20–50 MB of RAM and almost no CPU.
 - 🎮 **Made for gaming.** Launch a game and the phone turns into a live hardware monitor.
 - 🍿 **Watch mode.** PC volume, play/pause, jump back and forward, screen brightness and a shut down button, made for the couch.
+- 🌙 **Sleep or shut down with a timer.** Now, or in 5, 15 or 30 minutes. Open the menu again to see the time left, and tap it to cancel.
 - 🎧 **Switch the sound output.** Move the PC's sound between speakers, headphones and your monitor from the phone.
 - 🧑‍💻 **Developer mode (beta).** Dictate or write a prompt on the phone and it is typed into Claude, Codex, ChatGPT, a terminal or your editor, live as you speak. See what the agent is doing (thinking, running a command, editing files, done), plus quick keys and a mini trackpad.
 - 🎛️ **Make it yours.** Hide or reorder any tab and switch features on or off right on the phone. Calm mode turns every animation off.
@@ -29,7 +30,8 @@ Media controls with cover art, a game launcher, per-app volume, screen brightnes
 - 🎚️ **More than buttons.** A volume mixer for each program, one-tap mic mute, and a trackpad for your PC with a window switcher to bring any open program to the front.
 - 🔒 **Private.** Stays on your Wi-Fi. No cloud, no account. Pair by scanning a QR code.
 - 🖥️ **Easy to manage.** A desktop dashboard for games, tiles and phones, with a built-in illustrated guide for iPhone and Android.
-- 📲 **Phones and tablets.** The layout adapts to bigger screens, and it runs on old devices too (built and tested on an iPhone 6s).
+- 📲 **Phones and tablets.** Made for holding the phone sideways. The layout adapts to bigger screens, it runs on old devices too (built and tested on an iPhone 6s), and held upright it switches to a one-handed portrait layout.
+- 🔌 **Android over a cable.** Plug it in with USB debugging on and it connects by itself, no Wi-Fi needed (the PC needs `adb`, see the [configuration guide](docs/CONFIG.md)).
 
 ## Screens
 
@@ -39,12 +41,16 @@ Media controls with cover art, a game launcher, per-app volume, screen brightnes
     <td width="50%"><img src="docs/images/watch.png" alt="Watch mode"><br><b>Watch mode</b> for the couch: volume, transport, brightness</td>
   </tr>
   <tr>
-    <td><img src="docs/images/stats.png" alt="Game mode"><br><b>Game mode</b>: live stats and a mixer</td>
+    <td><img src="docs/images/stats.png" alt="Game mode"><br><b>Game mode</b>: live gauges, a mixer and the batteries of your devices</td>
     <td><img src="docs/images/games.png" alt="Games"><br><b>Your games</b>, one tap away</td>
   </tr>
   <tr>
-    <td><img src="docs/images/launch.png" alt="Launch"><br><b>Launch animation</b></td>
+    <td><img src="docs/images/sleep.png" alt="Sleep and shut down"><br><b>Sleep or shut down</b>, now or after a timer</td>
     <td><img src="docs/images/clock.png" alt="Clock"><br><b>Desk clock</b>, a rev-counter dial with shift lights for the seconds</td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/launch.png" alt="Launch"><br><b>Launch animation</b></td>
+    <td align="center"><img src="docs/images/portrait.png" alt="Portrait layout" height="330"><br><b>Portrait</b>, for one hand: the tabs move to the bottom</td>
   </tr>
 </table>
 
@@ -69,6 +75,7 @@ Prompt your AI coding agent from across the desk. DeskLink only types into devel
 - **Tabs:** hide the ones you never use (Watch mode, Games...) and move the rest into your order. Slide a finger along the tab bar to jump between them.
 - **Developer mode:** live typing, usage, agent status, send after dictation, dictation language.
 - **Calm mode:** no animations at all.
+- **Portrait layout:** on by default; turn it off if you only ever use the phone sideways.
 - Saved on each phone, so every device can have its own layout.
 
 Buttons, games and home screen tiles are set up on the PC, in the dashboard or the **[configuration file](docs/CONFIG.md)**.
@@ -96,7 +103,7 @@ A clean desktop dashboard lives in the tray. Add a phone by scanning a QR code, 
 
 1. Download **[desklink.exe](https://github.com/Tunayblg/DeskLink/releases/latest)** and run it.
 2. Scan the QR code in the dashboard with your phone's camera (same Wi-Fi).
-3. **iPhone:** add it to the home screen from Safari. **Android:** install **DeskLink.apk** from the same page. It scans the QR code, or takes the address by hand.
+3. **iPhone:** add it to the home screen from Safari. **Android:** install **DeskLink.apk** from the same page. It scans the QR code, takes the address by hand, or connects over a USB cable by itself.
 4. Done. Right-click the tray icon to have DeskLink start with Windows.
 
 The dashboard's **Guide** walks through every step, with the address and firewall details if a phone cannot connect.

@@ -17,6 +17,9 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 
+import java.net.HttpURLConnection;
+import java.net.URL;
+
 import com.google.mlkit.vision.barcode.common.Barcode;
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions;
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning;
@@ -33,6 +36,7 @@ public class MainActivity extends Activity {
     private static final String PREFS = "desklink";
     private static final String KEY_URL = "url";
     private static final int DEFAULT_PORT = 8765;
+    private static final String CABLE_URL = "http://localhost:" + DEFAULT_PORT + "/";
     private static final String BG = "#0e0f12";
 
     private WebView panel;
@@ -80,9 +84,34 @@ public class MainActivity extends Activity {
 
         setContentView(root);
 
-        String saved = saved();
-        if (saved != null) {
-            openPanel(saved);
+        // A phone on its charging cable reaches the PC at localhost (the PC forwards the
+        // port with adb), so that is tried first, quickly. If nobody answers there, the
+        // address saved from the Wi-Fi connection is used as before.
+        final String saved = saved();
+        new Thread(() -> {
+            final boolean cable = cableAnswers();
+            runOnUiThread(() -> {
+                if (cable) {
+                    openPanel(CABLE_URL, false);
+                } else if (saved != null) {
+                    openPanel(saved);
+                }
+            });
+        }).start();
+    }
+
+    /** True when DeskLink answers at localhost, which is only so over a cable. */
+    private static boolean cableAnswers() {
+        try {
+            HttpURLConnection c = (HttpURLConnection) new URL(CABLE_URL).openConnection();
+            c.setConnectTimeout(700);
+            c.setReadTimeout(700);
+            c.setRequestMethod("HEAD");
+            int code = c.getResponseCode();
+            c.disconnect();
+            return code == 200;
+        } catch (Exception e) {
+            return false;
         }
     }
 
@@ -174,9 +203,14 @@ public class MainActivity extends Activity {
     }
 
     private void openPanel(String url) {
+        openPanel(url, true);
+    }
+
+    /** remember is false for the cable address, so the Wi-Fi address saved earlier stays. */
+    private void openPanel(String url, boolean remember) {
         int hash = url.indexOf('#');
         String clean = hash >= 0 ? url.substring(0, hash) : url;
-        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(KEY_URL, clean).apply();
+        if (remember) getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(KEY_URL, clean).apply();
         panelLoaded = true;
         panelUrl = url;
         setup.setVisibility(View.GONE);
@@ -198,10 +232,9 @@ public class MainActivity extends Activity {
     private class PanelClient extends WebViewClient {
         // Stay inside the PC's panel. Anything else is not ours to open.
         private boolean leavesPanel(Uri url) {
-            String saved = saved();
-            if (saved == null) return true;
+            if (panelUrl.isEmpty()) return true;
             String host = url.getHost();
-            return host == null || !host.equals(Uri.parse(saved).getHost());
+            return host == null || !host.equals(Uri.parse(panelUrl).getHost());
         }
 
         @Override
