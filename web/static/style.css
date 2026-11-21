@@ -1329,7 +1329,7 @@ body.rail-peek .clock-exit { opacity: 1; transform: none; pointer-events: auto; 
 .info .i-city { font-size: 4.6vmin; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .info .i-mm { font-size: 3.6vmin; font-style: normal; color: rgba(255, 255, 255, .5); font-variant-numeric: tabular-nums; }
 .info .i-side { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4vmin; justify-content: center; }
-.info .i-w { flex: 1; min-height: 0; max-height: 34vmin; display: flex; align-items: center; gap: 4vmin; padding: 3vmin 4vmin; border: 1px solid rgba(255, 255, 255, .1); border-radius: 5vmin; color: inherit; font: inherit; text-align: left;
+.info .i-w { overflow: hidden; flex: 1; min-height: 0; max-height: 34vmin; display: flex; align-items: center; gap: 4vmin; padding: 3vmin 4vmin; border: 1px solid rgba(255, 255, 255, .1); border-radius: 5vmin; color: inherit; font: inherit; text-align: left;
   background: linear-gradient(160deg, rgba(255, 255, 255, .09), rgba(255, 255, 255, .03)); --c: #22d3ee; }
 .info .i-w.mid { --c: var(--amber); }
 .info .i-w.low { --c: var(--red); }
@@ -1338,10 +1338,13 @@ body.rail-peek .clock-exit { opacity: 1; transform: none; pointer-events: auto; 
 .info .i-w circle { fill: none; stroke-width: 4.5; }
 .info .i-w .tr { stroke: rgba(255, 255, 255, .1); }
 .info .i-w .vl { stroke: var(--c); stroke-linecap: round; filter: drop-shadow(0 0 2px var(--c)); transition: stroke-dashoffset .8s, stroke .4s; }
-.info .i-wt { display: flex; flex-direction: column; gap: .8vmin; min-width: 0; }
-.info .i-wt b { font-size: 8.4vmin; font-weight: 600; line-height: 1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.info .i-wt { display: flex; flex-direction: column; gap: .8vmin; min-width: 0; flex: 1 1 0; overflow: hidden; }
+.info .i-w.swap { animation: iswap .35s ease-out; }
+@keyframes iswap { from { opacity: 0; transform: scale(.94); } }
+.info .i-wt b.i-net { font-size: 3.8vmin; font-weight: 500; line-height: 1.35; letter-spacing: 0; color: rgba(255, 255, 255, .85); }
+.info .i-wt b { font-size: 7vmin; font-weight: 600; line-height: 1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .info .i-wt b.over { color: #ff8a9b; }
-.info .i-wt span { font-size: 3.4vmin; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: rgba(255, 255, 255, .45); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.info .i-wt span { font-size: 3vmin; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: rgba(255, 255, 255, .45); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 html.portrait .info { flex-direction: column; padding: 8vmin 6vmin; gap: 4vmin; }
 html.portrait .info .i-main { flex: 0 0 auto; align-items: center; text-align: center; }
 html.portrait .info .i-time { font-size: 24vmin; }
@@ -1349,7 +1352,9 @@ html.portrait .info .i-side { flex: 0 0 auto; flex-direction: row; width: 100%; 
 html.portrait .info .i-w { flex-direction: column; justify-content: center; text-align: center; max-height: none; padding: 3vmin 2vmin; }
 html.portrait .info .i-w svg { height: 14vmin; }
 html.portrait .info .i-wt { align-items: center; }
-html.portrait .info .i-wt b { font-size: 6.4vmin; }
+html.portrait .info .i-wt b { font-size: 6vmin; }
+html.portrait .info .i-wt b.i-net { font-size: 3.6vmin; }
+html.portrait .info .i-wt { flex: 0 0 auto; max-width: 100%; }
 
 /* Swiping slides the faces sideways in the swipe direction. */
 .clock-view[data-dir="next"] .face:not(.on) { transform: translateX(-40px) scale(.96); }

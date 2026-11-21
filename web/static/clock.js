@@ -224,7 +224,7 @@ window.DeskClock = (function () {
     }
     if (key === "net") {
       var n = s && s.net;
-      return n ? { rows: "↓ " + rate(n.down) + "<br>↑ " + rate(n.up), label: "Network" } : { ring: 0, big: "–", label: "Network", off: true };
+      return n ? { rows: "↓ " + rate(n.down) + "<br>↑ " + rate(n.up), label: "Network", net: true } : { ring: 0, big: "–", label: "Network", off: true };
     }
     if (key === "cpu") return s ? pctView("CPU", s.cpu.usage) : { ring: 0, big: "–", label: "CPU", off: true };
     if (key === "gpu") return s && s.gpu ? pctView("GPU", s.gpu.usage) : { ring: 0, big: "–", label: "GPU", off: true };
@@ -234,21 +234,22 @@ window.DeskClock = (function () {
   function widgetHTML(v) {
     var ring = v.rows ? "" : '<svg viewBox="0 0 44 44"><circle class="tr" cx="22" cy="22" r="19"/><circle class="vl" cx="22" cy="22" r="19" stroke-dasharray="119.4" stroke-dashoffset="' +
       (119.4 * (1 - v.ring)).toFixed(1) + '"/></svg>';
-    var big = v.rows ? '<b style="font-size:5.4vmin;line-height:1.25">' + v.rows + "</b>" : "<b" + (v.over ? ' class="over"' : "") + ">" + v.big + "</b>";
+    var big = v.rows ? '<b class="i-net">' + v.rows + "</b>" : "<b" + (v.over ? ' class="over"' : "") + ">" + v.big + "</b>";
     return ring + '<div class="i-wt">' + big + "<span>" + v.label.replace(/</g, "&lt;") + "</span></div>";
   }
 
-  function stepWidget(i) {
+  function stepWidget(i, dir) {
+    if (!widgetKeys) widgetKeys = loadWidgets();
     var pages = widgetPages(), mine = widgetKeys[i], other = widgetKeys[1 - i];
     var list = pages.filter(function (k) { return k === mine || k !== other; });
     if (mine && list.indexOf(mine) < 0) list.push(mine);
     if (list.length < 2) return;
-    widgetKeys[i] = list[(list.indexOf(mine) + 1) % list.length];
+    widgetKeys[i] = list[(list.indexOf(mine) + dir + list.length) % list.length];
     lsSet(WIDGET_KEY, JSON.stringify(widgetKeys));
-    renderInfoWidgets();
+    renderInfoWidgets(i);
   }
 
-  function renderInfoWidgets() {
+  function renderInfoWidgets(swapped) {
     if (!el.info) return;
     if (!widgetKeys) widgetKeys = loadWidgets();
     var pages = widgetPages();
@@ -263,7 +264,11 @@ window.DeskClock = (function () {
     for (var j = 0; j < 2; j++) {
       var node = el.info.w[j], v = widgetView(widgetKeys[j] || "cpu"), html = widgetHTML(v);
       node.className = "i-w" + (v.cls ? " " + v.cls : "") + (v.off ? " off" : "");
-      if (node._html !== html) { node._html = html; node.innerHTML = html; }
+      if (node._html !== html) {
+        node._html = html;
+        node.innerHTML = html;
+        if (swapped === j) { node.classList.remove("swap"); void node.offsetWidth; node.classList.add("swap"); }
+      }
     }
   }
 
@@ -306,8 +311,32 @@ window.DeskClock = (function () {
       var c = window.prompt("City", city());
       if (c && c.trim()) { lsSet(CITY_KEY, c.trim().slice(0, 60)); wx = null; wxFailed = false; askWeather(); tick(); }
     });
+    // A tap or a swipe in any direction moves the widget on (the other way for a swipe left or up),
+    // as in game mode. The face's own swipe (changing faces) must not start from here.
     Array.prototype.forEach.call(ws, function (node, i) {
-      node.addEventListener("click", function () { if (!widgetKeys) widgetKeys = loadWidgets(); stepWidget(i); });
+      var x0 = 0, y0 = 0, down = false, swiped = 0;
+      node.addEventListener("touchstart", function (e) {
+        e.stopPropagation();
+        var p = e.touches[0];
+        x0 = p.clientX; y0 = p.clientY; down = e.touches.length === 1;
+      }, { passive: true });
+      node.addEventListener("touchend", function (e) {
+        e.stopPropagation();
+        if (!down) return;
+        down = false;
+        var p = e.changedTouches[0], dx = p.clientX - x0, dy = p.clientY - y0;
+        var far = Math.max(Math.abs(dx), Math.abs(dy));
+        if (far < 10) return; // a tap: the click that follows does it
+        if (far >= 22) {
+          swiped = Date.now();
+          var v = Math.abs(dx) > Math.abs(dy) ? dx : dy;
+          stepWidget(i, v < 0 ? 1 : -1);
+        }
+      }, { passive: true });
+      node.addEventListener("click", function () {
+        if (Date.now() - swiped < 500) return;
+        stepWidget(i, 1);
+      });
     });
     if (navigator.getBattery) navigator.getBattery().then(function (b) { phoneBat = b; }).catch(function () {});
     var dg = $("face-digital");
