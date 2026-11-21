@@ -580,6 +580,9 @@
       case "batteries":
         renderBatteries(msg.batteries);
         break;
+      case "weather":
+        if (window.DeskClock && window.DeskClock.onWeather) window.DeskClock.onWeather(msg);
+        break;
       case "apps":
         appsList(msg.windows || []);
         break;
@@ -640,13 +643,22 @@
     }
   }
 
+  // The clock's info face shows PC numbers and the weather; the other faces need nothing.
+  function clockWantsData() { return !!(window.DeskClock && window.DeskClock.wantsData && window.DeskClock.wantsData()); }
+  window.DeskData = {
+    stats: function () { return statsLast; },
+    batteries: function () { return batLast; },
+    send: function (o) { return send(o); },
+    sync: function () { syncStreams(); }
+  };
+
   // Live data is only streamed for the screen that is showing: PC stats on the
   // stats screen, now playing on the home screen.
   function syncStreams() {
     var live = !document.body.classList.contains("pairing") &&
       document.visibilityState === "visible" && ws && ws.readyState === WebSocket.OPEN;
     var want = {
-      stats: !!(live && ((view === "stats" && statsPage === 0) || (view === "home" && miniEls && miniPage === 0))),
+      stats: !!(live && ((view === "stats" && statsPage === 0) || (view === "home" && miniEls && miniPage === 0) || (view === "clock" && clockWantsData()))),
       claude: !!(live && ((view === "home" && claudeEls && miniPage === 1) || (view === "dev" && (prefs.agent || prefs.usage)) || (prefs.agent && !tabHidden("dev")))),
       media: !!(live && view === "home" && np),
       level: !!(live && view === "home" && np),
@@ -667,7 +679,7 @@
     // Devices come and go: ask when the home screen shows, then every 20 s (6 s on the devices page).
     clearInterval(batTimer);
     batTimer = null;
-    if (live && ((view === "home" && batPage) || view === "stats")) {
+    if (live && ((view === "home" && batPage) || view === "stats" || (view === "clock" && clockWantsData()))) {
       askBatteries();
       // Faster on the devices page, so a device that is switched on shows up soon.
       batTimer = setInterval(askBatteries, view === "home" && miniPage === 3 ? 6000 : 20000);
@@ -4151,7 +4163,7 @@
     drawMini("cpu", s.cpu.usage);
     drawMini("gpu", g ? g.usage : null);
     // On the home screen only the mini charts are visible; skip the rest.
-    if (view !== "stats") return;
+    if (view !== "stats") { if (view === "clock") statsLast = s; return; }
 
     statsLast = s;
     renderSlots(false);

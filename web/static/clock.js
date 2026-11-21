@@ -1,17 +1,19 @@
-// Clock screen: four faces on a black screen. Swipe (or use the dots) to switch.
+// Clock screen: five faces on a black screen. Swipe (or use the dots) to switch.
 //   tach:   a yellow sports-car rev counter. The scale runs 1 to 12 over 270°
 //           (bottom left round to bottom right); a black hour hand and a long
 //           red minute needle both sweep it, and the minute needle drops back
 //           at the top of the hour like revs after a gear change. Three strips
 //           of shift lights (green, amber, red) fill one light every 2 s.
 //   simple: a plain round analog clock with the date and a small digital time.
+//   digital: glowing neon digits with a seconds strip and the week days.
+//   info:    the time, the weather of a city and two widgets (PC network, CPU, device batteries...).
 //   modern: big thin digits, the date above and a hairline that fills each minute.
 // Only transforms, opacity and SVG fills change, and nothing runs while hidden.
 window.DeskClock = (function () {
   "use strict";
 
   var FACE_KEY = "desklink.clockface";
-  var FACES = ["tach", "simple", "modern", "digital"];
+  var FACES = ["tach", "simple", "modern", "digital", "info"];
   var $ = function (id) { return document.getElementById(id); };
   var timer = null, built = false, active = false, ignition = false;
   var face = norm(load());
@@ -128,6 +130,164 @@ window.DeskClock = (function () {
       '<div class="d-secs">' + dots + '</div></div><div class="d-days">' + days + '</div><div class="d-date"></div>';
   }
 
+  // ---- Info face: time, weather and two widgets -----------------------------
+
+  var CITY_KEY = "desklink.city", WIDGET_KEY = "desklink.widgets";
+  var WX_EVERY = 10 * 60 * 1000, WX_RETRY = 20 * 1000;
+  var wx = null, wxAsked = 0, wxFailed = false, widgetKeys = null, phoneBat = null, wxTried = false;
+
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function city() { return lsGet(CITY_KEY) || "Izmit"; }
+
+  // The last weather is kept, so the face has something to show before the PC answers.
+  try { wx = JSON.parse(lsGet("desklink.weather") || "null"); } catch (e) { wx = null; }
+
+  function wxIcon(code, day) {
+    if (code === 0) return day ? "☀️" : "🌙";
+    if (code === 1) return day ? "🌤️" : "🌙";
+    if (code === 2) return day ? "⛅" : "☁️";
+    if (code === 3) return "☁️";
+    if (code === 45 || code === 48) return "🌫️";
+    if (code >= 51 && code <= 57) return "🌦️";
+    if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "🌧️";
+    if ((code >= 71 && code <= 77) || code === 85 || code === 86) return "❄️";
+    if (code >= 95) return "⛈️";
+    return "🌡️";
+  }
+
+  function infoHTML() {
+    return '<div class="i-main"><div class="i-time"><span class="i-hm"></span><span class="i-ss"></span></div><div class="i-date"></div>' +
+      '<button type="button" class="i-wx" aria-label="Weather"><span class="i-ico"></span><span class="i-t"></span>' +
+      '<span class="i-sub"><b class="i-city"></b><em class="i-mm"></em></span></button></div>' +
+      '<div class="i-side"><button type="button" class="i-w"></button><button type="button" class="i-w"></button></div>';
+  }
+
+  function askWeather() {
+    if (!window.DeskData) return;
+    if (window.DeskData.send({ type: "weather", text: city() })) wxAsked = Date.now();
+  }
+
+  function onWeather(msg) {
+    if (msg.weather) {
+      wx = msg.weather;
+      wxFailed = false;
+      lsSet("desklink.weather", JSON.stringify(wx));
+    } else {
+      wxFailed = true;
+    }
+    if (active) tick();
+  }
+
+  // Everything a widget can show now, in a fixed order.
+  function widgetPages() {
+    var d = window.DeskData, s = d && d.stats(), out = [];
+    ((d && d.batteries()) || []).forEach(function (b) { out.push("dev:" + b.name); });
+    if (phoneBat) out.push("phone");
+    out.push("net", "cpu");
+    if (s && s.gpu) out.push("gpu");
+    out.push("ram");
+    return out;
+  }
+
+  function loadWidgets() {
+    try {
+      var v = JSON.parse(lsGet(WIDGET_KEY) || "null");
+      if (Array.isArray(v) && v.length === 2) return v.map(function (k) { return typeof k === "string" ? k : null; });
+    } catch (e) {}
+    return [null, null];
+  }
+
+  function rate(b) {
+    if (b >= 1000 * 1024) { var mb = b / 1048576; return (mb >= 99.5 ? Math.round(mb) : mb.toFixed(mb >= 9.95 ? 0 : 1)) + " MB/s"; }
+    return Math.round(b / 1024) + " KB/s";
+  }
+
+  function pctView(label, p) {
+    p = Math.max(0, Math.min(100, p));
+    return { ring: p / 100, big: Math.round(p) + "%", label: label, over: p > 95 };
+  }
+
+  function widgetView(key) {
+    var d = window.DeskData, s = d && d.stats(), i;
+    if (key.indexOf("dev:") === 0) {
+      var list = (d && d.batteries()) || [], dev = null;
+      for (i = 0; i < list.length; i++) if (list[i].name === key.slice(4)) dev = list[i];
+      if (!dev) return { ring: 0, big: "–", label: key.slice(4).replace(/^razer\s+/i, ""), off: true };
+      var p = Math.max(0, Math.min(100, Math.round(+dev.percent || 0)));
+      return { ring: p / 100, big: p + "%", label: String(dev.name).replace(/^razer\s+/i, ""), cls: p <= 20 ? "low" : p <= 40 ? "mid" : "" };
+    }
+    if (key === "phone") {
+      if (!phoneBat) return { ring: 0, big: "–", label: "Phone", off: true };
+      var q = Math.round(phoneBat.level * 100);
+      return { ring: q / 100, big: q + "%", label: "Phone" + (phoneBat.charging ? " ⚡" : ""), cls: q <= 20 ? "low" : q <= 40 ? "mid" : "" };
+    }
+    if (key === "net") {
+      var n = s && s.net;
+      return n ? { rows: "↓ " + rate(n.down) + "<br>↑ " + rate(n.up), label: "Network" } : { ring: 0, big: "–", label: "Network", off: true };
+    }
+    if (key === "cpu") return s ? pctView("CPU", s.cpu.usage) : { ring: 0, big: "–", label: "CPU", off: true };
+    if (key === "gpu") return s && s.gpu ? pctView("GPU", s.gpu.usage) : { ring: 0, big: "–", label: "GPU", off: true };
+    return s ? pctView("RAM", s.ram.usage) : { ring: 0, big: "–", label: "RAM", off: true };
+  }
+
+  function widgetHTML(v) {
+    var ring = v.rows ? "" : '<svg viewBox="0 0 44 44"><circle class="tr" cx="22" cy="22" r="19"/><circle class="vl" cx="22" cy="22" r="19" stroke-dasharray="119.4" stroke-dashoffset="' +
+      (119.4 * (1 - v.ring)).toFixed(1) + '"/></svg>';
+    var big = v.rows ? '<b style="font-size:5.4vmin;line-height:1.25">' + v.rows + "</b>" : "<b" + (v.over ? ' class="over"' : "") + ">" + v.big + "</b>";
+    return ring + '<div class="i-wt">' + big + "<span>" + v.label.replace(/</g, "&lt;") + "</span></div>";
+  }
+
+  function stepWidget(i) {
+    var pages = widgetPages(), mine = widgetKeys[i], other = widgetKeys[1 - i];
+    var list = pages.filter(function (k) { return k === mine || k !== other; });
+    if (mine && list.indexOf(mine) < 0) list.push(mine);
+    if (list.length < 2) return;
+    widgetKeys[i] = list[(list.indexOf(mine) + 1) % list.length];
+    lsSet(WIDGET_KEY, JSON.stringify(widgetKeys));
+    renderInfoWidgets();
+  }
+
+  function renderInfoWidgets() {
+    if (!el.info) return;
+    if (!widgetKeys) widgetKeys = loadWidgets();
+    var pages = widgetPages();
+    // A fresh widget starts with the first device (or CPU) and the network.
+    var firstDev = pages.filter(function (k) { return k.indexOf("dev:") === 0; })[0];
+    var order = [firstDev || "cpu", "net", "cpu", "ram"];
+    for (var i = 0; i < 2; i++) {
+      if (widgetKeys[i]) continue;
+      var taken = widgetKeys.filter(Boolean);
+      widgetKeys[i] = order.filter(function (k) { return taken.indexOf(k) < 0; })[0] || null;
+    }
+    for (var j = 0; j < 2; j++) {
+      var node = el.info.w[j], v = widgetView(widgetKeys[j] || "cpu"), html = widgetHTML(v);
+      node.className = "i-w" + (v.cls ? " " + v.cls : "") + (v.off ? " off" : "");
+      if (node._html !== html) { node._html = html; node.innerHTML = html; }
+    }
+  }
+
+  function renderInfo(now) {
+    var h = now.getHours(), m = now.getMinutes(), s = now.getSeconds(), inf = el.info;
+    inf.hm.textContent = pad(h) + ":" + pad(m);
+    inf.ss.textContent = pad(s);
+    inf.date.textContent = now.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" });
+    if (wx) {
+      inf.ico.textContent = wxIcon(wx.code, wx.day);
+      inf.t.textContent = Math.round(wx.temp) + "°";
+      inf.city.textContent = wx.city;
+      inf.mm.textContent = "↓ " + Math.round(wx.min) + "°  ↑ " + Math.round(wx.max) + "°";
+    } else {
+      inf.ico.textContent = "🌡️";
+      inf.t.textContent = "–";
+      inf.city.textContent = city();
+      inf.mm.textContent = wxFailed ? "?" : "…";
+    }
+    renderInfoWidgets();
+    var due = wxFailed ? WX_RETRY : WX_EVERY;
+    if (Date.now() - wxAsked > due) askWeather();
+  }
+
   // ---- Running -------------------------------------------------------------
 
   function build() {
@@ -137,6 +297,19 @@ window.DeskClock = (function () {
     t.innerHTML = tachSVG();
     s.innerHTML = simpleSVG();
     mo.innerHTML = modernHTML();
+    var inf = $("face-info");
+    inf.innerHTML = infoHTML();
+    var ws = inf.querySelectorAll(".i-w");
+    el.info = { hm: inf.querySelector(".i-hm"), ss: inf.querySelector(".i-ss"), date: inf.querySelector(".i-date"), ico: inf.querySelector(".i-ico"),
+      t: inf.querySelector(".i-t"), city: inf.querySelector(".i-city"), mm: inf.querySelector(".i-mm"), w: [ws[0], ws[1]] };
+    inf.querySelector(".i-wx").addEventListener("click", function () {
+      var c = window.prompt("City", city());
+      if (c && c.trim()) { lsSet(CITY_KEY, c.trim().slice(0, 60)); wx = null; wxFailed = false; askWeather(); tick(); }
+    });
+    Array.prototype.forEach.call(ws, function (node, i) {
+      node.addEventListener("click", function () { if (!widgetKeys) widgetKeys = loadWidgets(); stepWidget(i); });
+    });
+    if (navigator.getBattery) navigator.getBattery().then(function (b) { phoneBat = b; }).catch(function () {});
     var dg = $("face-digital");
     dg.innerHTML = digitalHTML();
     el.digital = { h: dg.querySelector(".d-h"), m: dg.querySelector(".d-m"), dots: dg.querySelectorAll(".d-secs i"),
@@ -201,6 +374,8 @@ window.DeskClock = (function () {
     el.modern.h.textContent = pad(h);
     el.modern.m.textContent = pad(m);
     el.modern.sec.textContent = pad(s);
+
+    renderInfo(now);
 
     var dg = el.digital;
     dg.h.textContent = pad(h);
@@ -288,6 +463,7 @@ window.DeskClock = (function () {
     $("face-simple").classList.toggle("on", face === "simple");
     $("face-modern").classList.toggle("on", face === "modern");
     $("face-digital").classList.toggle("on", face === "digital");
+    $("face-info").classList.toggle("on", face === "info");
     Array.prototype.forEach.call($("face-dots").querySelectorAll("button"), function (b) {
       b.classList.toggle("on", b.dataset.face === face);
     });
@@ -295,6 +471,7 @@ window.DeskClock = (function () {
     if (face === "tach" && (changed || !remember)) ignite();
     if (face === "simple") syncSeconds();
     if (face === "modern") syncBar();
+    if (window.DeskData) window.DeskData.sync();
   }
 
   function start() {
@@ -315,5 +492,5 @@ window.DeskClock = (function () {
     if (el.modern) el.modern.bar.classList.remove("run");
   }
 
-  return { start: start, stop: stop };
+  return { start: start, stop: stop, onWeather: onWeather, wantsData: function () { return active && face === "info"; } };
 })();

@@ -1314,6 +1314,43 @@ body.rail-peek .clock-exit { opacity: 1; transform: none; pointer-events: auto; 
 .digital .d-days span.on { color: #5eead4; text-shadow: 0 0 1.6vmin rgba(45, 212, 191, .7); }
 .digital .d-date { font-size: 3.8vmin; letter-spacing: .2em; text-transform: uppercase; color: rgba(255, 255, 255, .4); }
 
+/* Info: the time and the weather on the left, two widgets on the right (tap one to change what it shows). */
+.info { gap: 5vmin; padding: 6vmin 7vmin; box-sizing: border-box; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color: #fff;
+  background: radial-gradient(90% 120% at 12% 0%, rgba(10, 132, 255, .18), transparent 60%), radial-gradient(80% 100% at 100% 100%, rgba(167, 139, 250, .14), transparent 60%); }
+.info .i-main { flex: 1.25; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 2.4vmin; }
+.info .i-time { display: flex; align-items: baseline; gap: 2vmin; font-size: 27vmin; font-weight: 200; line-height: 1; letter-spacing: -.04em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.info .i-ss { font-size: .26em; font-weight: 300; letter-spacing: 0; color: rgba(255, 255, 255, .4); }
+.info .i-date { font-size: 4.2vmin; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: rgba(255, 255, 255, .45); }
+.info .i-wx { display: flex; align-items: center; gap: 3.4vmin; margin-top: 1.4vmin; padding: 3vmin 4vmin; border: 1px solid rgba(255, 255, 255, .1); border-radius: 5vmin; color: inherit; font: inherit; text-align: left;
+  background: linear-gradient(160deg, rgba(255, 255, 255, .09), rgba(255, 255, 255, .03)); }
+.info .i-ico { font-size: 11vmin; line-height: 1; }
+.info .i-t { font-size: 13vmin; font-weight: 300; line-height: 1; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.info .i-sub { display: flex; flex-direction: column; gap: .8vmin; min-width: 0; margin-left: auto; text-align: right; }
+.info .i-city { font-size: 4.6vmin; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.info .i-mm { font-size: 3.6vmin; font-style: normal; color: rgba(255, 255, 255, .5); font-variant-numeric: tabular-nums; }
+.info .i-side { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4vmin; justify-content: center; }
+.info .i-w { flex: 1; min-height: 0; max-height: 34vmin; display: flex; align-items: center; gap: 4vmin; padding: 3vmin 4vmin; border: 1px solid rgba(255, 255, 255, .1); border-radius: 5vmin; color: inherit; font: inherit; text-align: left;
+  background: linear-gradient(160deg, rgba(255, 255, 255, .09), rgba(255, 255, 255, .03)); --c: #22d3ee; }
+.info .i-w.mid { --c: var(--amber); }
+.info .i-w.low { --c: var(--red); }
+.info .i-w.off { opacity: .4; }
+.info .i-w svg { flex: 0 0 auto; height: 78%; max-height: 18vmin; aspect-ratio: 1; transform: rotate(-90deg); overflow: visible; }
+.info .i-w circle { fill: none; stroke-width: 4.5; }
+.info .i-w .tr { stroke: rgba(255, 255, 255, .1); }
+.info .i-w .vl { stroke: var(--c); stroke-linecap: round; filter: drop-shadow(0 0 2px var(--c)); transition: stroke-dashoffset .8s, stroke .4s; }
+.info .i-wt { display: flex; flex-direction: column; gap: .8vmin; min-width: 0; }
+.info .i-wt b { font-size: 8.4vmin; font-weight: 600; line-height: 1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.info .i-wt b.over { color: #ff8a9b; }
+.info .i-wt span { font-size: 3.4vmin; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: rgba(255, 255, 255, .45); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.portrait .info { flex-direction: column; padding: 8vmin 6vmin; gap: 4vmin; }
+html.portrait .info .i-main { flex: 0 0 auto; align-items: center; text-align: center; }
+html.portrait .info .i-time { font-size: 24vmin; }
+html.portrait .info .i-side { flex: 0 0 auto; flex-direction: row; width: 100%; }
+html.portrait .info .i-w { flex-direction: column; justify-content: center; text-align: center; max-height: none; padding: 3vmin 2vmin; }
+html.portrait .info .i-w svg { height: 14vmin; }
+html.portrait .info .i-wt { align-items: center; }
+html.portrait .info .i-wt b { font-size: 6.4vmin; }
+
 /* Swiping slides the faces sideways in the swipe direction. */
 .clock-view[data-dir="next"] .face:not(.on) { transform: translateX(-40px) scale(.96); }
 .clock-view[data-dir="prev"] .face:not(.on) { transform: translateX(40px) scale(.96); }

@@ -38,8 +38,12 @@ import (
 	"github.com/Tunayblg/DeskLink/internal/procstat"
 	"github.com/Tunayblg/DeskLink/internal/running"
 	"github.com/Tunayblg/DeskLink/internal/stats"
+	"github.com/Tunayblg/DeskLink/internal/weather"
 	"github.com/Tunayblg/DeskLink/internal/winlist"
 )
+
+// weatherClient asks open-meteo for the clock's weather face; it caches answers.
+var weatherClient = weather.New()
 
 // errAlreadyRunning is the answer to a press on a game that is already open.
 // The phone shows it in the user's language.
@@ -375,6 +379,7 @@ type serverMsg struct {
 	Batteries  *[]battery.Device    `json:"batteries,omitempty"`  // "batteries": connected Bluetooth devices (an empty list is still sent)
 	Version    string               `json:"version,omitempty"`    // "layout": the panel's files; a phone showing older ones reloads
 	Lvl        *int                 `json:"lvl,omitempty"`        // "level": how loud the PC plays right now, 0-100
+	Weather    *weather.Report      `json:"weather,omitempty"`    // "weather": the weather of the city the phone asked for (Error set when it could not be read)
 }
 
 func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
@@ -450,7 +455,8 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	budget, budgetAt := float64(msgBurst), time.Now()
 	// Live streams the phone has switched on, keyed by message type.
 	streams := map[string]func(context.Context, *websocket.Conn){"stats": s.streamStats, "claude": s.streamClaude, "media": s.streamMedia, "mixer": s.streamMixer, "level": s.streamLevel}
-	var brightAsking atomic.Bool // a brightness question from this phone is being answered
+	var brightAsking atomic.Bool  // a brightness question from this phone is being answered
+	var weatherAsking atomic.Bool // a weather question from this phone is being answered
 	stop := map[string]context.CancelFunc{}
 	defer func() {
 		for _, f := range stop {
@@ -616,6 +622,27 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 					log.Printf("batteries reply to %s: %v", name, err)
 				}
 			}()
+			continue
+		}
+		if msg.Type == "weather" {
+			// Two web requests: answer in the background, one question at a time per phone.
+			if !weatherAsking.CompareAndSwap(false, true) {
+				continue
+			}
+			go func(city string) {
+				defer weatherAsking.Store(false)
+				reply := serverMsg{Type: "weather"}
+				wctx, wcancel := context.WithTimeout(ctx, 15*time.Second)
+				defer wcancel()
+				if rep, err := weatherClient.Get(wctx, city); err != nil {
+					reply.Error = "weather"
+				} else {
+					reply.Weather = &rep
+				}
+				if err := wsjson.Write(ctx, c, reply); err != nil {
+					log.Printf("weather reply to %s: %v", name, err)
+				}
+			}(msg.Text)
 			continue
 		}
 		if msg.Type == "brightness" {

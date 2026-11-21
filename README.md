@@ -28,7 +28,7 @@ Media controls with cover art, a game launcher, per-app volume, screen brightnes
 - 🎛️ **Make it yours.** Hide or reorder any tab and switch features on or off right on the phone. Calm mode turns every animation off.
 - ⭐ **Six home screen tiles.** Each opens a game, Netflix, YouTube, any website or any program.
 - 🎚️ **More than buttons.** A volume mixer for each program, one-tap mic mute, and a trackpad for your PC with a window switcher to bring any open program to the front.
-- 🔒 **Private.** Stays on your Wi-Fi. No cloud, no account. Pair by scanning a QR code.
+- 🔒 **Private.** Stays on your Wi-Fi. No cloud, no account. Pair by scanning a QR code. The only request that leaves the PC is the clock's weather face, which sends the city name you typed to open-meteo.com.
 - 🖥️ **Easy to manage.** A desktop dashboard for games, tiles and phones, with a built-in illustrated guide for iPhone and Android.
 - 📲 **Phones and tablets.** Made for holding the phone sideways. The layout adapts to bigger screens, it runs on old devices too (built and tested on an iPhone 6s), and held upright it switches to a one-handed portrait layout.
 - 🔌 **Android over a cable.** Plug it in with USB debugging on and it connects by itself, no Wi-Fi needed (the PC needs `adb`, see the [configuration guide](docs/CONFIG.md)).
