@@ -4064,6 +4064,7 @@
     var d = g.def;
     g.root.classList.toggle("hot", !na && v >= d.hot);
     g.root.classList.toggle("warn", !na && v >= d.warn && v < d.hot);
+    if (key === "cpu" || key === "gpu") g.num.classList.toggle("over", v > 95);
     if (na) g.num.textContent = "–"; else tween(g.num, v, 0);
     g.sub.textContent = sub || "";
   }
@@ -4112,6 +4113,7 @@
     var na = value === null, v = na ? 0 : Math.max(0, Math.min(100, value));
     m.root.classList.toggle("na", na);
     m.root.classList.toggle("hot", v >= 90);
+    m.value.classList.toggle("over", v > 95);
     m.value.textContent = na ? "–" : Math.round(v) + "%";
     m.ring.setAttribute("stroke-dashoffset", (119.4 * (1 - v / 100)).toFixed(1));
   }

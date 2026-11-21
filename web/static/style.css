@@ -739,6 +739,8 @@ body.pairing .rail .tab, body.pairing .tab-pill { visibility: hidden; }
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
+/* CPU or GPU above 95%: the number turns a soft red. */
+.donut b.over, .ring .num.over { color: #ff8a9b; transition: color .3s; }
 .mini-label { font-size: 10px; font-weight: 700; letter-spacing: .12em; color: var(--muted); }
 
 /* The bottom card of the home screen is a pager: CPU and GPU, Claude, then the day plan. */
