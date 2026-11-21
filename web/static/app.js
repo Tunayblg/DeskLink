@@ -2659,6 +2659,34 @@
     arts = keep;
     mediaState = m;
     renderMedia();
+    renderWatchNow();
+  }
+
+  // Watch mode: the platform the media plays from. A browser only tells the
+  // app, so well-known sites are recognised from the title, artist or album.
+  var PLATFORMS = [
+    [/netflix/i, "Netflix"], [/disney\s?\+|disney plus/i, "Disney+"], [/prime video|amazon prime/i, "Prime Video"],
+    [/youtube music/i, "YouTube Music"], [/youtube/i, "YouTube"], [/twitch/i, "Twitch"], [/hbo max/i, "HBO Max"],
+    [/apple tv/i, "Apple TV"], [/blutv/i, "BluTV"], [/exxen/i, "Exxen"], [/spotify/i, "Spotify"],
+    [/soundcloud/i, "SoundCloud"], [/vimeo/i, "Vimeo"]
+  ];
+  function renderWatchNow() {
+    var box = $("watch-now");
+    if (!box) return;
+    var m = mediaState && shownSource();
+    if (!m || !m.title) { box.hidden = true; return; }
+    var text = [m.title, m.artist, m.album].join(" · "), name = "";
+    for (var i = 0; i < PLATFORMS.length; i++) {
+      var mt = PLATFORMS[i][0].exec(text);
+      if (mt) { name = PLATFORMS[i][1]; break; }
+    }
+    var app = m.app || t("media");
+    var big = name || app, small = name && name.toLowerCase() !== app.toLowerCase() ? app : "";
+    var b = box.firstChild, s = box.lastChild;
+    if (b.textContent !== big) b.textContent = big;
+    if (s.textContent !== small) s.textContent = small;
+    box.classList.toggle("paused", !m.playing);
+    box.hidden = false;
   }
 
   // shownSource is the picked source, else one that is playing (Windows' own
