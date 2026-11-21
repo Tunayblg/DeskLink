@@ -1287,6 +1287,18 @@ body.rail-peek .clock-exit { opacity: 1; transform: none; pointer-events: auto; 
 .simple .date { font-size: 15px; font-weight: 500; letter-spacing: .06em; fill-opacity: .4; text-transform: uppercase; }
 .simple .digital { font-size: 22px; font-weight: 300; letter-spacing: .05em; fill-opacity: .5; }
 
+/* Modern: big thin digits, the date above and a hairline that fills once a minute. */
+.modern { flex-direction: column; gap: 3vmin; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color: #fff; }
+.modern .m-date { font-size: 4.6vmin; font-weight: 500; letter-spacing: .22em; text-transform: uppercase; color: rgba(255, 255, 255, .45); }
+.modern .m-time { display: flex; align-items: baseline; font-size: 36vmin; font-weight: 200; line-height: 1; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.modern .m-sep { margin: 0 .03em; color: #0a84ff; animation: mblink 2s ease-in-out infinite; }
+.modern .m-sec { margin-left: .12em; font-size: .28em; font-weight: 300; letter-spacing: 0; color: rgba(255, 255, 255, .4); }
+.modern .m-bar { width: 62vmin; max-width: 80%; height: 3px; border-radius: 2px; background: rgba(255, 255, 255, .1); overflow: hidden; }
+.modern .m-bar i { display: block; width: 100%; height: 100%; border-radius: 2px; background: #0a84ff; transform-origin: 0 50%; transform: scaleX(0); }
+.modern .m-bar i.run { animation: fillbar 60s linear infinite; }
+@keyframes mblink { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+@keyframes fillbar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
 /* Swiping slides the faces sideways in the swipe direction. */
 .clock-view[data-dir="next"] .face:not(.on) { transform: translateX(-40px) scale(.96); }
 .clock-view[data-dir="prev"] .face:not(.on) { transform: translateX(40px) scale(.96); }

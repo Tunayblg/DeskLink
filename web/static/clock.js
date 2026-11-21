@@ -1,22 +1,24 @@
-// Clock screen: two faces on a black screen. Swipe (or use the dots) to switch.
+// Clock screen: three faces on a black screen. Swipe (or use the dots) to switch.
 //   tach:   a yellow sports-car rev counter. The scale runs 1 to 12 over 270°
 //           (bottom left round to bottom right); a black hour hand and a long
 //           red minute needle both sweep it, and the minute needle drops back
 //           at the top of the hour like revs after a gear change. Three strips
 //           of shift lights (green, amber, red) fill one light every 2 s.
 //   simple: a plain round analog clock with the date and a small digital time.
+//   modern: big thin digits, the date above and a hairline that fills each minute.
 // Only transforms, opacity and SVG fills change, and nothing runs while hidden.
 window.DeskClock = (function () {
   "use strict";
 
   var FACE_KEY = "desklink.clockface";
-  var FACES = ["tach", "simple"];
+  var FACES = ["tach", "simple", "modern"];
   var $ = function (id) { return document.getElementById(id); };
   var timer = null, built = false, active = false, ignition = false;
-  var face = load() === "simple" ? "simple" : "tach";
+  var face = norm(load());
   var el = {};
 
   function load() { try { return localStorage.getItem(FACE_KEY); } catch (e) { return null; } }
+  function norm(v) { return v === "simple" || v === "modern" ? v : "tach"; }
   function save(v) { try { localStorage.setItem(FACE_KEY, v); } catch (e) {} }
   function pad(n) { return (n < 10 ? "0" : "") + n; }
 
@@ -105,14 +107,25 @@ window.DeskClock = (function () {
       "</svg>";
   }
 
+  // ---- Modern face ---------------------------------------------------------
+
+  function modernHTML() {
+    return '<div class="m-date"></div>' +
+      '<div class="m-time"><span class="m-h"></span><span class="m-sep">:</span><span class="m-m"></span><span class="m-sec"></span></div>' +
+      '<div class="m-bar"><i></i></div>';
+  }
+
   // ---- Running -------------------------------------------------------------
 
   function build() {
     if (built) return;
     built = true;
-    var t = $("face-tach"), s = $("face-simple");
+    var t = $("face-tach"), s = $("face-simple"), mo = $("face-modern");
     t.innerHTML = tachSVG();
     s.innerHTML = simpleSVG();
+    mo.innerHTML = modernHTML();
+    el.modern = { date: mo.querySelector(".m-date"), h: mo.querySelector(".m-h"), m: mo.querySelector(".m-m"),
+      sec: mo.querySelector(".m-sec"), bar: mo.querySelector(".m-bar i") };
     el.tach = { hour: t.querySelector(".hour"), min: t.querySelector(".min"), hm: t.querySelector(".hm"), ss: t.querySelector(".ss") };
     el.leds = t.querySelectorAll(".led");
     el.simple = { hour: s.querySelector(".hour"), min: s.querySelector(".min"), sec: s.querySelector(".sec"),
@@ -165,7 +178,12 @@ window.DeskClock = (function () {
     rotate(el.simple.hour, a.hour);
     rotate(el.simple.min, a.min);
     el.simple.digital.textContent = pad(h) + ":" + pad(m);
-    el.simple.date.textContent = now.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
+    var dateText = now.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
+    el.simple.date.textContent = dateText;
+    el.modern.date.textContent = dateText;
+    el.modern.h.textContent = pad(h);
+    el.modern.m.textContent = pad(m);
+    el.modern.sec.textContent = pad(s);
   }
 
   function setLeds(lit) {
@@ -219,20 +237,31 @@ window.DeskClock = (function () {
     sec.classList.add("run");
   }
 
+  // The modern face's hairline fills over one minute, started at the current second.
+  function syncBar() {
+    var now = new Date(), bar = el.modern.bar;
+    bar.style.animationDelay = -(now.getSeconds() + now.getMilliseconds() / 1000) + "s";
+    bar.classList.remove("run");
+    void bar.getBoundingClientRect();
+    bar.classList.add("run");
+  }
+
   // dir: 1 when the new face comes in from the right, -1 from the left, 0 for a fade.
   function setFace(name, remember, dir) {
     var changed = name !== face;
-    face = name === "simple" ? "simple" : "tach";
+    face = norm(name);
     if (remember) save(face);
     $("view-clock").setAttribute("data-dir", dir > 0 ? "next" : dir < 0 ? "prev" : "");
     $("face-tach").classList.toggle("on", face === "tach");
     $("face-simple").classList.toggle("on", face === "simple");
+    $("face-modern").classList.toggle("on", face === "modern");
     Array.prototype.forEach.call($("face-dots").querySelectorAll("button"), function (b) {
       b.classList.toggle("on", b.dataset.face === face);
     });
     if (!active) return;
     if (face === "tach" && (changed || !remember)) ignite();
     if (face === "simple") syncSeconds();
+    if (face === "modern") syncBar();
   }
 
   function start() {
@@ -250,6 +279,7 @@ window.DeskClock = (function () {
     clearInterval(timer);
     timer = null;
     if (el.simple) el.simple.sec.classList.remove("run");
+    if (el.modern) el.modern.bar.classList.remove("run");
   }
 
   return { start: start, stop: stop };
