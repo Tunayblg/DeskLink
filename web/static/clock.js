@@ -130,11 +130,11 @@ window.DeskClock = (function () {
       '<div class="d-secs">' + dots + '</div></div><div class="d-days">' + days + '</div><div class="d-date"></div>';
   }
 
-  // ---- Info face: time, weather and two widgets -----------------------------
+  // ---- Info face: usage on top, time and weather in the middle, devices below ----
 
-  var CITY_KEY = "desklink.city", WIDGET_KEY = "desklink.widgets";
+  var CITY_KEY = "desklink.city";
   var WX_EVERY = 10 * 60 * 1000, WX_RETRY = 20 * 1000;
-  var wx = null, wxAsked = 0, wxFailed = false, widgetKeys = null, phoneBat = null, wxTried = false;
+  var wx = null, wxAsked = 0, wxFailed = false, phoneBat = null;
 
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
@@ -156,11 +156,18 @@ window.DeskClock = (function () {
     return "🌡️";
   }
 
+  var USAGE = ["NET", "RAM", "CPU", "GPU"];
+
   function infoHTML() {
-    return '<div class="i-main"><div class="i-time"><span class="i-hm"></span><span class="i-ss"></span></div><div class="i-date"></div>' +
+    var top = "";
+    USAGE.forEach(function (n) {
+      top += '<div class="i-m" data-k="' + n + '"><span>' + n + '</span><b>–</b><i class="bar"><u></u></i><em></em></div>';
+    });
+    return '<div class="i-top">' + top + "</div>" +
+      '<div class="i-center"><div class="i-time"><span class="i-hm"></span><span class="i-ss"></span></div><div class="i-date"></div>' +
       '<button type="button" class="i-wx" aria-label="Weather"><span class="i-ico"></span><span class="i-t"></span>' +
-      '<span class="i-sub"><b class="i-city"></b><em class="i-mm"></em></span></button></div>' +
-      '<div class="i-side"><button type="button" class="i-w"></button><button type="button" class="i-w"></button><button type="button" class="i-w"></button><button type="button" class="i-w"></button></div>';
+      '<span class="i-city"></span><span class="i-mm"></span></button></div>' +
+      '<div class="i-bot"></div>';
   }
 
   function askWeather() {
@@ -179,116 +186,85 @@ window.DeskClock = (function () {
     if (active) tick();
   }
 
-  // Everything a widget can show now, in a fixed order.
-  function widgetPages() {
-    var d = window.DeskData, s = d && d.stats(), out = [];
-    ((d && d.batteries()) || []).forEach(function (b) { out.push("dev:" + b.name); });
-    if (phoneBat) out.push("phone");
-    out.push("net", "cpu");
-    if (s && s.gpu) out.push("gpu");
-    out.push("ram");
-    return out;
-  }
-
-  function loadWidgets() {
-    try {
-      var v = JSON.parse(lsGet(WIDGET_KEY) || "null");
-      if (Array.isArray(v) && v.length === 4) return v.map(function (k) { return typeof k === "string" ? k : null; });
-    } catch (e) {}
-    return [null, null, null, null];
-  }
-
-  function rate(b) {
+  function rateShort(b) {
     if (b >= 1000 * 1024) { var mb = b / 1048576; return (mb >= 99.5 ? Math.round(mb) : mb.toFixed(mb >= 9.95 ? 0 : 1)) + " MB/s"; }
     return Math.round(b / 1024) + " KB/s";
   }
 
-  function pctView(label, p) {
-    p = Math.max(0, Math.min(100, p));
-    return { ring: p / 100, big: Math.round(p) + "%", label: label, over: p > 95 };
-  }
+  // Sets a text only when it changed, so the face does not repaint for nothing.
+  function setText(node, v) { if (node.textContent !== v) node.textContent = v; }
 
-  function widgetView(key) {
-    var d = window.DeskData, s = d && d.stats(), i;
-    if (key.indexOf("dev:") === 0) {
-      var list = (d && d.batteries()) || [], dev = null;
-      for (i = 0; i < list.length; i++) if (list[i].name === key.slice(4)) dev = list[i];
-      if (!dev) return { ring: 0, big: "–", label: key.slice(4).replace(/^razer\s+/i, ""), off: true };
-      var p = Math.max(0, Math.min(100, Math.round(+dev.percent || 0)));
-      return { ring: p / 100, big: p + "%", label: String(dev.name).replace(/^razer\s+/i, ""), cls: p <= 20 ? "low" : p <= 40 ? "mid" : "" };
-    }
-    if (key === "phone") {
-      if (!phoneBat) return { ring: 0, big: "–", label: "Phone", off: true };
-      var q = Math.round(phoneBat.level * 100);
-      return { ring: q / 100, big: q + "%", label: "Phone" + (phoneBat.charging ? " ⚡" : ""), cls: q <= 20 ? "low" : q <= 40 ? "mid" : "" };
-    }
-    if (key === "net") {
-      var n = s && s.net;
-      return n ? { rows: "↓ " + rate(n.down) + "<br>↑ " + rate(n.up), label: "Network", net: true } : { ring: 0, big: "–", label: "Network", off: true };
-    }
-    if (key === "cpu") return s ? pctView("CPU", s.cpu.usage) : { ring: 0, big: "–", label: "CPU", off: true };
-    if (key === "gpu") return s && s.gpu ? pctView("GPU", s.gpu.usage) : { ring: 0, big: "–", label: "GPU", off: true };
-    return s ? pctView("RAM", s.ram.usage) : { ring: 0, big: "–", label: "RAM", off: true };
-  }
-
-  function widgetHTML(v) {
-    var name = "<span>" + v.label.replace(/</g, "&lt;") + "</span>";
-    if (v.rows) return '<div class="i-net">' + v.rows + "</div>" + name;
-    return '<div class="i-ring"><svg viewBox="0 0 44 44"><circle class="tr" cx="22" cy="22" r="19"/><circle class="vl" cx="22" cy="22" r="19" stroke-dasharray="119.4" stroke-dashoffset="' +
-      (119.4 * (1 - v.ring)).toFixed(1) + '"/></svg><b' + (v.over ? ' class="over"' : "") + ">" + v.big + "</b></div>" + name;
-  }
-
-  function stepWidget(i, dir) {
-    if (!widgetKeys) widgetKeys = loadWidgets();
-    var pages = widgetPages(), mine = widgetKeys[i];
-    var others = widgetKeys.filter(function (k, j) { return j !== i && k; });
-    var list = pages.filter(function (k) { return k === mine || others.indexOf(k) < 0; });
-    if (mine && list.indexOf(mine) < 0) list.push(mine);
-    if (list.length < 2) return;
-    widgetKeys[i] = list[(list.indexOf(mine) + dir + list.length) % list.length];
-    lsSet(WIDGET_KEY, JSON.stringify(widgetKeys));
-    renderInfoWidgets(i);
-  }
-
-  function renderInfoWidgets(swapped) {
-    if (!el.info) return;
-    if (!widgetKeys) widgetKeys = loadWidgets();
-    var pages = widgetPages();
-    // A fresh widget takes the next free page: devices first, then network, CPU, GPU, RAM.
-    var order = pages.filter(function (k) { return k.indexOf("dev:") === 0; }).concat(["net", "cpu", "gpu", "ram", "phone"]);
-    for (var i = 0; i < 4; i++) {
-      if (widgetKeys[i]) continue;
-      var taken = widgetKeys.filter(Boolean);
-      widgetKeys[i] = order.filter(function (k) { return taken.indexOf(k) < 0; })[0] || null;
-    }
-    for (var j = 0; j < 4; j++) {
-      var node = el.info.w[j], v = widgetView(widgetKeys[j] || "cpu"), html = widgetHTML(v);
-      node.className = "i-w" + (v.cls ? " " + v.cls : "") + (v.off ? " off" : "");
-      if (node._html !== html) {
-        node._html = html;
-        node.innerHTML = html;
-        if (swapped === j) { node.classList.remove("swap"); void node.offsetWidth; node.classList.add("swap"); }
+  function renderUsage() {
+    var d = window.DeskData, s = d && d.stats(), cells = el.info.top;
+    cells.forEach(function (c) {
+      var k = c.root.getAttribute("data-k"), value = "–", sub = "", pct = null;
+      if (s) {
+        if (k === "NET" && s.net) { value = "↓ " + rateShort(s.net.down); sub = "↑ " + rateShort(s.net.up); }
+        else if (k === "RAM") { pct = s.ram.usage; value = Math.round(pct) + "%"; sub = (s.ram.used_mb / 1024).toFixed(1) + " GB"; }
+        else if (k === "CPU") { pct = s.cpu.usage; value = Math.round(pct) + "%"; }
+        else if (k === "GPU" && s.gpu) { pct = s.gpu.usage; value = Math.round(pct) + "%"; sub = s.gpu.temp + "°C"; }
       }
+      setText(c.val, value);
+      setText(c.sub, sub);
+      c.val.classList.toggle("over", pct !== null && pct > 95);
+      c.root.classList.toggle("off", value === "–");
+      c.root.classList.toggle("hasbar", pct !== null);
+      c.root.classList.toggle("hot", pct !== null && pct >= 90);
+      if (pct !== null) c.fill.style.transform = "scaleX(" + (Math.max(0, Math.min(100, pct)) / 100).toFixed(3) + ")";
+    });
+  }
+
+  // What the bottom row shows: connected devices first; when there are few, the phone's
+  // own battery and the graphics card's temperature, memory and power fill it up.
+  function chipList() {
+    var d = window.DeskData, s = d && d.stats(), out = [];
+    ((d && d.batteries()) || []).forEach(function (b) {
+      var p = Math.max(0, Math.min(100, Math.round(+b.percent || 0)));
+      out.push({ name: String(b.name).replace(/^razer\s+/i, ""), val: p + "%", ring: p / 100, cls: p <= 20 ? "low" : p <= 40 ? "mid" : "" });
+    });
+    if (phoneBat) {
+      var q = Math.round(phoneBat.level * 100);
+      out.push({ name: "Phone" + (phoneBat.charging ? " ⚡" : ""), val: q + "%", ring: q / 100, cls: q <= 20 ? "low" : q <= 40 ? "mid" : "" });
     }
+    var g = s && s.gpu;
+    if (g) {
+      out.push({ name: "GPU temp", val: Math.round(g.temp) + "°", ring: Math.min(1, g.temp / 100), cls: g.temp >= 85 ? "low" : g.temp >= 75 ? "mid" : "" });
+      if (g.vram_total_mb) {
+        var u = g.vram_used_mb / g.vram_total_mb;
+        out.push({ name: "VRAM", val: Math.round(u * 100) + "%", ring: u, cls: u >= .9 ? "low" : u >= .75 ? "mid" : "" });
+      }
+      if (g.power_limit_w) out.push({ name: "Power", val: Math.round(g.power_w) + " W", ring: Math.min(1, g.power_w / g.power_limit_w), cls: "" });
+    }
+    return out.slice(0, 4);
+  }
+
+  function renderChips() {
+    var list = chipList(), box = el.info.bot, html = "";
+    list.forEach(function (c) {
+      html += '<div class="i-c' + (c.cls ? " " + c.cls : "") + '"><span>' + c.name.replace(/</g, "&lt;") + "</span><b>" + c.val +
+        '</b><i class="bar"><u style="transform:scaleX(' + c.ring.toFixed(3) + ')"></u></i></div>';
+    });
+    if (box._html !== html) { box._html = html; box.innerHTML = html; }
   }
 
   function renderInfo(now) {
     var h = now.getHours(), m = now.getMinutes(), s = now.getSeconds(), inf = el.info;
-    inf.hm.textContent = pad(h) + ":" + pad(m);
-    inf.ss.textContent = pad(s);
-    inf.date.textContent = now.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" });
+    setText(inf.hm, pad(h) + ":" + pad(m));
+    setText(inf.ss, pad(s));
+    setText(inf.date, now.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" }));
     if (wx) {
-      inf.ico.textContent = wxIcon(wx.code, wx.day);
-      inf.t.textContent = Math.round(wx.temp) + "°";
-      inf.city.textContent = wx.city;
-      inf.mm.textContent = "↓ " + Math.round(wx.min) + "°  ↑ " + Math.round(wx.max) + "°";
+      setText(inf.ico, wxIcon(wx.code, wx.day));
+      setText(inf.t, Math.round(wx.temp) + "°");
+      setText(inf.city, wx.city);
+      setText(inf.mm, "↓ " + Math.round(wx.min) + "°  ↑ " + Math.round(wx.max) + "°");
     } else {
-      inf.ico.textContent = "🌡️";
-      inf.t.textContent = "–";
-      inf.city.textContent = city();
-      inf.mm.textContent = wxFailed ? "?" : "…";
+      setText(inf.ico, "🌡️");
+      setText(inf.t, "–");
+      setText(inf.city, city());
+      setText(inf.mm, wxFailed ? "?" : "…");
     }
-    renderInfoWidgets();
+    renderUsage();
+    renderChips();
     var due = wxFailed ? WX_RETRY : WX_EVERY;
     if (Date.now() - wxAsked > due) askWeather();
   }
@@ -304,39 +280,14 @@ window.DeskClock = (function () {
     mo.innerHTML = modernHTML();
     var inf = $("face-info");
     inf.innerHTML = infoHTML();
-    var ws = inf.querySelectorAll(".i-w");
     el.info = { hm: inf.querySelector(".i-hm"), ss: inf.querySelector(".i-ss"), date: inf.querySelector(".i-date"), ico: inf.querySelector(".i-ico"),
-      t: inf.querySelector(".i-t"), city: inf.querySelector(".i-city"), mm: inf.querySelector(".i-mm"), w: Array.prototype.slice.call(ws) };
+      t: inf.querySelector(".i-t"), city: inf.querySelector(".i-city"), mm: inf.querySelector(".i-mm"), bot: inf.querySelector(".i-bot"),
+      top: Array.prototype.map.call(inf.querySelectorAll(".i-m"), function (n) {
+        return { root: n, val: n.querySelector("b"), sub: n.querySelector("em"), fill: n.querySelector("u") };
+      }) };
     inf.querySelector(".i-wx").addEventListener("click", function () {
       var c = window.prompt("City", city());
       if (c && c.trim()) { lsSet(CITY_KEY, c.trim().slice(0, 60)); wx = null; wxFailed = false; askWeather(); tick(); }
-    });
-    // A tap or a swipe in any direction moves the widget on (the other way for a swipe left or up),
-    // as in game mode. The face's own swipe (changing faces) must not start from here.
-    Array.prototype.forEach.call(ws, function (node, i) {
-      var x0 = 0, y0 = 0, down = false, swiped = 0;
-      node.addEventListener("touchstart", function (e) {
-        e.stopPropagation();
-        var p = e.touches[0];
-        x0 = p.clientX; y0 = p.clientY; down = e.touches.length === 1;
-      }, { passive: true });
-      node.addEventListener("touchend", function (e) {
-        e.stopPropagation();
-        if (!down) return;
-        down = false;
-        var p = e.changedTouches[0], dx = p.clientX - x0, dy = p.clientY - y0;
-        var far = Math.max(Math.abs(dx), Math.abs(dy));
-        if (far < 10) return; // a tap: the click that follows does it
-        if (far >= 22) {
-          swiped = Date.now();
-          var v = Math.abs(dx) > Math.abs(dy) ? dx : dy;
-          stepWidget(i, v < 0 ? 1 : -1);
-        }
-      }, { passive: true });
-      node.addEventListener("click", function () {
-        if (Date.now() - swiped < 500) return;
-        stepWidget(i, 1);
-      });
     });
     if (navigator.getBattery) navigator.getBattery().then(function (b) { phoneBat = b; }).catch(function () {});
     var dg = $("face-digital");
