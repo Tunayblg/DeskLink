@@ -160,7 +160,7 @@ window.DeskClock = (function () {
     return '<div class="i-main"><div class="i-time"><span class="i-hm"></span><span class="i-ss"></span></div><div class="i-date"></div>' +
       '<button type="button" class="i-wx" aria-label="Weather"><span class="i-ico"></span><span class="i-t"></span>' +
       '<span class="i-sub"><b class="i-city"></b><em class="i-mm"></em></span></button></div>' +
-      '<div class="i-side"><button type="button" class="i-w"></button><button type="button" class="i-w"></button></div>';
+      '<div class="i-side"><button type="button" class="i-w"></button><button type="button" class="i-w"></button><button type="button" class="i-w"></button><button type="button" class="i-w"></button></div>';
   }
 
   function askWeather() {
@@ -193,9 +193,9 @@ window.DeskClock = (function () {
   function loadWidgets() {
     try {
       var v = JSON.parse(lsGet(WIDGET_KEY) || "null");
-      if (Array.isArray(v) && v.length === 2) return v.map(function (k) { return typeof k === "string" ? k : null; });
+      if (Array.isArray(v) && v.length === 4) return v.map(function (k) { return typeof k === "string" ? k : null; });
     } catch (e) {}
-    return [null, null];
+    return [null, null, null, null];
   }
 
   function rate(b) {
@@ -232,16 +232,17 @@ window.DeskClock = (function () {
   }
 
   function widgetHTML(v) {
-    var ring = v.rows ? "" : '<svg viewBox="0 0 44 44"><circle class="tr" cx="22" cy="22" r="19"/><circle class="vl" cx="22" cy="22" r="19" stroke-dasharray="119.4" stroke-dashoffset="' +
-      (119.4 * (1 - v.ring)).toFixed(1) + '"/></svg>';
-    var big = v.rows ? '<b class="i-net">' + v.rows + "</b>" : "<b" + (v.over ? ' class="over"' : "") + ">" + v.big + "</b>";
-    return ring + '<div class="i-wt">' + big + "<span>" + v.label.replace(/</g, "&lt;") + "</span></div>";
+    var name = "<span>" + v.label.replace(/</g, "&lt;") + "</span>";
+    if (v.rows) return '<div class="i-net">' + v.rows + "</div>" + name;
+    return '<div class="i-ring"><svg viewBox="0 0 44 44"><circle class="tr" cx="22" cy="22" r="19"/><circle class="vl" cx="22" cy="22" r="19" stroke-dasharray="119.4" stroke-dashoffset="' +
+      (119.4 * (1 - v.ring)).toFixed(1) + '"/></svg><b' + (v.over ? ' class="over"' : "") + ">" + v.big + "</b></div>" + name;
   }
 
   function stepWidget(i, dir) {
     if (!widgetKeys) widgetKeys = loadWidgets();
-    var pages = widgetPages(), mine = widgetKeys[i], other = widgetKeys[1 - i];
-    var list = pages.filter(function (k) { return k === mine || k !== other; });
+    var pages = widgetPages(), mine = widgetKeys[i];
+    var others = widgetKeys.filter(function (k, j) { return j !== i && k; });
+    var list = pages.filter(function (k) { return k === mine || others.indexOf(k) < 0; });
     if (mine && list.indexOf(mine) < 0) list.push(mine);
     if (list.length < 2) return;
     widgetKeys[i] = list[(list.indexOf(mine) + dir + list.length) % list.length];
@@ -253,15 +254,14 @@ window.DeskClock = (function () {
     if (!el.info) return;
     if (!widgetKeys) widgetKeys = loadWidgets();
     var pages = widgetPages();
-    // A fresh widget starts with the first device (or CPU) and the network.
-    var firstDev = pages.filter(function (k) { return k.indexOf("dev:") === 0; })[0];
-    var order = [firstDev || "cpu", "net", "cpu", "ram"];
-    for (var i = 0; i < 2; i++) {
+    // A fresh widget takes the next free page: devices first, then network, CPU, GPU, RAM.
+    var order = pages.filter(function (k) { return k.indexOf("dev:") === 0; }).concat(["net", "cpu", "gpu", "ram", "phone"]);
+    for (var i = 0; i < 4; i++) {
       if (widgetKeys[i]) continue;
       var taken = widgetKeys.filter(Boolean);
       widgetKeys[i] = order.filter(function (k) { return taken.indexOf(k) < 0; })[0] || null;
     }
-    for (var j = 0; j < 2; j++) {
+    for (var j = 0; j < 4; j++) {
       var node = el.info.w[j], v = widgetView(widgetKeys[j] || "cpu"), html = widgetHTML(v);
       node.className = "i-w" + (v.cls ? " " + v.cls : "") + (v.off ? " off" : "");
       if (node._html !== html) {
@@ -306,7 +306,7 @@ window.DeskClock = (function () {
     inf.innerHTML = infoHTML();
     var ws = inf.querySelectorAll(".i-w");
     el.info = { hm: inf.querySelector(".i-hm"), ss: inf.querySelector(".i-ss"), date: inf.querySelector(".i-date"), ico: inf.querySelector(".i-ico"),
-      t: inf.querySelector(".i-t"), city: inf.querySelector(".i-city"), mm: inf.querySelector(".i-mm"), w: [ws[0], ws[1]] };
+      t: inf.querySelector(".i-t"), city: inf.querySelector(".i-city"), mm: inf.querySelector(".i-mm"), w: Array.prototype.slice.call(ws) };
     inf.querySelector(".i-wx").addEventListener("click", function () {
       var c = window.prompt("City", city());
       if (c && c.trim()) { lsSet(CITY_KEY, c.trim().slice(0, 60)); wx = null; wxFailed = false; askWeather(); tick(); }
