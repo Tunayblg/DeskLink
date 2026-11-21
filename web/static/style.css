@@ -1299,7 +1299,20 @@ body.rail-peek .clock-exit { opacity: 1; transform: none; pointer-events: auto; 
 .modern .m-bar i { display: block; width: 100%; height: 100%; border-radius: 2px; background: #0a84ff; transform-origin: 0 50%; transform: scaleX(0); }
 .modern .m-bar i.run { animation: fillbar 60s linear infinite; }
 @keyframes mblink { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+@keyframes dblink { 50% { opacity: .2; } }
 @keyframes fillbar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+/* Digital: glowing neon digits on a dark panel, the seconds as a row of dots and the week days below. */
+.digital { flex-direction: column; gap: 3.5vmin; font-family: "SF Mono", Menlo, Consolas, "Courier New", monospace; }
+.digital .d-panel { padding: 4vmin 7vmin 3.4vmin; border-radius: 6vmin; background: linear-gradient(180deg, #0b1517, #060b0c); border: 1px solid rgba(34, 211, 238, .18); box-shadow: inset 0 0 6vmin rgba(34, 211, 238, .06), 0 0 8vmin rgba(34, 211, 238, .08); display: flex; flex-direction: column; align-items: center; gap: 2.4vmin; }
+.digital .d-time { display: flex; align-items: center; font-size: 30vmin; font-weight: 700; line-height: 1; letter-spacing: -.02em; color: #5eead4; text-shadow: 0 0 .12em rgba(45, 212, 191, .75), 0 0 .4em rgba(45, 212, 191, .3); font-variant-numeric: tabular-nums; }
+.digital .d-colon { margin: 0 .04em; padding-bottom: .08em; animation: dblink 2s steps(1) infinite; }
+.digital .d-secs { display: grid; grid-template-columns: repeat(60, 1fr); gap: .3vmin; width: 100%; }
+.digital .d-secs i { height: 1.2vmin; border-radius: 1px; background: rgba(94, 234, 212, .12); }
+.digital .d-secs i.on { background: #5eead4; box-shadow: 0 0 1.4vmin rgba(45, 212, 191, .8); }
+.digital .d-days { display: flex; gap: 3vmin; font-size: 3.6vmin; font-weight: 700; letter-spacing: .12em; color: rgba(255, 255, 255, .25); }
+.digital .d-days span.on { color: #5eead4; text-shadow: 0 0 1.6vmin rgba(45, 212, 191, .7); }
+.digital .d-date { font-size: 3.8vmin; letter-spacing: .2em; text-transform: uppercase; color: rgba(255, 255, 255, .4); }
 
 /* Swiping slides the faces sideways in the swipe direction. */
 .clock-view[data-dir="next"] .face:not(.on) { transform: translateX(-40px) scale(.96); }

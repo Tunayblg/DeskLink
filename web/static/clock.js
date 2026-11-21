@@ -1,4 +1,4 @@
-// Clock screen: three faces on a black screen. Swipe (or use the dots) to switch.
+// Clock screen: four faces on a black screen. Swipe (or use the dots) to switch.
 //   tach:   a yellow sports-car rev counter. The scale runs 1 to 12 over 270°
 //           (bottom left round to bottom right); a black hour hand and a long
 //           red minute needle both sweep it, and the minute needle drops back
@@ -11,14 +11,14 @@ window.DeskClock = (function () {
   "use strict";
 
   var FACE_KEY = "desklink.clockface";
-  var FACES = ["tach", "simple", "modern"];
+  var FACES = ["tach", "simple", "modern", "digital"];
   var $ = function (id) { return document.getElementById(id); };
   var timer = null, built = false, active = false, ignition = false;
   var face = norm(load());
   var el = {};
 
   function load() { try { return localStorage.getItem(FACE_KEY); } catch (e) { return null; } }
-  function norm(v) { return v === "simple" || v === "modern" ? v : "tach"; }
+  function norm(v) { return FACES.indexOf(v) > 0 ? v : "tach"; }
   function save(v) { try { localStorage.setItem(FACE_KEY, v); } catch (e) {} }
   function pad(n) { return (n < 10 ? "0" : "") + n; }
 
@@ -115,6 +115,19 @@ window.DeskClock = (function () {
       '<div class="m-bar"><i></i></div>';
   }
 
+  // ---- Digital face --------------------------------------------------------
+
+  function digitalHTML() {
+    var dots = "", days = "";
+    for (var i = 0; i < 60; i++) dots += "<i></i>";
+    // Week days, Monday first, named by the phone's language.
+    for (var d = 0; d < 7; d++) {
+      days += "<span>" + new Date(2024, 0, 1 + d).toLocaleDateString([], { weekday: "short" }).slice(0, 3) + "</span>";
+    }
+    return '<div class="d-panel"><div class="d-time"><span class="d-h"></span><span class="d-colon">:</span><span class="d-m"></span></div>' +
+      '<div class="d-secs">' + dots + '</div></div><div class="d-days">' + days + '</div><div class="d-date"></div>';
+  }
+
   // ---- Running -------------------------------------------------------------
 
   function build() {
@@ -124,6 +137,10 @@ window.DeskClock = (function () {
     t.innerHTML = tachSVG();
     s.innerHTML = simpleSVG();
     mo.innerHTML = modernHTML();
+    var dg = $("face-digital");
+    dg.innerHTML = digitalHTML();
+    el.digital = { h: dg.querySelector(".d-h"), m: dg.querySelector(".d-m"), dots: dg.querySelectorAll(".d-secs i"),
+      days: dg.querySelectorAll(".d-days span"), date: dg.querySelector(".d-date"), lit: -1, day: -1 };
     el.modern = { date: mo.querySelector(".m-date"), h: mo.querySelector(".m-h"), m: mo.querySelector(".m-m"),
       sec: mo.querySelector(".m-sec"), bar: mo.querySelector(".m-bar i") };
     el.tach = { hour: t.querySelector(".hour"), min: t.querySelector(".min"), hm: t.querySelector(".hm"), ss: t.querySelector(".ss") };
@@ -184,6 +201,21 @@ window.DeskClock = (function () {
     el.modern.h.textContent = pad(h);
     el.modern.m.textContent = pad(m);
     el.modern.sec.textContent = pad(s);
+
+    var dg = el.digital;
+    dg.h.textContent = pad(h);
+    dg.m.textContent = pad(m);
+    dg.date.textContent = dateText;
+    // Dots light up one per second and all go out at the new minute.
+    if (dg.lit !== s + 1) {
+      for (var k = 0; k < 60; k++) dg.dots[k].classList.toggle("on", k <= s);
+      dg.lit = s + 1;
+    }
+    var wd = (now.getDay() + 6) % 7;
+    if (dg.day !== wd) {
+      for (var j = 0; j < 7; j++) dg.days[j].classList.toggle("on", j === wd);
+      dg.day = wd;
+    }
   }
 
   function setLeds(lit) {
@@ -255,6 +287,7 @@ window.DeskClock = (function () {
     $("face-tach").classList.toggle("on", face === "tach");
     $("face-simple").classList.toggle("on", face === "simple");
     $("face-modern").classList.toggle("on", face === "modern");
+    $("face-digital").classList.toggle("on", face === "digital");
     Array.prototype.forEach.call($("face-dots").querySelectorAll("button"), function (b) {
       b.classList.toggle("on", b.dataset.face === face);
     });
