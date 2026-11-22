@@ -163,7 +163,7 @@
       notPlaying: "Not playing", nothingPlaying: "Nothing playing", startMusic: "Start music on your PC",
       paused: "Paused", media: "Media", play: "PLAY", pinMedia: "Pin this player", unpinMedia: "Unpin player",
       plan: "PLAN", planNext: "NEXT", planDone: "All done", planAfter: "Then {}", planTapAdd: "Tap to set an alarm", planLate: "Overdue",
-      planTitle: "Alarms", batTitle: "DEVICES", batNone: "No connected devices", favPage: "Open on this page", planName: "Name (optional)", planTime: "Remind at", planDate: "Date", planToday: "Today", planTomorrow: "Tomorrow", planEvery: "Every day", planAdd: "Add", planNextAlarm: "NEXT ALARM", sec: "s", planSet: "Set alarm", planSetDone: "Set", planActive: "{} active", planDoneTag: "Done", planClose: "Close", planEmpty: "No alarms yet. Set one on the left.", planDel: "Delete", planNow: "Now!", planNeed: "Set a time or write a name", planToggle: "Complete / undo",
+      planTitle: "Alarms", batTitle: "DEVICES", batNone: "No connected devices", batLow: "battery low", favPage: "Open on this page", planName: "Name (optional)", planTime: "Remind at", planDate: "Date", planToday: "Today", planTomorrow: "Tomorrow", planEvery: "Every day", planAdd: "Add", planNextAlarm: "NEXT ALARM", sec: "s", planSet: "Set alarm", planSetDone: "Set", planActive: "{} active", planDoneTag: "Done", planClose: "Close", planEmpty: "No alarms yet. Set one on the left.", planDel: "Delete", planNow: "Now!", planNeed: "Set a time or write a name", planToggle: "Complete / undo",
       clFive: "5 HOURS", clSeven: "7 DAYS", clLeft: "{} left", d: "d", h: "h", m: "m", clWindow: "5 HOURS", clToday: "TODAY", clWeek: "7 DAYS", clNone: "Claude Code not found on this PC", clHint: "Open Claude Code to see limits",
       launching: "Launching…", toGameMode: "Switching to game mode",
       noAnswer: "No answer from the PC", launchFailed: "Could not start the game",
@@ -196,7 +196,7 @@
       notPlaying: "Çalmıyor", nothingPlaying: "Şu an bir şey çalmıyor", startMusic: "Bilgisayarda müzik başlat",
       paused: "Duraklatıldı", media: "Medya", play: "OYNA", pinMedia: "Bu oynatıcıyı sabitle", unpinMedia: "Sabitlemeyi kaldır",
       plan: "PLAN", planNext: "SIRADA", planDone: "Hepsi tamam", planAfter: "Sonra {}", planTapAdd: "Alarm kurmak için dokun", planLate: "Gecikti",
-      planTitle: "Alarmlar", batTitle: "CİHAZLAR", batNone: "Bağlı cihaz yok", favPage: "Açılışta bu sayfa", planName: "İsim (isteğe bağlı)", planTime: "Hatırlat", planDate: "Tarih", planToday: "Bugün", planTomorrow: "Yarın", planEvery: "Her gün", planAdd: "Ekle", planNextAlarm: "SIRADAKİ ALARM", sec: "sn", planSet: "Alarm kur", planSetDone: "Kuruldu", planActive: "{} aktif", planDoneTag: "Tamamlandı", planClose: "Kapat", planEmpty: "Henüz alarm yok. Soldan kur.", planDel: "Sil", planNow: "Şimdi!", planNeed: "Bir saat seç ya da isim yaz", planToggle: "Tamamla / geri al",
+      planTitle: "Alarmlar", batTitle: "CİHAZLAR", batNone: "Bağlı cihaz yok", batLow: "pil azaldı", favPage: "Açılışta bu sayfa", planName: "İsim (isteğe bağlı)", planTime: "Hatırlat", planDate: "Tarih", planToday: "Bugün", planTomorrow: "Yarın", planEvery: "Her gün", planAdd: "Ekle", planNextAlarm: "SIRADAKİ ALARM", sec: "sn", planSet: "Alarm kur", planSetDone: "Kuruldu", planActive: "{} aktif", planDoneTag: "Tamamlandı", planClose: "Kapat", planEmpty: "Henüz alarm yok. Soldan kur.", planDel: "Sil", planNow: "Şimdi!", planNeed: "Bir saat seç ya da isim yaz", planToggle: "Tamamla / geri al",
       clFive: "5 SAAT", clSeven: "7 GÜN", clLeft: "{} kaldı", d: "g", h: "sa", m: "dk", clWindow: "5 SAAT", clToday: "BUGÜN", clWeek: "7 GÜN", clNone: "Bu PC'de Claude Code bulunamadı", clHint: "Limitler için Claude Code'u aç",
       launching: "Başlatılıyor…", toGameMode: "Oyun moduna geçiliyor",
       noAnswer: "Bilgisayardan yanıt gelmedi", launchFailed: "Oyun başlatılamadı",
@@ -253,6 +253,21 @@
     el.classList.add("show");
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () { el.classList.remove("show"); }, 2400);
+  }
+
+  // A small notice in the top right corner (low battery, the agent is done): short, quiet.
+  var cornerTimer = null;
+  function corner(kind, title, text) {
+    var el = $("corner");
+    if (!el) return;
+    el.className = "corner " + kind;
+    el.innerHTML = "<i></i><b></b><span></span>";
+    el.querySelector("b").textContent = title;
+    el.querySelector("span").textContent = text || "";
+    void el.offsetWidth;
+    el.classList.add("show");
+    clearTimeout(cornerTimer);
+    cornerTimer = setTimeout(function () { el.classList.remove("show"); }, 3200);
   }
 
   // ---- Status ------------------------------------------------------------
@@ -1846,7 +1861,7 @@
     var finished = devPrev === "working" && s === "idle";
     devPrev = s;
     devLive(s, c);
-    if (finished && prefs.agent && view !== "dev") toast(t("devDone"));
+    if (finished && prefs.agent && view !== "dev") corner("done", c && c.agent === "codex" ? "Codex" : "Claude", t("devDone"));
     var lim = c.limits;
     var parts = [];
     var pcts = true;
@@ -2583,6 +2598,7 @@
 
   var batPage = null;     // the pager's devices page, if the home screen is drawn
   var batLast = null;     // the last list from the PC
+  var batWarned = {};     // devices that already showed the low battery notice
   var BAT_ICONS = {
     headset: '<path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/>',
     mouse: '<rect x="6" y="3" width="12" height="18" rx="6"/><path d="M12 3v6"/>',
@@ -2606,6 +2622,16 @@
   // 20% and under is red, 40% and under amber.
   function renderBatteries(list) {
     batLast = list || [];
+    // Under 10%: one small notice per device; it can warn again after the battery got above 15%.
+    batLast.forEach(function (d) {
+      var key = String(d.name || "");
+      var p = Math.round(+d.percent || 0);
+      if (p > 15) delete batWarned[key];
+      else if (p < 10 && !batWarned[key]) {
+        batWarned[key] = true;
+        corner("low", batShort(d.name) || t("batLow"), p + "% · " + t("batLow"));
+      }
+    });
     fillBatteries(batPage, 5);
     renderSlots(false);
   }
