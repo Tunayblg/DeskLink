@@ -4370,3 +4370,9 @@ html.portrait .watch-deck .tbtn.main { width: 96px; height: 64px; }
 .slot.blank { opacity: .75; }
 .slot-in .bt { width: 26px; height: 26px; fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .slot-in .bat-name.wrap { white-space: normal; text-align: center; line-height: 1.25; letter-spacing: 0; max-width: 64px; }
+
+/* ---------- Developer mode: a bigger writing box ---------- */
+.dev-text { min-height: 112px; padding: 14px 40px 14px 16px; font-size: 19px; line-height: 1.42; border-radius: 20px; }
+@media (max-width: 540px) { .dev-text { min-height: 96px; } }
+@media (max-height: 330px) { .dev-text { min-height: 80px; font-size: 17px; padding-top: 10px; padding-bottom: 10px; } }
+body.kb-open .dev-text { min-height: 72px; }
