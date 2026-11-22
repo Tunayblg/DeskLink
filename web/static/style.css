@@ -4376,3 +4376,23 @@ html.portrait .watch-deck .tbtn.main { width: 96px; height: 64px; }
 @media (max-width: 540px) { .dev-text { min-height: 96px; } }
 @media (max-height: 330px) { .dev-text { min-height: 80px; font-size: 17px; padding-top: 10px; padding-bottom: 10px; } }
 body.kb-open .dev-text { min-height: 72px; }
+
+/* ---------- Developer mode: a nicer agent status pill ----------
+   A soft tinted capsule with a glowing dot; the agent's name is bright and the
+   action under it is quieter. Working: blue glow that breathes; tool: amber; done: green. */
+.dev-live {
+  gap: 8px; padding: 6px 14px 6px 11px; font-size: 12.5px;
+  border: 1px solid rgba(255, 255, 255, .1); border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .09), rgba(255, 255, 255, .03));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12), 0 6px 18px -10px rgba(0, 0, 0, .8);
+}
+.dev-live i { width: 8px; height: 8px; box-shadow: 0 0 0 3px rgba(255, 255, 255, .08), 0 0 10px currentColor; }
+.dev-live b { color: #fff; font-weight: 700; letter-spacing: .02em; }
+.dev-live b::after { content: "·"; margin-left: 8px; color: rgba(255, 255, 255, .35); font-weight: 400; }
+.dev-live em { font-size: 12px; color: rgba(226, 232, 240, .78); }
+.dev-live.working { border-color: rgba(125, 211, 252, .32); background: linear-gradient(180deg, rgba(56, 189, 248, .2), rgba(56, 189, 248, .07)); animation: dev-glow 2.4s ease-in-out infinite; }
+.dev-live.tool { border-color: rgba(251, 191, 36, .34); background: linear-gradient(180deg, rgba(251, 191, 36, .2), rgba(251, 191, 36, .07)); color: #fcd34d; animation-name: dev-glow-amber; }
+.dev-live.idle { border-color: rgba(110, 231, 183, .32); background: linear-gradient(180deg, rgba(52, 211, 153, .2), rgba(52, 211, 153, .07)); }
+.dev-live.idle i { animation: none; }
+@keyframes dev-glow { 50% { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12), 0 0 16px -2px rgba(56, 189, 248, .45); } }
+@keyframes dev-glow-amber { 50% { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12), 0 0 16px -2px rgba(251, 191, 36, .45); } }
