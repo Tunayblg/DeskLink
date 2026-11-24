@@ -1700,10 +1700,11 @@
   }
 
   function devOpenSheet() {
-    var list = $("dev-sheet-list");
+    var list = $("dev-sheet-inner");
     list.innerHTML = "";
     list.appendChild(mk("div", "dev-none", t("devLoading")));
     $("dev-sheet").hidden = false;
+    $("dev-sheet-list").dragScrollTo(0);
     if (!send({ type: "windows" })) { $("dev-sheet").hidden = true; toast(t("devOffline")); }
   }
 
@@ -1731,7 +1732,7 @@
   }
 
   function devWindows(items) {
-    var list = $("dev-sheet-list");
+    var list = $("dev-sheet-inner");
     if (!list || $("dev-sheet").hidden) return;
     list.innerHTML = "";
     list.appendChild(devOption(0, t("devFront"), "", "front"));
@@ -1739,6 +1740,7 @@
       list.appendChild(devOption(w.id, w.app, w.title && w.title !== w.app ? w.title : "", w.kind));
     });
     if (!items.length) list.appendChild(mk("div", "dev-none", t("devNoWindows")));
+    $("dev-sheet-list").dragScrollTo(); // keeps the place, but never past the new end
   }
 
   // Live typing: the PC shows the text as it is written or dictated. The whole
@@ -2040,7 +2042,7 @@
   initApps();
   initDevMode();
   dragScroll($("set-scroll"), $("set-inner"));
-  dragScroll($("dev-sheet-list"));
+  dragScroll($("dev-sheet-list"), $("dev-sheet-inner"));
   renderSettings();
   applyTabs();
   // The settings tab sits at the bottom, so its place depends on the screen's
