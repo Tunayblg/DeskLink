@@ -4429,3 +4429,14 @@ body.kb-open .dev-text { min-height: 72px; }
 .dev-none { padding: 20px 18px; font-size: 14px; }
 .dev-opt .ic { width: 38px; height: 38px; border-radius: 12px; }
 .dev-opt .ic svg { width: 20px; height: 20px; }
+
+/* ---------- Watch mode: two small streaming boxes under the play buttons ---------- */
+.watch-apps { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; gap: 14px; }
+.watch-app {
+  width: 44px; height: 44px; padding: 0; border: 1px solid rgba(255, 255, 255, .1); border-radius: 13px; overflow: hidden;
+  background: rgba(255, 255, 255, .04); opacity: .85;
+  transition: transform .15s var(--ease), opacity .2s;
+}
+.watch-app svg { display: block; width: 100%; height: 100%; }
+.watch-app:active, .watch-app.pressed { transform: scale(.93); opacity: 1; }
+html.portrait .watch-deck .watch-apps { flex-basis: 100%; }

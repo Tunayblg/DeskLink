@@ -3331,6 +3331,26 @@
     brightCol.slider.setAttribute("aria-valuenow", v);
   }
 
+  // Two small boxes under the play buttons open Netflix and Prime Video on the PC.
+  (function watchApps() {
+    var box = $("watch-apps");
+    if (!box || !window.DeskBrands) return;
+    [["netflix", "Netflix"], ["prime", "Prime Video"]].forEach(function (a) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "watch-app";
+      b.setAttribute("aria-label", a[1]);
+      b.innerHTML = window.DeskBrands[a[0]] || "";
+      b.addEventListener("click", function () {
+        if (!ws || ws.readyState !== WebSocket.OPEN) { toast(t("notConnected")); return; }
+        send({ type: "watch", action: a[0] });
+        b.classList.add("pressed");
+        setTimeout(function () { b.classList.remove("pressed"); }, 160);
+      });
+      box.appendChild(b);
+    });
+  })();
+
   (function bindWatch() {
     Array.prototype.forEach.call(document.querySelectorAll("[data-watch]"), function (b) {
       b.addEventListener("click", function () {
