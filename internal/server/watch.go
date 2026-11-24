@@ -19,8 +19,21 @@ var watchKeys = map[string][]string{
 	"forward":   {"right"},
 }
 
+// The two streaming boxes of the watch screen open their site on the PC. Only
+// these fixed addresses can be opened, never one the phone sends.
+var watchLinks = map[string]string{
+	"netflix": "https://www.netflix.com",
+	"prime":   "https://www.primevideo.com",
+}
+
 // watch presses the keys for one of the watch buttons. Unknown names do nothing.
 func (s *Server) watch(action string) {
+	if link, ok := watchLinks[action]; ok {
+		if err := s.run(actions.Action{Type: "launch", Target: link}); err != nil {
+			log.Printf("watch %s: %v", action, err)
+		}
+		return
+	}
 	keys, ok := watchKeys[action]
 	if !ok {
 		return

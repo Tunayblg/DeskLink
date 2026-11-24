@@ -61,7 +61,7 @@ func TestWatchKeysAndBrightness(t *testing.T) {
 	}
 
 	// Only the listed watch buttons do anything, and each presses exactly its keys.
-	for _, a := range []string{"playpause", "back", "forward", "fullscreen", "f", "format-c", ""} {
+	for _, a := range []string{"playpause", "back", "forward", "netflix", "prime", "https://evil.example", "fullscreen", "f", "format-c", ""} {
 		wsjson.Write(ctx, c, clientMsg{Type: "watch", Action: a})
 	}
 	good, bad, over := 50, -1, 101
@@ -79,13 +79,16 @@ func TestWatchKeysAndBrightness(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 	want := [][]string{{"media_play_pause"}, {"left"}, {"right"}} // fullscreen is not a watch button: it would press F in whatever window is in front
-	if len(ran) != len(want) {
-		t.Fatalf("ran %d actions, want %d: %+v", len(ran), len(want), ran)
+	if len(ran) != len(want)+2 { // plus the two streaming boxes, which open fixed addresses
+		t.Fatalf("ran %d actions, want %d: %+v", len(ran), len(want)+2, ran)
 	}
 	for i, w := range want {
 		if ran[i].Type != "keys" || strings.Join(ran[i].Keys, "+") != strings.Join(w, "+") {
 			t.Errorf("watch %d pressed %+v, want %v", i, ran[i], w)
 		}
+	}
+	if ran[3].Type != "launch" || ran[3].Target != "https://www.netflix.com" || ran[4].Type != "launch" || ran[4].Target != "https://www.primevideo.com" {
+		t.Errorf("streaming boxes ran %+v %+v", ran[3], ran[4])
 	}
 	if len(set) != 1 || set[0] != 50 {
 		t.Errorf("brightness set %v, want only [50]", set)
