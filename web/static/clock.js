@@ -1,4 +1,4 @@
-// Clock screen: five faces on a black screen. Swipe (or use the dots) to switch.
+// Clock screen: six faces on a black screen. Swipe (or use the dots) to switch.
 //   tach:   a yellow sports-car rev counter. The scale runs 1 to 12 over 270°
 //           (bottom left round to bottom right); a black hour hand and a long
 //           red minute needle both sweep it, and the minute needle drops back
@@ -6,6 +6,7 @@
 //           of shift lights (green, amber, red) fill one light every 2 s.
 //   simple: a plain round analog clock with the date and a small digital time.
 //   digital: glowing neon digits with a seconds strip and the week days.
+//   rings:   three glowing rings (hours, minutes, seconds) around big digits.
 //   info:    the time, the weather of a city and two widgets (PC network, CPU, device batteries...).
 //   modern: big thin digits, the date above and a hairline that fills each minute.
 // Only transforms, opacity and SVG fills change, and nothing runs while hidden.
@@ -13,7 +14,7 @@ window.DeskClock = (function () {
   "use strict";
 
   var FACE_KEY = "desklink.clockface";
-  var FACES = ["tach", "simple", "modern", "digital", "info"];
+  var FACES = ["tach", "simple", "modern", "digital", "rings", "info"];
   var $ = function (id) { return document.getElementById(id); };
   var timer = null, built = false, active = false, ignition = false;
   var face = norm(load());
@@ -128,6 +129,21 @@ window.DeskClock = (function () {
     }
     return '<div class="d-panel"><div class="d-time"><span class="d-h"></span><span class="d-colon">:</span><span class="d-m"></span></div>' +
       '<div class="d-secs">' + dots + '</div></div><div class="d-days">' + days + '</div><div class="d-date"></div>';
+  }
+
+  // ---- Rings face: hours, minutes and seconds as three filling rings ----------
+
+  var RING_R = [168, 134, 100], RING_C = ["#ff375f", "#a3e635", "#38bdf8"];
+
+  function ringsSVG() {
+    var s = '<svg viewBox="0 0 400 400" aria-hidden="true">';
+    for (var i = 0; i < 3; i++) {
+      var len = (2 * Math.PI * RING_R[i]).toFixed(2);
+      s += '<circle cx="200" cy="200" r="' + RING_R[i] + '" fill="none" stroke="' + RING_C[i] + '" stroke-opacity=".16" stroke-width="22"/>' +
+        '<circle class="rg r' + i + '" cx="200" cy="200" r="' + RING_R[i] + '" fill="none" stroke="' + RING_C[i] + '" stroke-width="22" stroke-linecap="round"' +
+        ' stroke-dasharray="' + len + '" stroke-dashoffset="' + len + '" data-len="' + len + '" transform="rotate(-90 200 200)"/>';
+    }
+    return s + '<text x="200" y="196" class="rt"></text><text x="200" y="244" class="rd"></text></svg>';
   }
 
   // ---- Info face: usage on top, time and weather in the middle, devices below ----
@@ -278,6 +294,9 @@ window.DeskClock = (function () {
     t.innerHTML = tachSVG();
     s.innerHTML = simpleSVG();
     mo.innerHTML = modernHTML();
+    var rg = $("face-rings");
+    rg.innerHTML = ringsSVG();
+    el.rings = { arcs: rg.querySelectorAll(".rg"), last: [0, 0, 0], t: rg.querySelector(".rt"), d: rg.querySelector(".rd") };
     var inf = $("face-info");
     inf.innerHTML = infoHTML();
     el.info = { hm: inf.querySelector(".i-hm"), ss: inf.querySelector(".i-ss"), date: inf.querySelector(".i-date"), ico: inf.querySelector(".i-ico"),
@@ -334,6 +353,21 @@ window.DeskClock = (function () {
     return { hour: tachAngle(h + m / 60), min: tachAngle(m / 5 + s / 300) };
   }
 
+  // Each ring fills as its unit passes; when a ring wraps to empty it jumps back without a reverse sweep.
+  function renderRings(now) {
+    var r = el.rings, s = now.getSeconds(), m = now.getMinutes() + s / 60, h = (now.getHours() % 12) + m / 60;
+    var fr = [h / 12, m / 60, (s + 1) / 60];
+    for (var i = 0; i < 3; i++) {
+      var arc = r.arcs[i], len = parseFloat(arc.getAttribute("data-len"));
+      if (fr[i] < r.last[i]) arc.style.transition = "none";
+      else arc.style.transition = "";
+      arc.style.strokeDashoffset = (len * (1 - fr[i])).toFixed(2);
+      r.last[i] = fr[i];
+    }
+    setText(r.t, pad(now.getHours()) + ":" + pad(now.getMinutes()));
+    setText(r.d, now.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" }));
+  }
+
   function tick() {
     var now = new Date(), a = angles(now), h = now.getHours(), m = now.getMinutes(), s = now.getSeconds();
     if (!ignition) {
@@ -355,6 +389,7 @@ window.DeskClock = (function () {
     el.modern.m.textContent = pad(m);
     el.modern.sec.textContent = pad(s);
 
+    renderRings(now);
     renderInfo(now);
 
     var dg = el.digital;
@@ -443,6 +478,7 @@ window.DeskClock = (function () {
     $("face-simple").classList.toggle("on", face === "simple");
     $("face-modern").classList.toggle("on", face === "modern");
     $("face-digital").classList.toggle("on", face === "digital");
+    $("face-rings").classList.toggle("on", face === "rings");
     $("face-info").classList.toggle("on", face === "info");
     Array.prototype.forEach.call($("face-dots").querySelectorAll("button"), function (b) {
       b.classList.toggle("on", b.dataset.face === face);

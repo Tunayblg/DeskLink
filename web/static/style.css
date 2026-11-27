@@ -4444,3 +4444,15 @@ html.portrait .watch-deck .watch-apps { flex-basis: 100%; }
 /* ---------- Developer mode: a slightly bigger key row ---------- */
 .dev-key { height: 46px; font-size: 15px; }
 @media (max-height: 330px) { .dev-key { height: 40px; } }
+
+/* ---------- Clock: the rings face (hours, minutes, seconds as three glowing rings) ---------- */
+.rings .rg { transition: stroke-dashoffset 1s linear; filter: drop-shadow(0 0 5px currentColor); }
+.rings .r0 { color: #ff375f; }
+.rings .r1 { color: #a3e635; }
+.rings .r2 { color: #38bdf8; }
+.rings .rt, .rings .rd {
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif; fill: #fff; text-anchor: middle; dominant-baseline: central;
+  font-variant-numeric: tabular-nums;
+}
+.rings .rt { font-size: 58px; font-weight: 300; letter-spacing: -.02em; }
+.rings .rd { font-size: 13px; font-weight: 500; letter-spacing: .1em; fill-opacity: .45; text-transform: uppercase; }
