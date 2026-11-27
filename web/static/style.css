@@ -4440,3 +4440,7 @@ body.kb-open .dev-text { min-height: 72px; }
 .watch-app svg { display: block; width: 100%; height: 100%; }
 .watch-app:active, .watch-app.pressed { transform: scale(.93); opacity: 1; }
 html.portrait .watch-deck .watch-apps { flex-basis: 100%; }
+
+/* ---------- Developer mode: a slightly bigger key row ---------- */
+.dev-key { height: 46px; font-size: 15px; }
+@media (max-height: 330px) { .dev-key { height: 40px; } }
