@@ -2869,7 +2869,7 @@
       var meta = np.meta, first = !np.title.textContent;
       clearTimeout(np.textTimer);
       // For the next 1.4 s the progress bar glides to its new place instead of jumping.
-      if (!first) np.easeUntil = Date.now() + 1400;
+      if (!first) np.easeUntil = Date.now() + 1800;
       meta.classList.add("out");
       np.textTimer = setTimeout(function () {
         np.title.textContent = title;
@@ -2878,7 +2878,7 @@
         meta.classList.add("in");
         void meta.offsetWidth;
         meta.classList.remove("in");
-      }, first ? 0 : 480);
+      }, first ? 0 : 620);
     }
     // The server repeats this about every second; only touch the DOM on a change.
     if (np.appText !== app) { np.appText = app; np.app.textContent = app; }

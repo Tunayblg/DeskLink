@@ -4456,3 +4456,17 @@ html.portrait .watch-deck .watch-apps { flex-basis: 100%; }
 }
 .rings .rt { font-size: 58px; font-weight: 300; letter-spacing: -.02em; }
 .rings .rd { font-size: 13px; font-weight: 500; letter-spacing: .1em; fill-opacity: .45; text-transform: uppercase; }
+
+/* ---------- Media: softer track changes (slower, smaller slides, longer fades) ---------- */
+.np-art img {
+  transform: translateX(calc(var(--dir) * 4%)) scale(.985);
+  transition: opacity .9s cubic-bezier(.33, 0, .2, 1), transform 1.1s cubic-bezier(.22, 1, .36, 1);
+}
+.np-art img.gone {
+  transform: translateX(calc(var(--dir) * -4%)) scale(.985);
+  transition: opacity .9s .1s cubic-bezier(.33, 0, .2, 1), transform 1.1s cubic-bezier(.22, 1, .36, 1);
+}
+.np-bg i { transition: opacity 2s cubic-bezier(.33, 0, .2, 1); }
+.np-title, .np-artist { transition: opacity .6s cubic-bezier(.33, 0, .2, 1), transform .9s cubic-bezier(.22, 1, .36, 1); }
+.np-meta.out .np-title, .np-meta.out .np-artist { transform: translateY(-4px); transition-duration: .4s, .5s; }
+.np-meta.in .np-title, .np-meta.in .np-artist { transform: translateY(5px); }
