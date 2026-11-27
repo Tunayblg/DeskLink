@@ -176,7 +176,7 @@
       devMicNet: "Dictation needs an internet connection.", devMicQuiet: "Did not hear anything. Try again.",
       settings: "SETTINGS", setHint: "Saved on this phone", setTabs: "Tabs", setDev: "Developer mode", setGeneral: "General",
       tabHome: "Home", tabGames: "Games", tabStats: "Stats", tabWatch: "Watch mode", tabDev: "Developer", tabPad: "Trackpad", tabClock: "Clock",
-      setActivity: "Show what Claude / Codex is doing", setUsage: "Show usage", setAutosend: "Send after dictation", setLang: "Dictation language", setCalm: "Calm mode", setBigTap: "Bigger tap areas", setPortrait: "Portrait layout when held upright", setReset: "Reset tabs and settings", setResetDone: "Reset",
+      setActivity: "Show what Claude / Codex is doing", setUsage: "Show usage", setAutosend: "Send after dictation", setLang: "Dictation language", setCalm: "Calm mode", setBigTap: "Bigger tap areas", setMinShort: "min", setOff: "Off", setWarn: "Timer warning before it fires", setPortrait: "Portrait layout when held upright", setReset: "Reset tabs and settings", setResetDone: "Reset",
       setUp: "Move up", setDown: "Move down",
       watchMode: "WATCH MODE", brightness: "BRIGHTNESS", shutdownQ: "Shut down the PC?",
       pwNow: "Now", pwMin: "{} min", pwCancel: "Cancel", pwSleepIn: "Sleep in", pwShutIn: "Shut down in", pwTapCancel: "Tap to cancel", pwSet: "{} in {} min", pwOff: "Cancelled", pwShutLabel: "Shut down", pwYes: "Yes",
@@ -209,7 +209,7 @@
       devMicNet: "Dikte için internet gerekir.", devMicQuiet: "Ses duyulmadı. Tekrar dene.",
       settings: "AYARLAR", setHint: "Bu telefonda saklanır", setTabs: "Sekmeler", setDev: "Geliştirici modu", setGeneral: "Genel",
       tabHome: "Ana ekran", tabGames: "Oyunlar", tabStats: "İstatistik", tabWatch: "Dizi modu", tabDev: "Geliştirici", tabPad: "Dokunmatik yüzey", tabClock: "Saat",
-      setActivity: "Claude / Codex ne yapıyor göster", setUsage: "Kullanımı göster", setAutosend: "Konuşunca hemen gönder", setLang: "Dikte dili", setCalm: "Sakin mod", setBigTap: "Daha büyük dokunma alanları", setPortrait: "Dik tutunca dikey düzen", setReset: "Sekmeleri ve ayarları sıfırla", setResetDone: "Sıfırlandı",
+      setActivity: "Claude / Codex ne yapıyor göster", setUsage: "Kullanımı göster", setAutosend: "Konuşunca hemen gönder", setLang: "Dikte dili", setCalm: "Sakin mod", setBigTap: "Daha büyük dokunma alanları", setMinShort: "dk", setOff: "Kapalı", setWarn: "Zamanlayıcı uyarısı (kala)", setPortrait: "Dik tutunca dikey düzen", setReset: "Sekmeleri ve ayarları sıfırla", setResetDone: "Sıfırlandı",
       setUp: "Yukarı al", setDown: "Aşağı al",
       watchMode: "DİZİ MODU", brightness: "PARLAKLIK", shutdownQ: "Bilgisayar kapatılsın mı?",
       pwNow: "Hemen", pwMin: "{} dk", pwCancel: "Vazgeç", pwSleepIn: "Uykuya geçmesine", pwShutIn: "Kapanmasına", pwTapCancel: "İptal için dokun", pwSet: "{} {} dk sonra", pwOff: "İptal edildi", pwShutLabel: "Bilgisayarı kapat", pwYes: "Evet",
@@ -293,7 +293,7 @@
   function loadPrefs() {
     var p = {};
     try { p = JSON.parse(load(PREFS_KEY) || "{}") || {}; } catch (e) { p = {}; }
-    var out = { hidden: {}, order: DEFAULT_ORDER.slice(), agent: p.agent !== false, usage: p.usage !== false, live: p.live !== false, autosend: p.autosend === true, calm: p.calm === true, bigtap: p.bigtap === true, appsAll: p.appsAll === true, speech: p.speech === "tr" || p.speech === "en" ? p.speech : "" };
+    var out = { hidden: {}, order: DEFAULT_ORDER.slice(), agent: p.agent !== false, usage: p.usage !== false, live: p.live !== false, autosend: p.autosend === true, calm: p.calm === true, bigtap: p.bigtap === true, warnMin: p.warnMin === 0 || p.warnMin === 1 || p.warnMin === 5 ? p.warnMin : 2, appsAll: p.appsAll === true, speech: p.speech === "tr" || p.speech === "en" ? p.speech : "" };
     if (p.hidden && typeof p.hidden === "object") {
       DEFAULT_ORDER.forEach(function (n) { if (n !== "home" && p.hidden[n] === true) out.hidden[n] = true; });
     }
@@ -878,7 +878,7 @@
   function setPower(p) {
     pwPlan = p ? { command: p.command, at: Date.now() + (+p.in || 0) } : null;
     // A new or cancelled timer re-arms the notice; a repeat of the same one does not.
-    if (!pwPlan || pwPlan.at - Date.now() > 125000) pwWarned = false;
+    if (!pwPlan || pwPlan.at - Date.now() > (prefs.warnMin * 60 + 5) * 1000) pwWarned = false;
     if (pwSheet && !pwSheet.hidden) renderConfirm();
     clearInterval(pwWatch);
     pwWatch = pwPlan ? setInterval(pwCheck, 1000) : null;
@@ -890,7 +890,7 @@
   function pwCheck() {
     if (!pwPlan) return;
     var left = pwPlan.at - Date.now();
-    if (left > 120000 || left <= 0 || pwWarned) return;
+    if (!prefs.warnMin || left > prefs.warnMin * 60000 || left <= 0 || pwWarned) return;
     pwWarned = true;
     corner("warn", t(pwPlan.command === "sleep" ? "pwSleepIn" : "pwShutIn"), pwLeft(), 6000);
   }
@@ -2020,6 +2020,14 @@
     general.appendChild(flag("appsAll", t("setAppsAll")));
     general.appendChild(flag("calm", t("setCalm")));
     general.appendChild(flag("bigtap", t("setBigTap")));
+    var wseg = mk("div", "seg");
+    [[0, "Off"], [1, "1"], [2, "2"], [5, "5"]].forEach(function (o) {
+      var b = mk("button", prefs.warnMin === o[0] ? "on" : "", o[0] ? o[1] + " " + t("setMinShort") : t("setOff"));
+      b.type = "button";
+      onTap(b, function () { prefs.warnMin = o[0]; pwWarned = false; changed(); });
+      wseg.appendChild(b);
+    });
+    general.appendChild(setRow(t("setWarn"), wseg));
     general.appendChild(setRow(t("setPortrait"), swtch(portraitMode), null, function () {
       try { if (portraitMode) localStorage.setItem(LAYOUT_KEY, "off"); else localStorage.removeItem(LAYOUT_KEY); } catch (e) { /* no storage */ }
       (framed ? window.parent : window).location.reload();
