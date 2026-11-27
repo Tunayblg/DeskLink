@@ -176,7 +176,7 @@
       devMicNet: "Dictation needs an internet connection.", devMicQuiet: "Did not hear anything. Try again.",
       settings: "SETTINGS", setHint: "Saved on this phone", setTabs: "Tabs", setDev: "Developer mode", setGeneral: "General",
       tabHome: "Home", tabGames: "Games", tabStats: "Stats", tabWatch: "Watch mode", tabDev: "Developer", tabPad: "Trackpad", tabClock: "Clock",
-      setActivity: "Show what Claude / Codex is doing", setUsage: "Show usage", setAutosend: "Send after dictation", setLang: "Dictation language", setCalm: "Calm mode", setPortrait: "Portrait layout when held upright", setReset: "Reset tabs and settings", setResetDone: "Reset",
+      setActivity: "Show what Claude / Codex is doing", setUsage: "Show usage", setAutosend: "Send after dictation", setLang: "Dictation language", setCalm: "Calm mode", setBigTap: "Bigger tap areas", setPortrait: "Portrait layout when held upright", setReset: "Reset tabs and settings", setResetDone: "Reset",
       setUp: "Move up", setDown: "Move down",
       watchMode: "WATCH MODE", brightness: "BRIGHTNESS", shutdownQ: "Shut down the PC?",
       pwNow: "Now", pwMin: "{} min", pwCancel: "Cancel", pwSleepIn: "Sleep in", pwShutIn: "Shut down in", pwTapCancel: "Tap to cancel", pwSet: "{} in {} min", pwOff: "Cancelled", pwShutLabel: "Shut down", pwYes: "Yes",
@@ -209,7 +209,7 @@
       devMicNet: "Dikte için internet gerekir.", devMicQuiet: "Ses duyulmadı. Tekrar dene.",
       settings: "AYARLAR", setHint: "Bu telefonda saklanır", setTabs: "Sekmeler", setDev: "Geliştirici modu", setGeneral: "Genel",
       tabHome: "Ana ekran", tabGames: "Oyunlar", tabStats: "İstatistik", tabWatch: "Dizi modu", tabDev: "Geliştirici", tabPad: "Dokunmatik yüzey", tabClock: "Saat",
-      setActivity: "Claude / Codex ne yapıyor göster", setUsage: "Kullanımı göster", setAutosend: "Konuşunca hemen gönder", setLang: "Dikte dili", setCalm: "Sakin mod", setPortrait: "Dik tutunca dikey düzen", setReset: "Sekmeleri ve ayarları sıfırla", setResetDone: "Sıfırlandı",
+      setActivity: "Claude / Codex ne yapıyor göster", setUsage: "Kullanımı göster", setAutosend: "Konuşunca hemen gönder", setLang: "Dikte dili", setCalm: "Sakin mod", setBigTap: "Daha büyük dokunma alanları", setPortrait: "Dik tutunca dikey düzen", setReset: "Sekmeleri ve ayarları sıfırla", setResetDone: "Sıfırlandı",
       setUp: "Yukarı al", setDown: "Aşağı al",
       watchMode: "DİZİ MODU", brightness: "PARLAKLIK", shutdownQ: "Bilgisayar kapatılsın mı?",
       pwNow: "Hemen", pwMin: "{} dk", pwCancel: "Vazgeç", pwSleepIn: "Uykuya geçmesine", pwShutIn: "Kapanmasına", pwTapCancel: "İptal için dokun", pwSet: "{} {} dk sonra", pwOff: "İptal edildi", pwShutLabel: "Bilgisayarı kapat", pwYes: "Evet",
@@ -293,7 +293,7 @@
   function loadPrefs() {
     var p = {};
     try { p = JSON.parse(load(PREFS_KEY) || "{}") || {}; } catch (e) { p = {}; }
-    var out = { hidden: {}, order: DEFAULT_ORDER.slice(), agent: p.agent !== false, usage: p.usage !== false, live: p.live !== false, autosend: p.autosend === true, calm: p.calm === true, appsAll: p.appsAll === true, speech: p.speech === "tr" || p.speech === "en" ? p.speech : "" };
+    var out = { hidden: {}, order: DEFAULT_ORDER.slice(), agent: p.agent !== false, usage: p.usage !== false, live: p.live !== false, autosend: p.autosend === true, calm: p.calm === true, bigtap: p.bigtap === true, appsAll: p.appsAll === true, speech: p.speech === "tr" || p.speech === "en" ? p.speech : "" };
     if (p.hidden && typeof p.hidden === "object") {
       DEFAULT_ORDER.forEach(function (n) { if (n !== "home" && p.hidden[n] === true) out.hidden[n] = true; });
     }
@@ -1921,6 +1921,7 @@
     tabs = prefs.order.filter(function (n) { return by[n]; }).map(function (n) { return by[n]; }).concat([settingsTab]);
     tabs.forEach(function (tb) { tb.hidden = tabHidden(tb.dataset.view); });
     document.body.classList.toggle("calm", prefs.calm);
+    document.body.classList.toggle("bigtap", prefs.bigtap);
     devApplyPrefs();
     if (tabHidden(view)) showView("home", false); else placePill();
     syncStreams();
@@ -2018,6 +2019,7 @@
 
     general.appendChild(flag("appsAll", t("setAppsAll")));
     general.appendChild(flag("calm", t("setCalm")));
+    general.appendChild(flag("bigtap", t("setBigTap")));
     general.appendChild(setRow(t("setPortrait"), swtch(portraitMode), null, function () {
       try { if (portraitMode) localStorage.setItem(LAYOUT_KEY, "off"); else localStorage.removeItem(LAYOUT_KEY); } catch (e) { /* no storage */ }
       (framed ? window.parent : window).location.reload();

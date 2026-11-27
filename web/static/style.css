@@ -4475,3 +4475,16 @@ html.portrait .watch-deck .watch-apps { flex-basis: 100%; }
 .corner.warn { border-color: rgba(251, 191, 36, .4); }
 .corner.warn i { background: #fbbf24; box-shadow: 0 0 8px #fbbf24; }
 .corner.warn span { font-variant-numeric: tabular-nums; }
+
+/* ---------- Settings: "Bigger tap areas" makes the small controls easier to hit ---------- */
+.bigtap .tab::after { top: -10px; right: -14px; bottom: -10px; left: -14px; }
+.bigtap .np-lock { width: 44px; height: 44px; top: 6px; right: -12px; }
+.bigtap .tbtn { width: 60px; height: 60px; }
+.bigtap .tbtn.main { width: 70px; height: 70px; }
+.bigtap .watch-app { width: 54px; height: 54px; border-radius: 16px; }
+.bigtap .dev-key { height: 54px; }
+.bigtap .dev-sheet-head button { width: 48px; height: 48px; }
+.bigtap .set-mv { width: 42px; height: 42px; }
+.bigtap .set-row { min-height: 56px; }
+.bigtap .face-dots button { padding: 16px 14px; }
+.bigtap .pw-opt, .bigtap .pw-no { min-height: 52px; }
