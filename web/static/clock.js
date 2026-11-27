@@ -364,6 +364,9 @@ window.DeskClock = (function () {
       arc.style.strokeDashoffset = (len * (1 - fr[i])).toFixed(2);
       r.last[i] = fr[i];
     }
+    // From 22:00 to 06:00 the rings dim so the face does not light the room.
+    var night = now.getHours() >= 22 || now.getHours() < 6;
+    if (r.night !== night) { r.night = night; $("face-rings").classList.toggle("night", night); }
     setText(r.t, pad(now.getHours()) + ":" + pad(now.getMinutes()));
     setText(r.d, now.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" }));
   }

@@ -4488,3 +4488,8 @@ html.portrait .watch-deck .watch-apps { flex-basis: 100%; }
 .bigtap .set-row { min-height: 56px; }
 .bigtap .face-dots button { padding: 16px 14px; }
 .bigtap .pw-opt, .bigtap .pw-no { min-height: 52px; }
+
+/* Rings clock at night (22:00-06:00): dimmer rings, no glow, softer digits. */
+.rings svg { transition: opacity 1.5s; }
+.rings.night svg { opacity: .45; }
+.rings.night .rg { filter: none; }
