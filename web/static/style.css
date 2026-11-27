@@ -4470,3 +4470,8 @@ html.portrait .watch-deck .watch-apps { flex-basis: 100%; }
 .np-title, .np-artist { transition: opacity .6s cubic-bezier(.33, 0, .2, 1), transform .9s cubic-bezier(.22, 1, .36, 1); }
 .np-meta.out .np-title, .np-meta.out .np-artist { transform: translateY(-4px); transition-duration: .4s, .5s; }
 .np-meta.in .np-title, .np-meta.in .np-artist { transform: translateY(5px); }
+
+/* Corner notice: the shut down / sleep timer is almost out (amber). */
+.corner.warn { border-color: rgba(251, 191, 36, .4); }
+.corner.warn i { background: #fbbf24; box-shadow: 0 0 8px #fbbf24; }
+.corner.warn span { font-variant-numeric: tabular-nums; }

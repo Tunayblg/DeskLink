@@ -257,7 +257,7 @@
 
   // A small notice in the top right corner (low battery, the agent is done): short, quiet.
   var cornerTimer = null;
-  function corner(kind, title, text) {
+  function corner(kind, title, text, ms) {
     var el = $("corner");
     if (!el) return;
     el.className = "corner " + kind;
@@ -267,7 +267,7 @@
     void el.offsetWidth;
     el.classList.add("show");
     clearTimeout(cornerTimer);
-    cornerTimer = setTimeout(function () { el.classList.remove("show"); }, 3200);
+    cornerTimer = setTimeout(function () { el.classList.remove("show"); }, ms || 3200);
   }
 
   // ---- Status ------------------------------------------------------------
@@ -878,6 +878,19 @@
   function setPower(p) {
     pwPlan = p ? { command: p.command, at: Date.now() + (+p.in || 0) } : null;
     if (pwSheet && !pwSheet.hidden) renderConfirm();
+    clearInterval(pwWatch);
+    pwWatch = pwPlan ? setInterval(pwCheck, 1000) : null;
+    pwCheck();
+  }
+
+  // Two minutes before the timer fires, a small notice shows in the top right corner (once per timer).
+  var pwWatch = null, pwWarned = 0;
+  function pwCheck() {
+    if (!pwPlan) return;
+    var left = pwPlan.at - Date.now();
+    if (left > 120000 || left <= 0 || pwWarned === pwPlan.at) return;
+    pwWarned = pwPlan.at;
+    corner("warn", t(pwPlan.command === "sleep" ? "pwSleepIn" : "pwShutIn"), pwLeft(), 6000);
   }
 
   function pwLeft() {
