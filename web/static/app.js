@@ -877,6 +877,8 @@
 
   function setPower(p) {
     pwPlan = p ? { command: p.command, at: Date.now() + (+p.in || 0) } : null;
+    // A new or cancelled timer re-arms the notice; a repeat of the same one does not.
+    if (!pwPlan || pwPlan.at - Date.now() > 125000) pwWarned = false;
     if (pwSheet && !pwSheet.hidden) renderConfirm();
     clearInterval(pwWatch);
     pwWatch = pwPlan ? setInterval(pwCheck, 1000) : null;
@@ -884,12 +886,12 @@
   }
 
   // Two minutes before the timer fires, a small notice shows in the top right corner (once per timer).
-  var pwWatch = null, pwWarned = 0;
+  var pwWatch = null, pwWarned = false;
   function pwCheck() {
     if (!pwPlan) return;
     var left = pwPlan.at - Date.now();
-    if (left > 120000 || left <= 0 || pwWarned === pwPlan.at) return;
-    pwWarned = pwPlan.at;
+    if (left > 120000 || left <= 0 || pwWarned) return;
+    pwWarned = true;
     corner("warn", t(pwPlan.command === "sleep" ? "pwSleepIn" : "pwShutIn"), pwLeft(), 6000);
   }
 
